@@ -150,7 +150,9 @@ Rien n'a besoin de tourner toute la journée : le direct ne sert qu'à **regarde
 
 Si ton PC était éteint un soir, le `tick` suivant rattrape les séances manquées, chacune avec ses vrais cours de clôture.
 
-**Option 1 : automatique, PC allumé ou pas** (Windows). Le Planificateur de tâches lance la séance chaque soir de semaine.
+**Option 1 : automatique** (Windows). Le Planificateur de tâches lance la séance chaque soir de semaine à 16 h 30.
+Si le PC est éteint ou en veille à cette heure-là, ce n'est pas grave : la séance suivante rattrape.
+Le script utilise l'environnement `.venv` du dossier du projet, celui créé à l'installation.
 Dans PowerShell, remplace le chemin par celui de ton dossier :
 
 ```powershell
