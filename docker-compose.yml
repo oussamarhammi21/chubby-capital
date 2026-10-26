@@ -1,0 +1,6 @@
+services:
+  arene:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./data:/app/data
