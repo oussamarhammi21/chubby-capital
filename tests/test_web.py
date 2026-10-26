@@ -1,5 +1,6 @@
 import json
 import threading
+import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
@@ -34,6 +35,17 @@ def test_bot_detail_shows_positions_with_values():
     assert api.bot_detail(arena.store, ArenaConfig(), "inconnu") is None
 
 
+def test_replay_has_one_value_per_day_and_events_by_day():
+    arena, played = run_arena()
+    r = api.replay(arena.store, ArenaConfig())
+    assert len(r["days"]) == played
+    assert {b["id"] for b in r["bots"]} == set(r["equity"])
+    assert all(len(v) == played and None not in v for v in r["equity"].values())
+    assert set(r["events"]) <= set(r["days"])
+    kinds = {e["kind"] for evs in r["events"].values() for e in evs}
+    assert "trade" in kinds
+
+
 def test_server_serves_page_and_api(tmp_path):
     db = tmp_path / "arene.db"
     arena, _ = run_arena()
@@ -48,5 +60,17 @@ def test_server_serves_page_and_api(tmp_path):
         assert len(data["leaderboard"]) == 6
         detail = json.loads(urllib.request.urlopen(base + "/api/bots/flan").read())
         assert detail["name"] == "Flan"
+        assert "Chubby Capital" in urllib.request.urlopen(base + "/ile").read().decode()
+        assert len(urllib.request.urlopen(base + "/static/vendor/three.min.js").read()) > 500_000
+        try:
+            urllib.request.urlopen(base + "/static/../server.py")
+            assert False, "un fichier hors du dossier static ne doit pas être servi"
+        except urllib.error.HTTPError as e:
+            assert e.code == 404
+        req = urllib.request.Request(base + "/api/bots/jalapeno/coach", data=b'{"conseil": "moins"}',
+                                     headers={"Content-Type": "application/json"}, method="POST")
+        coached = json.loads(urllib.request.urlopen(req).read())
+        assert coached["aggressiveness"] < coached["old"]
+        assert Store(db).bot_row("jalapeno")["aggressiveness"] == coached["aggressiveness"]
     finally:
         server.shutdown()

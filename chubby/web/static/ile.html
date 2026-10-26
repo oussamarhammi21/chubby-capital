@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chubby Capital · l'île</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap">
+<style>
+:root {
+  --ink: #2A2838; --muted: #59566C; --panel: rgba(255, 255, 255, 0.92); --line: rgba(42, 40, 56, 0.12);
+  --accent: #5B47C2; --up: #1C7347; --down: #B13A2A;
+  --display: 'Fredoka', 'Nunito', system-ui, sans-serif; --body: 'Nunito', system-ui, sans-serif;
+  color-scheme: light;
+}
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body { background: #CFE6F7; color: var(--ink); font-family: var(--body); overflow: hidden; }
+#app { position: fixed; inset: 0; }
+#scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+#labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.label { position: absolute; left: 0; top: 0; background: var(--panel); border-radius: 999px; padding: 3px 9px; font: 800 12px/1.3 var(--body); white-space: nowrap; box-shadow: 0 2px 6px rgba(42,40,56,0.12); display: flex; gap: 6px; }
+.label.sel { background: var(--accent); color: #fff; }
+.label.sel .up, .label.sel .down { color: #fff; }
+.up { color: var(--up); } .down { color: var(--down); }
+
+.hud { position: absolute; inset: 0; pointer-events: none; display: grid; grid-template-columns: minmax(0, 340px) 1fr minmax(0, 290px); grid-template-rows: auto 1fr auto; gap: 12px;
+  padding: calc(12px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.panel { pointer-events: auto; background: var(--panel); border-radius: 20px; box-shadow: 0 6px 24px rgba(42,40,56,0.14); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.top { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; }
+.brand { padding: 10px 16px; }
+.brand b { font: 700 20px/1.1 var(--display); display: block; }
+.brand a { font-size: 13px; color: var(--accent); font-weight: 800; }
+.clock { padding: 10px 16px; display: flex; flex-direction: column; font-weight: 800; font-size: 13px; }
+.clock b { font: 700 20px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.clock span { color: var(--muted); }
+.btn { min-height: 44px; padding: 0 14px; border: 0; border-radius: 14px; background: transparent; color: var(--ink); font: 800 14px var(--body); cursor: pointer; }
+.btn:hover { background: rgba(91,71,194,0.1); }
+.btn[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.btn.primary { background: var(--accent); color: #fff; }
+.btn.ghost { border: 2px solid var(--line); }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.timeline { grid-column: 2; grid-row: 3; align-self: end; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.timeline input { flex: 1 1 180px; accent-color: var(--accent); min-height: 44px; }
+.timeline label { font-size: 13px; font-weight: 800; color: var(--muted); }
+
+.board { grid-column: 3; grid-row: 2 / 4; align-self: start; padding: 14px; max-height: 100%; overflow: auto; }
+h2 { margin: 0 0 8px; font: 600 17px var(--display); }
+.ranks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rank { width: 100%; display: grid; grid-template-columns: 22px 14px 1fr auto; align-items: center; gap: 8px; text-align: left; min-height: 48px; padding: 6px 8px; border: 0; border-radius: 14px; background: transparent; color: var(--ink); font: 700 14px var(--body); cursor: pointer; }
+.rank:hover, .rank.sel { background: rgba(91,71,194,0.1); }
+.rank .pos { font: 700 17px var(--display); text-align: center; }
+.rank .sw { width: 14px; height: 14px; border-radius: 50%; }
+.rank .nm { display: flex; flex-direction: column; min-width: 0; }
+.rank .nm small { color: var(--muted); font-size: 12px; font-weight: 700; }
+.rank .sc { text-align: right; display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
+.rank .sc b { font: 700 16px var(--display); }
+.rank .sc small { font-size: 12px; font-weight: 800; }
+
+.feed { grid-column: 1; grid-row: 3; align-self: end; padding: 14px; max-height: 30vh; overflow: auto; }
+.feed ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; }
+.feed time { color: var(--muted); margin-right: 6px; font-variant-numeric: tabular-nums; }
+
+.card { grid-column: 1; grid-row: 2; align-self: start; padding: 16px; display: flex; flex-direction: column; gap: 12px; max-height: 100%; overflow: auto; }
+.card-head { display: flex; gap: 12px; align-items: center; }
+.card-head .sw { width: 40px; height: 40px; border-radius: 50%; flex: none; box-shadow: inset -6px -8px 0 rgba(0,0,0,0.12), inset 6px 6px 0 rgba(255,255,255,0.5); }
+.card-head h2 { margin: 0; font-size: 22px; }
+.card-head p { margin: 0; color: var(--muted); font-weight: 700; font-size: 13px; }
+.card-head .x { margin-left: auto; width: 44px; padding: 0; font-size: 22px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.stats div { background: rgba(42,40,56,0.05); border-radius: 12px; padding: 8px 10px; }
+.stats dt { font-size: 11px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.stats dd { margin: 0; font: 600 17px var(--display); font-variant-numeric: tabular-nums; }
+.journal { margin: 0; font-size: 14px; background: rgba(42,40,56,0.05); border-radius: 12px; padding: 10px 12px; }
+.bubble { margin: 0; background: #FFF4CF; border-radius: 14px 14px 14px 4px; padding: 10px 12px; font-size: 14px; font-weight: 700; }
+.coach { display: flex; flex-direction: column; gap: 8px; }
+.opts { display: flex; flex-wrap: wrap; gap: 6px; }
+.note { margin: 0; font-size: 12px; color: var(--muted); font-weight: 700; }
+.toast { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); padding: 16px 24px; text-align: center; pointer-events: none; }
+.toast b { display: block; font: 700 26px var(--display); }
+.toast span { font-weight: 700; color: var(--muted); }
+.msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 20px 24px; max-width: min(420px, 90vw); text-align: center; font-weight: 700; }
+
+@media (max-width: 760px) {
+  .hud { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto auto; gap: 8px; }
+  .card { grid-row: 3; align-self: end; max-height: 46vh; }
+  .timeline { grid-column: 1; grid-row: 4; }
+  .board { grid-column: 1; grid-row: 3; align-self: end; max-height: 22vh; padding: 10px; }
+  .hud.has-card .board, .feed { display: none; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="scene" aria-label="L'île en 3D où les Chubbies rejouent les séances de l'arène. Clique sur un Chubby, ou choisis-le dans le classement, pour voir sa fiche."></canvas>
+  <div id="labels" aria-hidden="true"></div>
+  <div class="hud" id="hud">
+    <header class="top">
+      <div class="brand panel"><b>Chubby Capital</b><a href="/">Tableau de bord</a></div>
+      <div class="clock panel" role="status"><b id="date">—</b><span id="status">Chargement…</span></div>
+      <div class="panel" style="padding:6px;display:flex;gap:4px;flex-wrap:wrap" role="group" aria-label="Caméra">
+        <button class="btn ghost" id="overview">Vue d'ensemble</button>
+      </div>
+    </header>
+
+    <section class="card panel" id="card" hidden aria-live="polite">
+      <div class="card-head">
+        <span class="sw" id="c-sw"></span>
+        <div><h2 id="c-name"></h2><p id="c-role"></p></div>
+        <button class="btn x" id="c-close" aria-label="Fermer la fiche">×</button>
+      </div>
+      <dl class="stats">
+        <div><dt>Capital</dt><dd id="c-val"></dd></div>
+        <div><dt>Ce jour-là</dt><dd id="c-day"></dd></div>
+        <div><dt>Saison</dt><dd id="c-season"></dd></div>
+        <div><dt>Score</dt><dd id="c-score"></dd></div>
+        <div><dt>Rang</dt><dd id="c-rank"></dd></div>
+        <div><dt>Agressivité</dt><dd id="c-aggr"></dd></div>
+      </dl>
+      <p class="journal" id="c-last"></p>
+      <div id="coach" class="coach" hidden>
+        <p class="bubble" id="coach-q"></p>
+        <div class="opts" id="coach-opts"></div>
+      </div>
+      <button class="btn primary" id="c-coach">Coacher</button>
+      <p class="note">Ton conseil change son agressivité pour ses prochaines séances dans l'arène.</p>
+    </section>
+
+    <aside class="board panel" aria-labelledby="rk-title">
+      <h2 id="rk-title">Classement</h2>
+      <ol class="ranks" id="ranks"></ol>
+    </aside>
+
+    <section class="feed panel" aria-labelledby="feed-title">
+      <h2 id="feed-title">Ce jour-là</h2>
+      <ul id="feed"></ul>
+    </section>
+
+    <div class="timeline panel" role="group" aria-label="Lecture de la saison">
+      <button class="btn" id="play" aria-label="Lecture ou pause">Pause</button>
+      <button class="btn" id="sp1" aria-pressed="true">×1</button>
+      <button class="btn" id="sp10" aria-pressed="false">×10</button>
+      <button class="btn" id="sp50" aria-pressed="false">×50</button>
+      <label for="scrub" id="scrub-label">Jour</label>
+      <input type="range" id="scrub" min="0" max="0" value="0">
+      <button class="btn ghost" id="restart">Rejouer la saison</button>
+    </div>
+  </div>
+  <div class="toast panel" id="toast" hidden><b id="toast-t"></b><span id="toast-s"></span></div>
+  <div class="msg panel" id="msg" hidden></div>
+</div>
+
+<script src="/static/vendor/three.min.js"></script>
+<script>
+(function () {
+  'use strict';
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var $ = function (s) { return document.querySelector(s); };
+  function money(v) { return Math.round(v).toLocaleString('fr-CA') + ' $'; }
+  function pct(p) { return (p >= 0 ? '+' : '−') + Math.abs(p * 100).toFixed(1).replace('.', ',') + ' %'; }
+  function cls(p) { return p >= 0 ? 'up' : 'down'; }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function message(text) { var m = $('#msg'); m.textContent = text; m.hidden = !text; }
+
+  if (!window.THREE) { message("La 3D n'a pas pu se charger."); return; }
+
+  var LOOK = {
+    tortue: { color: 0xB5D6EE, css: '#6FA3CF', sy: 0.95 }, flan: { color: 0xFBE29A, css: '#E2B84A', sy: 0.92 },
+    dumpling: { color: 0xB4E0DD, css: '#5FB3AC', sy: 1.15 }, mochi: { color: 0xDCC8E6, css: '#B79BD0', sy: 0.9 },
+    muffin: { color: 0xF7C9AE, css: '#E0956E', sy: 0.92 }, jalapeno: { color: 0xF2A39A, css: '#D9665C', sy: 0.95 }
+  };
+  var ZONE_ORDER = ['mochi', 'flan', 'dumpling', 'tortue', 'muffin', 'jalapeno'];
+
+  // ---------- Scène ----------
+  var canvas = $('#scene');
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  var scene = new THREE.Scene();
+  var DAY_SKY = new THREE.Color(0xCFE6F7), NIGHT_SKY = new THREE.Color(0x2E3558);
+  scene.background = DAY_SKY.clone(); scene.fog = new THREE.Fog(scene.background.clone(), 45, 95);
+  var camera = new THREE.PerspectiveCamera(40, 1, 0.1, 200);
+  var hemi = new THREE.HemisphereLight(0xFFFFFF, 0xB7D3A8, 0.85); scene.add(hemi);
+  var sun = new THREE.DirectionalLight(0xFFFFFF, 0.85); sun.position.set(10, 18, 8); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  var sc = sun.shadow.camera; sc.left = -18; sc.right = 18; sc.top = 18; sc.bottom = -18; sc.near = 1; sc.far = 60; scene.add(sun);
+
+  function mat(c, o) { var m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.6 }); if (o) Object.assign(m, o); return m; }
+  function mesh(geo, material, x, y, z, shadow) { var m = new THREE.Mesh(geo, material); m.position.set(x || 0, y || 0, z || 0); m.castShadow = shadow !== false; m.receiveShadow = true; return m; }
+
+  var water = new THREE.Mesh(new THREE.CircleGeometry(90, 64), mat(0x9FD3E8, { roughness: 0.3 })); water.rotation.x = -Math.PI / 2; water.position.y = -0.9; scene.add(water);
+  scene.add(mesh(new THREE.CylinderGeometry(14.2, 14.8, 0.6, 72), mat(0xEED9A8), 0, -0.85, 0, false));
+  scene.add(mesh(new THREE.CylinderGeometry(13, 13.6, 1.2, 72), mat(0xA8D8A0), 0, -0.6, 0, false));
+  scene.add(mesh(new THREE.CylinderGeometry(4.8, 4.8, 0.08, 56), mat(0xF3E9DA), 0, 0.04, 0, false));
+  var PODIUM = [{ x: 0, h: 1.3 }, { x: -1.7, h: 0.9 }, { x: 1.7, h: 0.6 }];
+  [0xFFE7A3, 0xE9E6F2, 0xF6D3BE].forEach(function (c, i) { scene.add(mesh(new THREE.BoxGeometry(1.5, PODIUM[i].h, 1.5), mat(c), PODIUM[i].x, PODIUM[i].h / 2, 0.9)); });
+
+  var boardCv = document.createElement('canvas'); boardCv.width = 512; boardCv.height = 256;
+  var bctx = boardCv.getContext('2d'), boardTex = new THREE.CanvasTexture(boardCv);
+  var boardGrp = new THREE.Group(); boardGrp.position.set(0, 0, -3.9);
+  boardGrp.add(mesh(new THREE.BoxGeometry(4.6, 2.4, 0.18), mat(0x2A2838), 0, 2.2, 0));
+  var face = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 2.2), new THREE.MeshBasicMaterial({ map: boardTex })); face.position.set(0, 2.2, 0.1); boardGrp.add(face);
+  boardGrp.add(mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.1, 10), mat(0x8E8AA3), -1.8, 0.55, 0));
+  boardGrp.add(mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.1, 10), mat(0x8E8AA3), 1.8, 0.55, 0));
+  scene.add(boardGrp);
+
+  for (var t = 0; t < 6; t++) {
+    var ta = t * Math.PI / 3, tree = new THREE.Group(); tree.position.set(Math.sin(ta) * 11.8, 0, Math.cos(ta) * 11.8);
+    tree.add(mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.9, 8), mat(0xA27B5C), 0, 0.45, 0));
+    tree.add(mesh(new THREE.SphereGeometry(0.8, 20, 14), mat(0x8FCB86), 0, 1.5, 0));
+    tree.add(mesh(new THREE.SphereGeometry(0.55, 20, 14), mat(0x9ED696), 0.4, 1.9, 0.2));
+    scene.add(tree);
+  }
+
+  function buildZone(id, g) {
+    if (id === 'flan') {
+      g.add(mesh(new THREE.BoxGeometry(2.2, 1.5, 1.8), mat(0xFFF3D6), 0, 0.75, 0));
+      var roof = mesh(new THREE.ConeGeometry(1.75, 1.0, 4), mat(0xE2B84A), 0, 2.0, 0); roof.rotation.y = Math.PI / 4; g.add(roof);
+      g.add(mesh(new THREE.BoxGeometry(0.6, 0.9, 0.05), mat(0xC88A3E), 0, 0.45, 0.92));
+      g.add(mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.12, 24), mat(0xE9B730, { metalness: 0.5, roughness: 0.35 }), 0, 1.25, 0.95));
+    } else if (id === 'mochi') {
+      var ring = mesh(new THREE.TorusGeometry(1.7, 0.14, 10, 48), mat(0xB79BD0), 0, 0.1, 0); ring.rotation.x = Math.PI / 2; g.add(ring);
+      g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 2, 8), mat(0x8E8AA3), 1.7, 1, 0));
+      g.add(mesh(new THREE.BoxGeometry(0.7, 0.45, 0.04), mat(0x5B47C2), 2.05, 1.75, 0));
+    } else if (id === 'dumpling') {
+      g.add(mesh(new THREE.BoxGeometry(2.6, 0.2, 2.2), mat(0xA27B5C), 0, 0.1, 0));
+      [0x7CC46F, 0xF2A39A, 0xFBE29A, 0x8FCB86, 0xDCC8E6, 0x7CC46F].forEach(function (c, k) { g.add(mesh(new THREE.SphereGeometry(0.28, 14, 10), mat(c), -0.8 + (k % 3) * 0.8, 0.4, -0.5 + Math.floor(k / 3))); });
+    } else if (id === 'tortue') {
+      var pond = new THREE.Mesh(new THREE.CircleGeometry(1.7, 40), mat(0x8CC8E8, { roughness: 0.2 })); pond.rotation.x = -Math.PI / 2; pond.position.y = 0.03; g.add(pond);
+      [[1.8, 0.4], [-1.6, -0.8], [0.6, -1.8], [-0.9, 1.5]].forEach(function (s) { g.add(mesh(new THREE.DodecahedronGeometry(0.32), mat(0xB9B6C6), s[0], 0.2, s[1])); });
+    } else if (id === 'muffin') {
+      g.add(mesh(new THREE.BoxGeometry(2.2, 1.4, 1.6), mat(0xFFEDE2), 0, 0.7, 0));
+      for (var s = 0; s < 4; s++) { var aw = mesh(new THREE.BoxGeometry(0.55, 0.08, 0.7), mat(s % 2 ? 0xFFFFFF : 0xE0956E), -0.83 + s * 0.55, 1.35, 1.0); aw.rotation.x = 0.35; g.add(aw); }
+    } else if (id === 'jalapeno') {
+      g.add(mesh(new THREE.CylinderGeometry(0.5, 0.55, 2.2, 20), mat(0xFFFFFF), 0, 1.3, 0));
+      g.add(mesh(new THREE.ConeGeometry(0.5, 0.9, 20), mat(0xD9665C), 0, 2.85, 0));
+      for (var f = 0; f < 3; f++) { var fa = f * Math.PI * 2 / 3, fin = mesh(new THREE.BoxGeometry(0.08, 0.7, 0.5), mat(0xD9665C), Math.sin(fa) * 0.55, 0.45, Math.cos(fa) * 0.55); fin.rotation.y = fa; g.add(fin); }
+    } else {
+      g.add(mesh(new THREE.BoxGeometry(1.6, 1.2, 1.4), mat(0xE9E6F2), 0, 0.6, 0));
+    }
+  }
+
+  var eyeGeo = new THREE.SphereGeometry(0.09, 16, 12), hiGeo = new THREE.SphereGeometry(0.03, 8, 6);
+  var eyeMat = mat(0x1E1D26, { roughness: 0.25 }), hiMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+  var mouthGeo = new THREE.TorusGeometry(0.1, 0.022, 8, 18, Math.PI);
+  var blushMat = new THREE.MeshBasicMaterial({ color: 0xF48C8C, transparent: true, opacity: 0.55 });
+  var coinGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.06, 22), coinMat = mat(0xE9B730, { metalness: 0.55, roughness: 0.3 });
+  var zzzCv = document.createElement('canvas'); zzzCv.width = 128; zzzCv.height = 64;
+  var zc = zzzCv.getContext('2d'); zc.fillStyle = '#5B47C2'; zc.font = '700 44px Fredoka, sans-serif'; zc.fillText('Zzz', 18, 48);
+  var zzzMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(zzzCv), transparent: true, depthWrite: false });
+
+  function makeChubby(id, color, sy, idx) {
+    var g = new THREE.Group(); g.userData.bot = idx;
+    var body = new THREE.Group(); g.add(body);
+    var bodyMat = mat(color, { roughness: 0.5 }), dk = mat(new THREE.Color(color).multiplyScalar(0.85), { roughness: 0.5 });
+    body.add(mesh(new THREE.SphereGeometry(0.8, 40, 28), bodyMat, 0, 0.8, 0));
+    var eyes = [];
+    [-0.24, 0.24].forEach(function (x) { var e = new THREE.Group(); e.position.set(x, 0.92, 0.74); e.add(new THREE.Mesh(eyeGeo, eyeMat)); var h = new THREE.Mesh(hiGeo, hiMat); h.position.set(0.03, 0.03, 0.07); e.add(h); body.add(e); eyes.push(e); });
+    var mouth = new THREE.Mesh(mouthGeo, eyeMat); mouth.position.set(0, 0.74, 0.79); body.add(mouth);
+    [-0.44, 0.44].forEach(function (x) { var bl = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 8), blushMat); bl.position.set(x, 0.76, 0.64); bl.scale.set(1.3, 0.6, 0.5); body.add(bl); });
+    if (id === 'flan') body.add(mesh(new THREE.SphereGeometry(0.815, 40, 12, 0, Math.PI * 2, 0, 0.8), mat(0xC88A3E, { roughness: 0.35 }), 0, 0.8, 0));
+    if (id === 'muffin') [[-0.13, 1.6], [0, 1.7], [0.13, 1.6]].forEach(function (p) { body.add(mesh(new THREE.SphereGeometry(0.14, 14, 10), dk, p[0], p[1], 0)); });
+    if (id === 'jalapeno') {
+      [-0.82, 0.82].forEach(function (x) { var arm = mesh(new THREE.SphereGeometry(0.2, 14, 10), dk, x, 0.62, 0.1); arm.scale.set(1, 0.8, 0.8); body.add(arm); });
+      var stem = mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.32, 10), mat(0x5FA35A), 0.05, 1.68, 0); stem.rotation.z = -0.3; body.add(stem);
+    }
+    if (id === 'tortue') { var tail = mesh(new THREE.TorusGeometry(0.2, 0.07, 8, 20, Math.PI * 1.5), dk, 0.72, 0.3, -0.42); tail.rotation.y = Math.PI / 2; body.add(tail); }
+    if (id === 'mochi') {
+      [-0.78, 0.78].forEach(function (x) { var n = mesh(new THREE.SphereGeometry(0.3, 16, 12), bodyMat, x, 0.7, 0); n.scale.set(1, 0.75, 0.85); body.add(n); });
+      [-0.36, 0.36].forEach(function (x) { var ft = mesh(new THREE.SphereGeometry(0.22, 14, 10), bodyMat, x, 0.12, 0.25); ft.scale.set(1, 0.6, 1); body.add(ft); });
+    }
+    body.scale.set(1, sy, 1);
+    var sweat = mesh(new THREE.SphereGeometry(0.09, 12, 10), mat(0x8FC3EA, { roughness: 0.2 }), 0.52, 1.35, 0.45, false); sweat.scale.set(0.8, 1.25, 0.8); sweat.visible = false; g.add(sweat);
+    var coin = mesh(coinGeo, coinMat, 0, 2.1, 0); coin.rotation.x = Math.PI / 2; coin.visible = false; g.add(coin);
+    var zzz = new THREE.Sprite(zzzMat); zzz.position.set(0.5, 2.0, 0); zzz.scale.set(1, 0.5, 1); zzz.visible = false; g.add(zzz);
+    return { group: g, body: body, eyes: eyes, mouth: mouth, sweat: sweat, coin: coin, zzz: zzz };
+  }
+
+  var sparkGeo = new THREE.OctahedronGeometry(0.09), sparkMat = new THREE.MeshBasicMaterial({ color: 0xFFD45A });
+  var sparks = []; for (var p = 0; p < 70; p++) { var sm = new THREE.Mesh(sparkGeo, sparkMat); sm.visible = false; scene.add(sm); sparks.push({ m: sm, v: new THREE.Vector3(), life: 0 }); }
+  function burst(pos, n) { if (reduceMotion) return; for (var i = 0; i < sparks.length && n > 0; i++) { var s = sparks[i]; if (s.life > 0) continue; s.m.position.copy(pos); s.v.set(rand(-1.6, 1.6), rand(2, 4.5), rand(-1.6, 1.6)); s.life = 1; s.m.visible = true; n--; } }
+  var coins = []; for (var c = 0; c < 18; c++) { var cm = mesh(coinGeo, coinMat, 0, 0, 0); cm.visible = false; scene.add(cm); coins.push({ m: cm, vy: 0, life: 0, spin: rand(2, 6) }); }
+  function rain(pos, n) { var k = 0; coins.forEach(function (co) { if (k >= n || co.life > 0) return; k++; co.m.position.set(pos.x + rand(-1.3, 1.3), rand(4, 7), pos.z + rand(-1.3, 1.3)); co.vy = 0; co.life = 1; co.m.visible = true; co.m.scale.setScalar(1); }); }
+
+  var selRing = new THREE.Mesh(new THREE.RingGeometry(0.95, 1.12, 48), new THREE.MeshBasicMaterial({ color: 0x5B47C2, side: THREE.DoubleSide }));
+  selRing.rotation.x = -Math.PI / 2; selRing.visible = false; scene.add(selRing);
+
+  // ---------- Données de l'arène ----------
+  var data = null, bots = [], byId = {};
+  var dayIdx = 0, tDay = 0, playing = true, speed = 1, dayEvents = [], feed = [], lastPhase = null;
+  var DAY_SECONDS = 36; // durée d'une séance à ×1
+
+  function buildBots() {
+    var ids = data.bots.map(function (b) { return b.id; });
+    var zones = ZONE_ORDER.filter(function (id) { return ids.indexOf(id) >= 0; }).concat(ids.filter(function (id) { return ZONE_ORDER.indexOf(id) < 0; }));
+    zones.forEach(function (id, i) {
+      var info = data.bots.filter(function (b) { return b.id === id; })[0];
+      var L = LOOK[id] || { color: 0xC9C6D9, css: '#9C99B0', sy: 1 };
+      var a = i * 2 * Math.PI / zones.length + Math.PI / 6;
+      var zone = new THREE.Group(); zone.position.set(Math.sin(a) * 10.8, 0, Math.cos(a) * 10.8); zone.rotation.y = a + Math.PI; buildZone(id, zone); scene.add(zone);
+      var parts = makeChubby(id, L.color, L.sy, i);
+      var home = new THREE.Vector3(Math.sin(a) * 9.0, 0, Math.cos(a) * 9.0);
+      var work = new THREE.Vector3(Math.sin(a) * 7.4, 0, Math.cos(a) * 7.4);
+      parts.group.position.copy(work); scene.add(parts.group);
+      var label = document.createElement('div'); label.className = 'label'; $('#labels').appendChild(label);
+      var b = Object.assign({}, info, parts, L, { i: i, label: label, home: home, work: work, boardSpot: new THREE.Vector3(-2.5 + i, 0, -2.7),
+        state: 'work', target: null, wait: rand(0, 2), hop: -1, hopEvery: rand(1.5, 3.5), baseY: 0, targetY: 0, podium: null, queue: [], speed: 2.6 });
+      bots.push(b); byId[id] = b;
+    });
+    buildRankList();
+  }
+
+  function eqAt(b, i) { var v = data.equity[b.id][i]; return v == null ? data.starting_cash : v; }
+  function prevEq(b) { return dayIdx > 0 ? eqAt(b, dayIdx - 1) : data.starting_cash; }
+  function progress() { return fast() ? 1 : clamp((tDay - 0.08) / 0.72, 0, 1); }
+  function valueOf(b) { var a = prevEq(b), z = eqAt(b, dayIdx); return a + (z - a) * progress(); }
+  function dayPct(b) { return valueOf(b) / prevEq(b) - 1; }
+  function seasonPct(b) { return valueOf(b) / data.starting_cash - 1; }
+  function rankAt(b, i) { var r = data.rank[b.id][i]; return r == null ? null : r; }
+  function shownRankIdx() { return (fast() || tDay >= 0.8 || dayIdx === 0) ? dayIdx : dayIdx - 1; }
+  function ranking() {
+    var i = shownRankIdx();
+    return bots.slice().sort(function (a, b) { var ra = rankAt(a, i), rb = rankAt(b, i); if (ra != null && rb != null) return ra - rb; return eqAt(b, i) - eqAt(a, i); });
+  }
+  function moodOf(b) { var d = dayPct(b); return d > 0.005 ? 'content' : d < -0.005 ? 'inquiet' : 'calme'; }
+  function fast() { return speed >= 10; }
+  function phaseOf(t) { if (fast()) return 'open'; if (t < 0.08) return 'morning'; if (t < 0.8) return 'open'; if (t < 0.95) return 'ceremony'; return 'evening'; }
+  function atEnd() { return dayIdx >= data.days.length - 1 && tDay >= 1; }
+
+  function scheduleDay() {
+    var evs = (data.events[data.days[dayIdx]] || []).slice();
+    dayEvents = evs.map(function (e) { return { e: e, at: rand(0.12, 0.75), done: false }; }).sort(function (a, b) { return a.at - b.at; });
+    feed = []; renderFeed();
+    $('#scrub').value = dayIdx; $('#scrub-label').textContent = 'Jour ' + (dayIdx + 1) + ' / ' + data.days.length;
+    $('#date').textContent = data.days[dayIdx];
+  }
+  function startDay(i) {
+    dayIdx = clamp(i, 0, data.days.length - 1); tDay = 0; lastPhase = null;
+    bots.forEach(function (b) { b.queue = []; b.coin.visible = false; if (fast()) { b.state = 'work'; b.targetY = 0; } });
+    scheduleDay();
+  }
+
+  var NAMES = function (id) { return byId[id] ? byId[id].name : id; };
+  function describe(e) {
+    if (e.kind === 'trade') return (e.side === 'buy' ? 'achète ' : 'vend ') + e.qty + ' ' + e.ticker;
+    if (e.kind === 'dividend') return 'reçoit ' + money(e.amount_cad) + ' de dividendes (' + e.ticker + ')';
+    if (e.kind === 'rank_change') return (e.new < e.old ? 'monte' : 'descend') + ' à la ' + e.new + (e.new === 1 ? 're' : 'e') + ' place';
+    if (e.kind === 'coach') return 'reçoit ton conseil : « ' + e.advice + ' »';
+    return e.kind;
+  }
+  function fire(e) {
+    var b = byId[e.bot_id]; if (!b) return;
+    feed.unshift(NAMES(e.bot_id) + ' ' + describe(e)); feed.length = Math.min(feed.length, 8); renderFeed();
+    if (e.kind === 'trade') {
+      if (!fast() && b.state === 'work') { b.state = 'toBoard'; }
+      else { b.coin.visible = true; b.coinTimer = 0.6; if (b.hop < 0) b.hop = 0; }
+    } else if (e.kind === 'dividend') {
+      rain(b.home, fast() ? 4 : 10);
+    } else if (e.kind === 'rank_change' && e.new === 1) {
+      burst(b.group.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 14);
+    }
+  }
+  function renderFeed() {
+    var ul = $('#feed'); ul.innerHTML = '';
+    if (!feed.length) { var li = document.createElement('li'); li.textContent = 'Rien pour l’instant.'; li.style.color = 'var(--muted)'; ul.appendChild(li); return; }
+    feed.forEach(function (text) { var li = document.createElement('li'); li.textContent = text; ul.appendChild(li); });
+  }
+
+  function onPhase(ph) {
+    bots.forEach(function (b) {
+      if (ph === 'morning' || ph === 'open') { if (b.state === 'sleep' || b.state === 'walkHome' || b.state === 'onPodium' || b.state === 'toPodium') { b.state = 'work'; b.targetY = 0; } }
+      if (ph === 'evening') { b.state = 'walkHome'; b.coin.visible = false; }
+    });
+    if (ph === 'ceremony') {
+      var rk = ranking();
+      rk.forEach(function (b, r) { b.podium = r < 3 ? new THREE.Vector3(PODIUM[r].x, PODIUM[r].h, 0.9) : new THREE.Vector3(-2.4 + (r - 3) * 2.4, 0, 3.2); b.state = 'toPodium'; b.coin.visible = false; });
+      toast('Fin de séance', rk[0].name + ' mène l’arène');
+    }
+  }
+
+  // ---------- Caméra ----------
+  function baseRadius() { return W < H ? 44 : 28; } // plus de recul sur un écran en hauteur
+  var az = 0.35, polar = 0.92, radius = 28, wantRadius = 28, camTarget = new THREE.Vector3(), wantTarget = new THREE.Vector3();
+  var selected = null, dragging = false, dragX = 0, dragAz = 0, moved = 0, interacted = false;
+  function placeCamera() { camera.position.set(camTarget.x + Math.sin(polar) * Math.sin(az) * radius, camTarget.y + Math.cos(polar) * radius, camTarget.z + Math.sin(polar) * Math.cos(az) * radius); camera.lookAt(camTarget); }
+  canvas.addEventListener('pointerdown', function (e) { dragging = true; dragX = e.clientX; dragAz = az; moved = 0; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener('pointermove', function (e) { if (!dragging) return; moved = Math.max(moved, Math.abs(e.clientX - dragX)); az = dragAz - (e.clientX - dragX) * 0.006; if (moved > 6) interacted = true; });
+  canvas.addEventListener('pointerup', function (e) { dragging = false; if (moved < 6) pickAt(e.clientX, e.clientY); });
+  canvas.addEventListener('wheel', function (e) { e.preventDefault(); wantRadius = clamp(wantRadius + e.deltaY * 0.02, 9, 50); }, { passive: false });
+  var ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  function pickAt(x, y) {
+    var r = canvas.getBoundingClientRect(); ndc.set((x - r.left) / r.width * 2 - 1, -((y - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
+    var hits = ray.intersectObjects(bots.map(function (b) { return b.group; }), true);
+    for (var i = 0; i < hits.length; i++) { var o = hits[i].object; while (o && o.userData.bot === undefined) o = o.parent; if (o) { select(bots[o.userData.bot]); return; } }
+  }
+
+  // ---------- Fiche et coaching ----------
+  function select(b) {
+    selected = b; interacted = true; wantRadius = 12; $('#card').hidden = false; $('#hud').classList.add('has-card');
+    $('#coach').hidden = true; $('#c-coach').textContent = 'Coacher ' + b.name; $('#c-coach').disabled = false;
+    $('#c-sw').style.background = b.css; $('#c-name').textContent = b.name; $('#c-role').textContent = b.personality;
+    updateCard(); updateRanks();
+  }
+  function deselect() { selected = null; wantRadius = baseRadius(); wantTarget.set(0, 0, 0); $('#card').hidden = true; $('#hud').classList.remove('has-card'); updateRanks(); }
+  $('#c-close').addEventListener('click', deselect); $('#overview').addEventListener('click', deselect);
+  function lastJournal(b) {
+    for (var i = dayIdx; i >= 0; i--) { var j = data.journal[data.days[i]]; if (j && j[b.id]) return { day: data.days[i], text: j[b.id] }; }
+    return null;
+  }
+  function updateCard() {
+    if (!selected) return; var b = selected, d = dayPct(b), s = seasonPct(b), i = shownRankIdx();
+    $('#c-val').textContent = money(valueOf(b));
+    $('#c-day').textContent = pct(d); $('#c-day').className = cls(d);
+    $('#c-season').textContent = pct(s); $('#c-season').className = cls(s);
+    var sc = data.score[b.id][i]; $('#c-score').textContent = sc == null ? '—' : sc;
+    var rk = rankAt(b, i); $('#c-rank').textContent = rk == null ? '—' : (rk + 1) + (rk === 0 ? 're' : 'e');
+    $('#c-aggr').textContent = b.aggressiveness.toFixed(2).replace('.', ',');
+    var j = lastJournal(b); $('#c-last').textContent = j ? j.day + ' · « ' + j.text + ' »' : 'Journal vide pour l’instant.';
+  }
+  $('#c-coach').addEventListener('click', function () {
+    if (!selected) return; var b = selected, d = dayPct(b), mood = moodOf(b);
+    $('#coach-q').textContent = mood === 'inquiet' ? 'J’ai perdu ' + pct(d).replace('−', '') + ' ce jour-là… Je fais quoi, coach ?'
+      : mood === 'content' ? 'J’ai fait ' + pct(d) + ' ce jour-là ! Je continue comme ça ?' : 'Journée tranquille. Tu as un conseil pour moi ?';
+    $('#coach').hidden = false;
+    var opts = $('#coach-opts'); opts.innerHTML = '';
+    [['moins', 'Prends moins de risque'], ['plus', 'Ose un peu plus'], ['garde', 'Garde ton plan']].forEach(function (o) {
+      var btn = document.createElement('button'); btn.className = 'btn ghost'; btn.textContent = o[1];
+      btn.addEventListener('click', function () {
+        opts.querySelectorAll('button').forEach(function (x) { x.disabled = true; });
+        fetch('/api/bots/' + encodeURIComponent(b.id) + '/coach', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conseil: o[0] }) })
+          .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+          .then(function (res) {
+            b.aggressiveness = res.aggressiveness;
+            $('#coach-q').textContent = (o[0] === 'moins' ? 'D’accord, je réduis mes positions.' : o[0] === 'plus' ? 'Compris, je vais oser un peu plus !' : 'Je garde mon plan. Merci coach !') +
+              ' Agressivité ' + res.old.toFixed(2).replace('.', ',') + ' → ' + res.aggressiveness.toFixed(2).replace('.', ',') + ' (+15 XP).';
+            opts.innerHTML = ''; b.hop = 0; updateCard();
+          })
+          .catch(function () { $('#coach-q').textContent = 'Le conseil n’a pas pu être enregistré. Le serveur tourne-t-il toujours ?'; opts.innerHTML = ''; });
+      });
+      opts.appendChild(btn);
+    });
+  });
+
+  // ---------- Classement et tableau ----------
+  var rankEls = {};
+  function buildRankList() {
+    bots.forEach(function (b) {
+      var li = document.createElement('li'), btn = document.createElement('button'); btn.type = 'button'; btn.className = 'rank';
+      btn.innerHTML = '<span class="pos"></span><span class="sw" style="background:' + b.css + '"></span><span class="nm"></span><span class="sc"><b></b><small></small></span>';
+      btn.addEventListener('click', function () { select(b); }); li.appendChild(btn);
+      rankEls[b.id] = { li: li, btn: btn, pos: btn.querySelector('.pos'), nm: btn.querySelector('.nm'), s: btn.querySelector('.sc b'), d: btn.querySelector('.sc small') };
+    });
+  }
+  function updateRanks() {
+    var ol = $('#ranks'), i = shownRankIdx();
+    ranking().forEach(function (b, r) {
+      var e = rankEls[b.id], d = dayPct(b), sc = data.score[b.id][i];
+      e.btn.className = 'rank' + (selected === b ? ' sel' : '');
+      e.pos.textContent = r + 1;
+      e.nm.innerHTML = ''; e.nm.appendChild(document.createTextNode(b.name)); var sm = document.createElement('small'); sm.textContent = money(valueOf(b)); e.nm.appendChild(sm);
+      e.s.textContent = sc == null ? '—' : sc; e.d.textContent = pct(d); e.d.className = cls(d);
+      e.btn.setAttribute('aria-label', (r + 1) + 'e, ' + b.name + ', ' + pct(d) + ' ce jour-là');
+      if (ol.children[r] !== e.li) ol.insertBefore(e.li, ol.children[r] || null);
+    });
+  }
+  function drawBoard() {
+    var c = bctx; c.fillStyle = '#2A2838'; c.fillRect(0, 0, 512, 256);
+    c.fillStyle = '#FFD45A'; c.font = '700 28px Fredoka, sans-serif'; c.textAlign = 'left'; c.fillText('COTES DU JOUR', 24, 42);
+    c.fillStyle = '#B9B6C6'; c.font = '700 18px Nunito, sans-serif'; c.textAlign = 'right'; c.fillText(data.days[dayIdx] || '', 488, 42);
+    var rowH = Math.min(30, 168 / Math.max(bots.length, 1));
+    bots.slice().sort(function (a, b) { return dayPct(b) - dayPct(a); }).forEach(function (b, i) {
+      var y = 84 + i * rowH, d = dayPct(b);
+      c.textAlign = 'left'; c.fillStyle = b.css; c.beginPath(); c.arc(32, y - 7, 8, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#FFFFFF'; c.font = '700 22px Nunito, sans-serif'; c.fillText(b.name, 50, y);
+      c.textAlign = 'right'; c.fillStyle = d >= 0 ? '#7BE0A8' : '#FF9A8A'; c.fillText(pct(d), 488, y);
+    });
+    boardTex.needsUpdate = true;
+  }
+  var toastTimer = 0;
+  function toast(title, sub) { $('#toast-t').textContent = title; $('#toast-s').textContent = sub || ''; $('#toast').hidden = false; toastTimer = 2.6; }
+
+  // ---------- Lecture ----------
+  function setSpeed(s) { speed = s; ['sp1', 'sp10', 'sp50'].forEach(function (id) { $('#' + id).setAttribute('aria-pressed', String(id === 'sp' + s)); }); if (fast()) bots.forEach(function (b) { if (b.state !== 'work') { b.state = 'work'; b.targetY = 0; } }); }
+  function setPlaying(v) { playing = v; $('#play').textContent = v ? 'Pause' : 'Lecture'; }
+  $('#sp1').addEventListener('click', function () { setSpeed(1); });
+  $('#sp10').addEventListener('click', function () { setSpeed(10); });
+  $('#sp50').addEventListener('click', function () { setSpeed(50); });
+  $('#play').addEventListener('click', function () { if (!playing && atEnd()) startDay(0); setPlaying(!playing); });
+  $('#restart').addEventListener('click', function () { setSpeed(10); startDay(0); setPlaying(true); });
+  $('#scrub').addEventListener('input', function () { startDay(+$('#scrub').value); });
+
+  // ---------- Boucle ----------
+  function moveTo(b, target, dt) {
+    var p = b.group.position, dx = target.x - p.x, dz = target.z - p.z, d = Math.hypot(dx, dz);
+    if (d < 0.05) return true;
+    var step = b.speed * dt * (moodOf(b) === 'inquiet' ? 0.75 : 1), k = Math.min(1, step / d);
+    p.x += dx * k; p.z += dz * k; b.facing = Math.atan2(dx, dz); return d <= step;
+  }
+  function updateBot(b, dt, t) {
+    var mdt = dt * (fast() ? 2 : 1) * (playing ? 1 : 0), mood = moodOf(b);
+    switch (b.state) {
+      case 'work':
+        if (!b.target || moveTo(b, b.target, mdt)) { b.wait -= mdt; b.facing = null; if (b.wait <= 0) { b.target = b.work.clone().add(new THREE.Vector3(rand(-1.4, 1.4), 0, rand(-1.4, 1.4))); b.wait = rand(1, 3.5); } }
+        break;
+      case 'toBoard': if (moveTo(b, b.boardSpot, mdt * 1.6)) { b.state = 'atBoard'; b.wait = 0.8; b.facing = Math.PI; } break;
+      case 'atBoard': b.wait -= mdt; if (b.wait <= 0) { b.state = 'back'; b.coin.visible = true; } break;
+      case 'back': if (moveTo(b, b.work, mdt * 1.4)) { b.state = 'work'; b.coin.visible = false; b.target = null; } break;
+      case 'toPodium':
+        if (Math.hypot(b.podium.x - b.group.position.x, b.podium.z - b.group.position.z) < 1.0) b.targetY = b.podium.y;
+        if (moveTo(b, b.podium, mdt * 1.5)) { b.state = 'onPodium'; b.facing = null; if (b.podium.y > 1.2) burst(new THREE.Vector3(b.podium.x, b.podium.y + 1.5, b.podium.z), 30); }
+        break;
+      case 'onPodium': b.facing = null; break;
+      case 'walkHome': b.targetY = 0; b.coin.visible = false; if (moveTo(b, b.home, mdt * 1.3)) { b.state = 'sleep'; b.facing = null; } break;
+    }
+    if (b.coinTimer > 0) { b.coinTimer -= dt; if (b.coinTimer <= 0 && b.state === 'work') b.coin.visible = false; }
+    b.baseY += (b.targetY - b.baseY) * Math.min(1, dt * 6);
+    var sleeping = b.state === 'sleep';
+    var canHop = !reduceMotion && playing && !sleeping && (b.state === 'onPodium' ? b.podium.y > 0 : mood === 'content' && b.state === 'work');
+    if (b.hop < 0 && canHop) { b.hopEvery -= dt; if (b.hopEvery <= 0) { b.hop = 0; b.hopEvery = rand(1.2, 3); if (dayPct(b) > 0.015) burst(b.group.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 10); } }
+    var hopY = 0, squash = 1;
+    if (b.hop >= 0) { b.hop += dt * 2.2; if (b.hop >= 1) b.hop = -1; else { hopY = Math.sin(Math.PI * b.hop) * 0.8; squash = 1 + Math.sin(Math.PI * b.hop) * 0.12; } }
+    var breathe = reduceMotion ? 0 : Math.sin(t * (sleeping ? 1.4 : 2.6) + b.i) * (sleeping ? 0.05 : 0.03);
+    b.group.position.y = b.baseY + hopY;
+    b.body.scale.set(1 - breathe * 0.5 - (squash - 1) * 0.4, b.sy * (1 + breathe) * squash, 1 - breathe * 0.5 - (squash - 1) * 0.4);
+    var faceDir = b.facing != null ? b.facing : Math.atan2(camera.position.x - b.group.position.x, camera.position.z - b.group.position.z);
+    var cur = b.group.rotation.y, diff = Math.atan2(Math.sin(faceDir - cur), Math.cos(faceDir - cur)); b.group.rotation.y = cur + diff * Math.min(1, dt * 6);
+    b.eyes.forEach(function (e) { e.scale.y = sleeping ? 0.15 : 1; });
+    var worried = mood === 'inquiet' && !sleeping;
+    b.mouth.rotation.z = worried ? 0 : Math.PI; b.mouth.position.y = worried ? 0.68 : 0.76; b.mouth.scale.setScalar(mood === 'calme' || sleeping ? 0.7 : 1);
+    b.sweat.visible = worried; if (worried) b.sweat.position.y = 1.35 - ((t * 0.6 + b.i) % 1) * 0.35;
+    b.zzz.visible = sleeping; if (sleeping) b.zzz.position.y = 2.0 + Math.sin(t * 1.5 + b.i) * 0.12;
+    if (b.coin.visible) b.coin.rotation.z += dt * 5;
+  }
+
+  var labelVec = new THREE.Vector3(), W = 1, H = 1;
+  function updateLabels() {
+    bots.forEach(function (b) {
+      labelVec.copy(b.group.position); labelVec.y += 2.25 * b.sy + 0.15; labelVec.project(camera);
+      if (labelVec.z > 1) { b.label.style.display = 'none'; return; }
+      b.label.style.display = '';
+      b.label.style.transform = 'translate(' + ((labelVec.x * 0.5 + 0.5) * W).toFixed(1) + 'px,' + ((-labelVec.y * 0.5 + 0.5) * H).toFixed(1) + 'px) translate(-50%,-100%)';
+    });
+  }
+  function refreshLabels() {
+    bots.forEach(function (b) {
+      var d = dayPct(b); b.label.className = 'label' + (selected === b ? ' sel' : '');
+      b.label.innerHTML = ''; var n = document.createElement('span'); n.textContent = b.name; var v = document.createElement('span'); v.className = cls(d); v.textContent = pct(d);
+      b.label.appendChild(n); b.label.appendChild(v);
+    });
+  }
+  function nightAmount() { if (fast()) return 0; if (tDay < 0.06) return 0.5 - tDay / 0.12; if (tDay < 0.9) return 0; return clamp((tDay - 0.9) / 0.1, 0, 1) * 0.8; }
+  function resize() { W = canvas.clientWidth || window.innerWidth; H = canvas.clientHeight || window.innerHeight; renderer.setSize(W, H, false); camera.aspect = W / H; camera.updateProjectionMatrix(); if (!selected) wantRadius = baseRadius(); }
+  window.addEventListener('resize', resize);
+
+  var clock = new THREE.Clock(), uiTimer = 0;
+  function frame() {
+    var dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+    if (data && data.days.length) {
+      if (playing && !atEnd()) {
+        tDay += dt * speed / DAY_SECONDS;
+        dayEvents.forEach(function (x) { if (!x.done && tDay >= x.at) { x.done = true; fire(x.e); } });
+        if (tDay >= 1) {
+          if (dayIdx < data.days.length - 1) startDay(dayIdx + 1);
+          else { tDay = 1; setPlaying(false); $('#status').textContent = 'Dernière séance jouée'; }
+        }
+      }
+      var ph = phaseOf(Math.min(tDay, 0.999));
+      if (ph !== lastPhase) { lastPhase = ph; onPhase(ph); }
+      bots.forEach(function (b) { updateBot(b, dt, t); });
+      var n = nightAmount(); scene.background.copy(DAY_SKY).lerp(NIGHT_SKY, n); scene.fog.color.copy(scene.background);
+      hemi.intensity = 0.85 - 0.45 * n; sun.intensity = 0.85 - 0.6 * n;
+      uiTimer -= dt;
+      if (uiTimer <= 0) {
+        uiTimer = 0.3; updateRanks(); refreshLabels(); updateCard(); drawBoard();
+        if (!atEnd()) $('#status').textContent = fast() ? 'Saison en accéléré' : { morning: 'Avant l’ouverture', open: 'Bourse ouverte', ceremony: 'Remise des médailles', evening: 'Bourse fermée' }[ph];
+      }
+    }
+    sparks.forEach(function (s) { if (s.life <= 0) return; s.v.y -= 7 * dt; s.m.position.addScaledVector(s.v, dt); s.m.rotation.y += dt * 6; s.life -= dt * 1.1; s.m.scale.setScalar(Math.max(s.life, 0.01)); if (s.life <= 0) s.m.visible = false; });
+    coins.forEach(function (co) {
+      if (co.life <= 0) return;
+      if (co.m.position.y > 0.12) { co.vy -= 9 * dt; co.m.position.y = Math.max(0.12, co.m.position.y + co.vy * dt); co.m.rotation.x += dt * co.spin; }
+      else { co.life -= dt * 0.8; co.m.scale.setScalar(Math.max(co.life, 0.01)); if (co.life <= 0) co.m.visible = false; }
+    });
+    if (selected) { wantTarget.copy(selected.group.position); wantTarget.y = 0.8; }
+    if (!dragging && !interacted && !selected && !reduceMotion) az += dt * 0.04;
+    camTarget.lerp(wantTarget, Math.min(1, dt * 3)); radius += (wantRadius - radius) * Math.min(1, dt * 3); placeCamera();
+    if (selected) { selRing.visible = true; selRing.position.set(selected.group.position.x, selected.baseY + 0.03, selected.group.position.z); } else selRing.visible = false;
+    if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) $('#toast').hidden = true; }
+    updateLabels();
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+
+  resize(); radius = wantRadius; placeCamera(); requestAnimationFrame(frame);
+  fetch('/api/replay').then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }).then(function (d) {
+    data = d;
+    if (!d.days.length) { message('Aucune séance jouée dans cette base pour l’instant. Lance un backtest, ou attends la première séance de l’arène.'); return; }
+    buildBots();
+    $('#scrub').max = d.days.length - 1;
+    startDay(d.days.length - 1); // on rejoue la dernière séance
+  }).catch(function () { message('Impossible de charger l’arène. Le serveur « chubby web » tourne-t-il toujours ?'); });
+})();
+</script>
+</body>
+</html>

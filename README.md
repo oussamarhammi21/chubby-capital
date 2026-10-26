@@ -92,6 +92,17 @@ Podium, classement, courbes de capital, derniers événements, et la fiche de ch
 (positions, journal, trades) en cliquant dessus. La page se met à jour toute seule chaque minute.
 Elle n'a besoin d'aucune connexion Internet à part les polices.
 
+### L'île 3D
+
+Bouton « Voir l'île 3D », ou http://localhost:8000/ile. Les Chubbies y **rejouent les vraies séances
+de la base** : chaque trade les fait courir au tableau des cotes, chaque dividende fait pleuvoir des
+pièces, leur humeur suit leur journée, et le podium suit le classement réel.
+
+- Par défaut, l'île rejoue la dernière séance.
+- « Rejouer la saison » et les vitesses ×10 et ×50 font défiler toute la saison ; le curseur saute à n'importe quel jour.
+- Clique sur un Chubby pour voir sa fiche et le **coacher** : ton conseil change vraiment son agressivité
+  pour ses prochaines séances (comme `chubby coach`).
+
 ## Sur le PC serveur (Docker)
 
 ```bash
@@ -108,6 +119,6 @@ Les données restent dans `./data` sur le PC.
 - [x] Tableau de bord web et API JSON (`/api/overview`, `/api/equity`, `/api/bots/<id>`)
 - [ ] Coach Claude hebdomadaire qui ajuste les réglages de chaque Chubby
 - [ ] Bot ML réentraîné chaque mois
-- [ ] Île 3D (React Three Fiber) branchée sur le moteur
+- [x] Île 3D branchée sur l'arène (rejeu des séances, coaching)
 - [ ] Jalapeño aux vraies options
 - [ ] Profil investisseur et mode conseiller pour un compte Wealthsimple (lecture seule, via export CSV)

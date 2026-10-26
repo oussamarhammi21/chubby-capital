@@ -86,6 +86,32 @@ def bot_detail(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
     }
 
 
+def replay(store: Store, cfg: ArenaConfig) -> dict:
+    """Toute la saison, jour par jour, pour que l'île 3D la rejoue."""
+    db = store.db
+    bots = [{"id": b["id"], "name": b["name"], "personality": b["personality"],
+             "aggressiveness": b["aggressiveness"], "xp": b["xp"]} for b in _bots(store)]
+    days = [r["day"] for r in db.execute("SELECT DISTINCT day FROM snapshots ORDER BY day")]
+    index = {d: i for i, d in enumerate(days)}
+    equity = {b["id"]: [None] * len(days) for b in bots}
+    rank = {b["id"]: [None] * len(days) for b in bots}
+    scores = {b["id"]: [None] * len(days) for b in bots}
+    for r in db.execute("SELECT bot_id, day, equity, rank, score FROM snapshots"):
+        if r["bot_id"] in equity:
+            i = index[r["day"]]
+            equity[r["bot_id"]][i] = round(r["equity"], 2)
+            rank[r["bot_id"]][i] = r["rank"]
+            scores[r["bot_id"]][i] = r["score"]
+    by_day: dict[str, list] = {}
+    for r in db.execute("SELECT * FROM events WHERE kind IN ('trade', 'dividend', 'rank_change', 'coach') ORDER BY id"):
+        by_day.setdefault(r["day"], []).append({"bot_id": r["bot_id"], "kind": r["kind"], **json.loads(r["payload"] or "{}")})
+    journal: dict[str, dict] = {}
+    for r in db.execute("SELECT day, bot_id, text FROM journal ORDER BY id"):
+        journal.setdefault(r["day"], {})[r["bot_id"]] = r["text"]
+    return {"starting_cash": cfg.starting_cash, "bots": bots, "days": days, "equity": equity,
+            "rank": rank, "score": scores, "events": by_day, "journal": journal}
+
+
 def events(store: Store, limit: int = 50) -> list[dict]:
     rows = store.db.execute("SELECT * FROM events WHERE kind != 'leader' ORDER BY id DESC LIMIT ?",
                             (limit,)).fetchall()

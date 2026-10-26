@@ -7,11 +7,15 @@ import logging
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from ..coaching import coach
 from ..config import ArenaConfig
 from ..store import Store
 from . import api
 
 STATIC = Path(__file__).parent / "static"
+PAGES = {"/": "index.html", "/ile": "ile.html"}
+TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8",
+         ".png": "image/png", ".svg": "image/svg+xml"}
 log = logging.getLogger(__name__)
 
 
@@ -20,13 +24,17 @@ def make_handler(db_path: str, cfg: ArenaConfig):
         def do_GET(self):
             path = self.path.split("?", 1)[0].rstrip("/") or "/"
             try:
-                if path == "/":
-                    return self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
+                if path in PAGES:
+                    return self._send(200, (STATIC / PAGES[path]).read_bytes(), "text/html; charset=utf-8")
+                if path.startswith("/static/"):
+                    return self._static(path[len("/static/"):])
                 store = Store(db_path)  # une connexion par requête : l'arène peut écrire en même temps
                 if path == "/api/overview":
                     return self._json(api.overview(store, cfg))
                 if path == "/api/equity":
                     return self._json(api.equity_curves(store))
+                if path == "/api/replay":
+                    return self._json(api.replay(store, cfg))
                 if path.startswith("/api/bots/"):
                     detail = api.bot_detail(store, cfg, path.rsplit("/", 1)[1])
                     return self._json(detail) if detail else self._json({"erreur": "Chubby inconnu"}, 404)
@@ -34,6 +42,28 @@ def make_handler(db_path: str, cfg: ArenaConfig):
             except Exception:
                 log.exception("Erreur sur %s", self.path)
                 return self._json({"erreur": "erreur du serveur"}, 500)
+
+        def do_POST(self):
+            path = self.path.split("?", 1)[0].rstrip("/")
+            try:
+                parts = path.split("/")  # /api/bots/<id>/coach
+                if len(parts) == 5 and parts[1:3] == ["api", "bots"] and parts[4] == "coach":
+                    length = min(int(self.headers.get("Content-Length") or 0), 10_000)
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                    result = coach(Store(db_path), parts[3], str(body.get("conseil", "")))
+                    return self._json(result) if result else self._json({"erreur": "Chubby ou conseil inconnu"}, 400)
+                return self._json({"erreur": "page introuvable"}, 404)
+            except (ValueError, json.JSONDecodeError):
+                return self._json({"erreur": "requête invalide"}, 400)
+            except Exception:
+                log.exception("Erreur sur %s", self.path)
+                return self._json({"erreur": "erreur du serveur"}, 500)
+
+        def _static(self, name: str):
+            target = (STATIC / name).resolve()
+            if STATIC.resolve() not in target.parents or not target.is_file():
+                return self._json({"erreur": "fichier introuvable"}, 404)
+            return self._send(200, target.read_bytes(), TYPES.get(target.suffix, "application/octet-stream"))
 
         def _json(self, data, status: int = 200):
             self._send(status, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")

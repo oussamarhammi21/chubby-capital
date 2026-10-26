@@ -96,16 +96,11 @@ def cmd_journal(args, cfg):
 
 
 def cmd_coach(args, cfg):
-    store = Store(args.db)
-    row = store.bot_row(args.bot)
-    if row is None:
+    from .coaching import coach
+    result = coach(Store(args.db), args.bot, args.conseil)
+    if result is None:
         raise SystemExit(f"Chubby inconnu : {args.bot}")
-    factor = {"moins": 0.85, "plus": 1.15, "garde": 1.0}[args.conseil]
-    value = max(0.4, min(2.0, row["aggressiveness"] * factor))
-    store.set_aggressiveness(args.bot, value)
-    store.add_xp(args.bot, 15)
-    store.commit()
-    print(f"{row['name']} : agressivité {row['aggressiveness']:.2f} -> {value:.2f} (+15 XP)")
+    print(f"{result['name']} : agressivité {result['old']:.2f} -> {result['aggressiveness']:.2f} (+15 XP)")
 
 
 def cmd_web(args, cfg):
