@@ -56,6 +56,14 @@ class Matcha(Bot):
         "holdings": Param(8, 5, 12, "nombre de titres gardés", integer=True),
         "ridge": Param(5.0, 0.5, 50.0, "prudence du modèle (plus haut = conclusions plus prudentes)"),
     }
+    rules = [
+        "Chaque mois, elle s'entraîne sur les deux dernières années de 100 grandes sociétés.",
+        "Elle mesure 7 signaux : tendance sur 1, 3 et 6 mois, volatilité, RSI, écart aux moyennes 50 et 200 jours. "
+        "Elle apprend lesquels ont annoncé les titres qui ont le mieux fait le mois suivant.",
+        "Son modèle est une régression ridge (prudence {ridge:.1f}). Elle écrit dans son journal les signaux qu'elle a retenus.",
+        "Elle achète à parts égales les {holdings:.0f} titres que son modèle préfère aujourd'hui.",
+        "Elle n'apprend que sur des exemples dont le résultat était déjà connu : jamais de triche sur le futur.",
+    ]
 
     def __init__(self):
         self._panel: dict[str, pd.DataFrame] | None = None

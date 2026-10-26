@@ -28,6 +28,11 @@ class Tortue(Bot):
     universe = ["XIC.TO", "VFV.TO"]
     usd_account = False  # que des FNB canadiens : le forfait USD ne lui servirait à rien
     params = {"canada": Param(0.5, 0.2, 0.8, "part de l'indice canadien (XIC) ; le reste va au S&P 500 (VFV)")}
+    rules = [
+        "Met {canada:.0%} dans l'indice canadien (XIC, ~220 sociétés du TSX) et le reste dans le S&P 500 (VFV, 500 grandes sociétés américaines).",
+        "Garde environ 2 % en cash. Réinvestit les dividendes quand ils s'accumulent.",
+        "Ne rééquilibre que si un poids s'éloigne de plus de 10 points de sa cible. Sinon, elle ne fait rien : c'est le groupe témoin de l'arène.",
+    ]
 
     def decide(self, ctx: BotContext) -> Decision:
         invested, canada = ctx.invest_fraction(0.98), self.p(ctx, "canada")
@@ -50,6 +55,13 @@ class Flan(Bot):
         "min_yield": Param(0.02, 0.01, 0.04, "rendement en dividendes minimum"),
         "max_yield": Param(0.09, 0.06, 0.12, "rendement maximum (au-delà, c'est souvent un piège)"),
     }
+    rules = [
+        "Choisit parmi 16 grands payeurs de dividendes (banques, pipelines, télécoms, services publics, Coca-Cola, P&G…).",
+        "Rendement des 12 derniers mois entre {min_yield:.1%} et {max_yield:.1%} : au-delà, le dividende risque d'être coupé.",
+        "Écarte un titre qui vaut moins de 90 % de sa moyenne 200 jours (une société en chute libre).",
+        "Garde les {holdings:.0f} meilleurs rendements à parts égales, et revoit sa liste le premier jour de chaque mois.",
+        "Les dividendes de ses quelques titres américains subissent une retenue de 15 % (dans un CELI).",
+    ]
 
     def decide(self, ctx: BotContext) -> Decision:
         invested = ctx.invest_fraction(0.97)
@@ -84,6 +96,12 @@ class Dumpling(Bot):
         "gold": Param(0.05, 0.0, 0.15, "part en or (CGL)"),
         "drift": Param(0.05, 0.03, 0.10, "écart toléré avant de rééquilibrer"),
     }
+    rules = [
+        "Mélange fixe : actions canadiennes (VCN), américaines (VFV), internationales (XEF) et émergentes (XEC), "
+        "{bonds:.0%} d'obligations (ZAG) et {gold:.0%} d'or (CGL).",
+        "Quand un poids s'éloigne de plus de {drift:.0%} de sa cible, il revend ce qui a trop monté et rachète ce qui a baissé.",
+        "Les obligations et l'or amortissent les chutes de la bourse : il gagne moins dans les belles années, perd moins dans les mauvaises.",
+    ]
 
     def decide(self, ctx: BotContext) -> Decision:
         scale = ctx.invest_fraction(0.98)
@@ -111,6 +129,12 @@ class Mochi(Bot):
         "keep_rank": Param(10, 6, 15, "un titre détenu reste tant qu'il est dans ce top", integer=True),
         "lookback": Param(63, 42, 126, "période de mesure de la tendance, en séances", integer=True),
     }
+    rules = [
+        "Chaque semaine, classe 100 grandes sociétés canadiennes et américaines selon leur hausse des {lookback:.0f} dernières séances.",
+        "Ne retient que celles au-dessus de leur moyenne 50 jours, et vise les {holdings:.0f} plus fortes.",
+        "Garde un titre tant qu'il reste dans le top {keep_rank:.0f}, pour ne pas payer des frais à chaque petite variation.",
+        "Chaque soir, vend un titre qui passe 3 % sous sa moyenne 50 jours : la tendance est cassée.",
+    ]
 
     def decide(self, ctx: BotContext) -> Decision:
         held = set(ctx.account.positions)
@@ -162,6 +186,13 @@ class Muffin(Bot):
         "stop": Param(0.08, 0.05, 0.15, "perte maximale tolérée par position"),
         "max_days": Param(35, 20, 60, "durée maximale de détention, en jours", integer=True),
     }
+    rules = [
+        "Cherche, parmi 100 grandes sociétés, celles dont le RSI (force sur 14 jours) est sous {rsi_buy:.0f} : elles ont beaucoup baissé récemment.",
+        "Ne les achète que si elles restent au-dessus de 95 % de leur moyenne 200 jours : une bonne société en solde, pas une qui s'effondre.",
+        "Au plus {max_positions:.0f} positions, environ 15 % du capital chacune, les plus survendues d'abord.",
+        "Revend quand le RSI remonte au-dessus de {rsi_sell:.0f} (le rebond est venu) ou après {max_days:.0f} jours.",
+        "Ordre stop chez le courtier à -{stop:.0%} du prix d'achat : il se déclenche pendant la séance.",
+    ]
     slot = 0.15
 
     def stops(self, positions, params, fx):
@@ -220,6 +251,15 @@ class Jalapeno(Bot):
         "stop": Param(0.5, 0.3, 0.7, "perte qui déclenche la vente (0,5 = -50 %)"),
         "dte": Param(40, 21, 75, "jours avant l'échéance au moment de l'achat", integer=True),
     }
+    rules = [
+        "Regarde le Nasdaq (QQQ) : au-dessus de sa moyenne 200 jours, le marché est haussier ; en dessous, baissier.",
+        "Marché haussier : achète des calls (paris à la hausse) sur l'indice ou le FNB le plus en forme parmi QQQ, SPY, IWM et SMH. "
+        "Marché baissier : petits puts (paris à la baisse).",
+        "Prix d'exercice à {otm:.0%} du cours, échéance dans environ {dte:.0f} jours. Une seule position à la fois.",
+        "Met {budget:.0%} de son capital en primes (la moitié en marché baissier). Le reste dort au cash et rapporte des intérêts.",
+        "Vend à +{take_profit:.0%} de gain, à 7 jours de l'échéance, ou si la tendance s'inverse. Ordre stop à -{stop:.0%}.",
+        "Une option peut perdre toute sa valeur : c'est le Chubby le plus risqué de l'arène.",
+    ]
 
     def stops(self, positions, params, fx):
         stop = self.param(params, "stop")
@@ -302,6 +342,15 @@ class JalapenoV2(Bot):
         "stop": Param(3.0, 2.0, 5.0, "rachat si l'option vaut ce multiple de la prime reçue"),
         "budget": Param(0.9, 0.3, 1.0, "part du cash libre engagée en garantie de puts"),
     }
+    rules = [
+        "Vend des puts sur des FNB abordables (XLF, EEM, SLV, KRE, GDX) : il encaisse une prime en promettant d'acheter "
+        "100 actions au prix d'exercice si le FNB baisse sous ce prix.",
+        "Chaque put est entièrement garanti par son cash : il engage au plus {budget:.0%} de son cash libre (la moitié si le Nasdaq est sous sa moyenne 200 jours).",
+        "Prix d'exercice à {otm:.0%} sous le cours, échéance dans environ {dte:.0f} jours. Il choisit le FNB qui paie la plus grosse prime.",
+        "Rachète l'option quand il a gagné {take_profit:.0%} de la prime. Ordre stop : rachat si elle vaut {stop:.1f} fois la prime reçue.",
+        "S'il est exercé, il reçoit les actions et vend des calls couverts dessus jusqu'à ce qu'elles soient reprises : c'est « la roue ».",
+        "Gagne souvent un peu, mais peut perdre gros dans un krach.",
+    ]
 
     def stops(self, positions, params, fx):
         # racheter l'option vendue si elle vaut `stop` fois la prime encaissée

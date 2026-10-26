@@ -129,6 +129,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
         <div class="opts" id="coach-opts"></div>
       </div>
       <button class="btn primary" id="c-coach">Coacher</button>
+      <a class="btn ghost" id="c-full" href="/chubby" style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none;color:inherit">Fiche complète : tout ce qu'il a fait</a>
       <p class="note">Ton conseil change son agressivité pour ses prochaines séances dans l'arène.</p>
     </section>
 
@@ -648,6 +649,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   function select(b) {
     selected = b; interacted = true; wantRadius = 12; $('#card').hidden = false; $('#hud').classList.add('has-card');
     $('#coach').hidden = true; $('#c-coach').textContent = 'Coacher ' + b.name; $('#c-coach').disabled = false;
+    $('#c-full').href = '/chubby?id=' + encodeURIComponent(b.id);
     $('#c-sw').style.background = b.css; $('#c-name').textContent = b.name; $('#c-role').textContent = b.personality;
     updateCard(); updateRanks();
     var l = liveOf(b), j = lastJournal(b);

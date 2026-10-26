@@ -13,7 +13,7 @@ from ..store import Store
 from . import api
 
 STATIC = Path(__file__).parent / "static"
-PAGES = {"/": "index.html", "/ile": "ile.html", "/conseiller": "conseiller.html"}
+PAGES = {"/": "index.html", "/ile": "ile.html", "/conseiller": "conseiller.html", "/chubby": "chubby.html"}
 TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8",
          ".png": "image/png", ".svg": "image/svg+xml"}
 log = logging.getLogger(__name__)
@@ -40,6 +40,10 @@ def make_handler(db_path: str, cfg: ArenaConfig, live=None):
                     return self._json(payload or {"ok": False, "error": "Pas encore de séance en direct."})
                 if path == "/api/replay":
                     return self._json(api.replay(store, cfg))
+                if path.startswith("/api/bots/") and path.endswith("/fiche"):
+                    from ..report import bot_report
+                    report = bot_report(store, cfg, path.split("/")[3])
+                    return self._json(report) if report else self._json({"erreur": "Chubby inconnu"}, 404)
                 if path.startswith("/api/bots/"):
                     detail = api.bot_detail(store, cfg, path.rsplit("/", 1)[1])
                     return self._json(detail) if detail else self._json({"erreur": "Chubby inconnu"}, 404)

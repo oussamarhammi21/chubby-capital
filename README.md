@@ -184,6 +184,25 @@ Direct pendant la bourse, podium, classement, courbes de capital, duels **origin
 (réglages, positions, journal, trades) en cliquant dessus. La page se met à jour toute seule chaque minute.
 Elle n'a besoin d'aucune connexion Internet à part les polices.
 
+### La fiche complète de chaque Chubby
+
+Bouton « Fiche complète » dans sa fiche du tableau de bord ou sur l'île, ou http://localhost:8000/chubby?id=muffin.
+Tout ce qu'il faut pour le comprendre :
+
+- **comment il pense** : ses règles en clair, avec la valeur actuelle de ses réglages ;
+- **ses réglages** : actuels, de départ et leurs bornes (ce que le coaching a changé apparaît en vert) ;
+- **ses chiffres** : rendement, pire baisse, Sharpe, part d'allers-retours gagnants, gains réalisés, dividendes, frais, stops, coachings ;
+- **sa courbe** de capital, à côté de celle de son jumeau (original ou IA), et ses baisses depuis chaque sommet ;
+- **ses positions**, avec le prix moyen payé, le gain et l'ordre stop en place ;
+- **chaque aller-retour** sur un titre (de l'achat à la revente complète) avec son gain, et son **bilan mois par mois** ;
+- **tout ce qu'il a fait, jour par jour**, dans l'ordre d'une séance :
+  - à l'ouverture, les ordres décidés la veille au soir ;
+  - pendant la séance, les ordres stop ;
+  - à la clôture, les dividendes, les frais et le classement ;
+  - le soir, ce qu'il a décidé et écrit dans son journal, et le coaching reçu.
+
+L'historique se filtre par type, et s'exporte en CSV pour Excel ou Google Sheets.
+
 ### L'île 3D
 
 Bouton « Voir l'île 3D », ou http://localhost:8000/ile. Les Chubbies y **rejouent les vraies séances

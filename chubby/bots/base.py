@@ -85,6 +85,8 @@ class Bot(ABC):
     universe: list[str]
     signals: list[str] = []  # tickers seulement observés (jamais achetés)
     params: dict[str, Param] = {}
+    # Ses règles en clair, pour sa fiche. Les {réglages} sont remplacés par leur valeur actuelle.
+    rules: list[str] = []
     ai: bool = False  # vrai pour les versions coachées par Claude
     usd_account: bool = True  # forfait avec compte en USD ; False = compte en CAD sans forfait
 
