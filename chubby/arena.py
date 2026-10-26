@@ -150,7 +150,7 @@ class Arena:
             eq = self.store.equity_series(bot.id)
             if eq.empty:
                 continue
-            m = metrics(eq, self.cfg.starting_cash)
+            m = metrics(eq, self.cfg.starting_cash, self.cfg.cash_rate)
             row = self.store.bot_row(bot.id)
             out.append({"id": bot.id, "name": bot.name, "personality": bot.personality,
                         "equity": float(eq.iloc[-1]), "score": score(m), "metrics": m,

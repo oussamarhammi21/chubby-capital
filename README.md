@@ -15,7 +15,7 @@ Une arène où des bots de trading, les **Chubbies**, s'affrontent avec **10 000
 | Muffin | Chasseur d'aubaines | Parmi les mêmes 100 sociétés, achète les plus survendues (RSI < 30, au-dessus de la moyenne 200 jours), revend au rebond. Vend le soir à -8 % (vérifié à la clôture), avec un stop de secours à -15 % pendant la séance |
 | Jalapeño | Casse-cou · options | Calls sur l'indice ou le FNB le plus en forme quand le Nasdaq est au-dessus de sa moyenne 200 jours, petits puts sinon ; 30 % du capital en primes, sortie sur gain (+100 %), stop (-50 %), retournement ou à 7 jours de l'échéance |
 | Jalapeño v2 | Vendeur d'options · la roue | Vend des puts garantis par son cash sur des FNB bon marché (XLF, EEM, SLV, KRE, GDX) et encaisse la prime ; s'il est exercé, il vend des calls couverts sur ses actions. Rachète à 50 % de la prime gagnée, ou pour couper une perte. Gagne souvent un peu, peut perdre gros dans un krach |
-| Jalapeño v3 | Casse-cou patient · options longues | Calls d'environ un an, déjà dans la monnaie, sur QQQ ou SPY quand la tendance est haussière : peu de perte de valeur chaque jour, un effet de levier modéré. Les renouvelle avant qu'ils ne vieillissent, range tout au cash si le Nasdaq casse sa moyenne 200 jours |
+| Jalapeño v3 | Casse-cou patient · options longues | Calls d'environ 10 mois, déjà dans la monnaie, sur le FNB de marché le plus en forme dont un contrat rentre dans son budget (QQQ et SPY sont souvent trop chers pour 10 000 $), quand la tendance est haussière : peu de perte de valeur chaque jour, un effet de levier modéré. Les renouvelle avant qu'ils ne vieillissent, range tout au cash si le Nasdaq casse sa moyenne 200 jours |
 | Matcha | Apprentie machine learning | Chaque mois, réentraîne un modèle sur deux ans d'historique pour apprendre quels signaux ont annoncé les meilleurs titres, puis achète ses 8 favoris. Elle écrit dans son journal ce qu'elle a appris |
 
 Le code est dans [`chubby/bots/`](chubby/bots/). Pour créer un Chubby, il suffit d'hériter de `Bot` et d'écrire `decide()`, qui renvoie les poids voulus. Les **réglages** (`params`) déclarés par chaque bot, avec leurs bornes, sont ce que le coaching peut ajuster.
@@ -95,7 +95,9 @@ Le but est d'être réaliste, pour que les résultats veuillent dire quelque cho
 ## Le score
 
 Le classement se fait sur un score de 0 à 100 ([`chubby/scoring.py`](chubby/scoring.py)) :
-40 % rendement **par an**, 30 % Sharpe (rendement ajusté au risque), 20 % pire baisse, 10 % régularité (part des semaines positives).
+40 % rendement **par an**, 30 % Sharpe (rendement ajusté au risque), 20 % pire baisse, 10 % régularité (part des semaines qui battent le cash).
+
+Le rendement, le Sharpe et la régularité se mesurent **par rapport au cash**, qui rapporte 3 % par an. Sans ça, un Chubby qui dort au cash aurait une courbe parfaitement lisse et finirait premier. Rester au cash vaut donc 55 sur 100 : pour faire mieux, il faut battre le cash.
 Un bot ne peut donc pas gagner juste en prenant des risques énormes.
 
 Chaque séance donne de l'XP : 10 pour tout le monde, plus 30, 20 et 10 pour le podium. Ton coaching donne 15 XP, celui de Claude 25.

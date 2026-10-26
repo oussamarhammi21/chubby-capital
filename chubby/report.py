@@ -152,7 +152,7 @@ def bot_report(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
     cls = bot_class(bot_id)
     db = store.db
     eq = store.equity_series(bot_id)
-    m = metrics(eq, cfg.starting_cash) if not eq.empty else None
+    m = metrics(eq, cfg.starting_cash, cfg.cash_rate) if not eq.empty else None
     usdcad = float(store.get_meta("usdcad") or 1.37)
     params = store.get_params(bot_id)
 

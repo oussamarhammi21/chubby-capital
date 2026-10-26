@@ -1,8 +1,12 @@
 """Score de 0 à 100 qui départage les Chubbies.
 
 40 % rendement annuel, 30 % rendement ajusté au risque (Sharpe), 20 % pire baisse (drawdown),
-10 % régularité (part des semaines positives). Un bot ne peut pas gagner seulement
+10 % régularité (part des semaines qui battent le cash). Un bot ne peut pas gagner seulement
 en prenant des risques énormes.
+
+Le Sharpe, la régularité et la note de rendement se mesurent par rapport à ce que rapporte le cash :
+dormir au cash donne une courbe parfaitement lisse, et sans ça un Chubby qui ne fait rien
+aurait un Sharpe énorme et finirait premier.
 """
 
 from dataclasses import dataclass
@@ -19,21 +23,26 @@ class Metrics:
     max_drawdown: float  # négatif, ex. -0.12
     regularity: float  # entre 0 et 1
     annual_return: float | None = None  # rendement par an (sur moins d'un an : le rendement total)
+    risk_free: float = 0.0  # rendement annuel du cash, la référence du score
 
 
-def metrics(equity: pd.Series, starting_cash: float) -> Metrics:
+RISK_FREE = 0.03  # ce que rapporte le cash dans l'arène (ArenaConfig.cash_rate)
+
+
+def metrics(equity: pd.Series, starting_cash: float, risk_free: float = RISK_FREE) -> Metrics:
     eq = pd.concat([pd.Series([starting_cash], index=[equity.index[0] - pd.Timedelta(days=1)]), equity]) \
         if len(equity) else pd.Series([starting_cash])
     daily = eq.pct_change().dropna()
     std = float(daily.std()) if len(daily) > 1 else 0.0
-    sharpe = float(daily.mean()) / std * math.sqrt(252) if std > 0 else 0.0
+    excess = daily - risk_free / 252
+    sharpe = float(excess.mean()) / std * math.sqrt(252) if std > 1e-9 else 0.0
     drawdown = float((eq / eq.cummax() - 1).min())
     weekly = eq.resample("W").last().pct_change().dropna() if isinstance(eq.index, pd.DatetimeIndex) else pd.Series()
-    regularity = float((weekly > 0).mean()) if len(weekly) else 0.5
+    regularity = float((weekly > 5 * risk_free / 252 + 1e-6).mean()) if len(weekly) else 0.5  # mieux qu'une semaine au cash
     total = float(eq.iloc[-1] / starting_cash - 1)
     years = max(len(daily) / 252, 1.0)  # on n'annualise pas une saison de moins d'un an
     annual = (1 + total) ** (1 / years) - 1 if total > -1 else -1.0
-    return Metrics(total, std * math.sqrt(252), sharpe, drawdown, regularity, annual)
+    return Metrics(total, std * math.sqrt(252), sharpe, drawdown, regularity, annual, risk_free)
 
 
 def _clamp(v: float) -> float:
@@ -43,7 +52,7 @@ def _clamp(v: float) -> float:
 def score(m: Metrics) -> int:
     # Rendement par an : sinon, sur plusieurs années, tous les bots dépassent +20 % et le critère ne départage plus.
     yearly = m.annual_return if m.annual_return is not None else m.total_return
-    ret_s = _clamp(50 + yearly * 250)  # -20 %/an -> 0, +20 %/an -> 100
+    ret_s = _clamp(50 + (yearly - m.risk_free) * 250)  # le cash -> 50 ; 20 points par an de mieux -> 100
     sharpe_s = _clamp(50 + m.sharpe * 25)  # Sharpe 2 -> 100
     dd_s = _clamp(100 + m.max_drawdown * 300)  # -33 % -> 0
     reg_s = m.regularity * 100

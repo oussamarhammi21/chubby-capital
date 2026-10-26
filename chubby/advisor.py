@@ -232,7 +232,7 @@ def match_bots(store: Store, cfg: ArenaConfig, profile: dict) -> list[dict]:
             fit -= 20  # pas de stratégie nerveuse pour un argent dont tu as besoin bientôt
         if fit < 40:
             continue
-        m = metrics(eq, cfg.starting_cash)
+        m = metrics(eq, cfg.starting_cash, cfg.cash_rate)
         s = score(m)
         out.append({"id": b["id"], "name": b["name"], "personality": b["personality"], "fit": fit, "score": s,
                     "sessions": len(eq), "certified": len(eq) >= CERTIFIED_SESSIONS,

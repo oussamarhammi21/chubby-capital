@@ -28,7 +28,7 @@ def overview(store: Store, cfg: ArenaConfig) -> dict:
         eq = store.equity_series(bot["id"])
         if eq.empty:
             continue
-        m = metrics(eq, cfg.starting_cash)
+        m = metrics(eq, cfg.starting_cash, cfg.cash_rate)
         last_two = db.execute("SELECT rank FROM snapshots WHERE bot_id = ? AND rank IS NOT NULL"
                               " ORDER BY day DESC LIMIT 2", (bot["id"],)).fetchall()
         n, fees = costs.get(bot["id"], [0, 0.0])
@@ -83,7 +83,7 @@ def bot_detail(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
         "xp": bot["xp"], "level": bot["xp"] // 200 + 1, "aggressiveness": bot["aggressiveness"],
         "cash": round(last["cash"], 2) if last else cfg.starting_cash,
         "equity": round(last["equity"], 2) if last else cfg.starting_cash,
-        "metrics": asdict(metrics(eq, cfg.starting_cash)) if not eq.empty else None,
+        "metrics": asdict(metrics(eq, cfg.starting_cash, cfg.cash_rate)) if not eq.empty else None,
         "positions": sorted(positions, key=lambda p: -(p["value_cad"] or 0)),
         "trades": [dict(r) for r in db.execute(
             "SELECT day, ticker, side, qty, price, currency, fees_cad, value_cad FROM trades"

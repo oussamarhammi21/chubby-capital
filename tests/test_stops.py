@@ -89,3 +89,24 @@ def test_jalapeno_v3_buys_long_in_the_money_calls_and_rolls_them():
         assert (expiry - pd.Timestamp(r["day"])).days > 150  # option longue
     notes = [r["text"] for r in arena.store.db.execute("SELECT text FROM journal WHERE bot_id = 'jalapeno-v3'")]
     assert any("renouvelle" in n or "cash" in n for n in notes) or len(buys) == 1
+
+
+def test_jalapeno_v3_skips_contracts_it_cannot_afford():
+    from chubby import options as opt
+    from chubby.arena import Arena
+    from chubby.bots.chubbies import JalapenoV3
+    from chubby.store import Store
+    from tests.fakes import fake_market
+
+    base = fake_market(420)
+    pricey = {}
+    for t in ("QQQ", "SPY"):  # comme en vrai : 400 $ la part, soit des milliers de dollars le contrat
+        f = base.frames[t].copy()
+        f[["Open", "High", "Low", "Close"]] *= 8
+        pricey[t] = f
+    data = fake_market(420, extra=pricey)
+    arena = Arena(Store(":memory:"), data, [JalapenoV3()])
+    arena.run(start=data.trading_days()[260])
+    bought = {opt.parse(r["ticker"])[0] for r in arena.store.db.execute(
+        "SELECT ticker FROM trades WHERE bot_id = 'jalapeno-v3' AND side = 'buy'")}
+    assert bought and not bought & {"QQQ", "SPY"}
