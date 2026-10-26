@@ -159,6 +159,7 @@ chubby tick
 chubby serve --web
 
 chubby direct                   # où en sont les Chubbies en ce moment
+chubby watchlist                # recalculer watchlists et seuils de la dernière séance (sans rien rejouer)
 
 chubby classement
 chubby ordres                   # les ordres préparés pour la prochaine ouverture (ou : chubby ordres mochi)

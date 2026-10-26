@@ -134,6 +134,18 @@ def cmd_coach_ia(args, cfg):
     _weekly_review(arena)
 
 
+def cmd_watch(args, cfg):
+    """Recalcule les watchlists et les seuils de décision de la dernière séance (sans rien rejouer)."""
+    store = Store(args.db)
+    last = store.get_meta("last_day")
+    if last is None:
+        raise SystemExit("L'arène n'a encore joué aucune séance.")
+    print("Chargement des prix…", flush=True)
+    data = _load(pd.Timestamp(last) - pd.Timedelta(days=10), last, cfg, args.cache)
+    n = Arena(store, data, all_bots(ia=not args.sans_ia), cfg).refresh_watchlists()
+    print(f"Watchlists et seuils recalculés pour {n} Chubbies (séance du {last}).")
+
+
 def cmd_serve(args, cfg):
     """Tourne en continu : une séance chaque jour de semaine à 16 h 20, heure de Toronto.
 
@@ -277,6 +289,7 @@ def main(argv=None):
     sv.add_argument("--host", default="0.0.0.0")
     sv.set_defaults(fn=cmd_serve)
     sub.add_parser("direct", help="où en sont les Chubbies en ce moment").set_defaults(fn=cmd_direct)
+    sub.add_parser("watchlist", help="recalculer les watchlists et seuils de la dernière séance").set_defaults(fn=cmd_watch)
     sub.add_parser("classement", help="afficher le classement").set_defaults(fn=cmd_board)
     j = sub.add_parser("journal", help="lire le journal d'un Chubby")
     j.add_argument("bot")

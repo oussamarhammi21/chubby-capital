@@ -115,6 +115,20 @@ class Arena:
             self._watch(bot, ctx, day)
         self.store.save_account(acct)
 
+    def refresh_watchlists(self) -> int:
+        """Recalcule la watchlist et les seuils de chaque Chubby pour la dernière séance, sans rien rejouer."""
+        day = self.last_day
+        if day is None:
+            return 0
+        day_index = int(self.store.get_meta("day_index") or 1) - 1
+        for bot in self.bots:
+            row = self.store.bot_row(bot.id)
+            ctx = BotContext(day, self.data, self.broker_for(bot), self.store.load_account(bot.id), row["aggressiveness"],
+                             day_index, self.store.get_params(bot.id))
+            self._watch(bot, ctx, day)
+        self.store.commit()
+        return len(self.bots)
+
     def _watch(self, bot: Bot, ctx: BotContext, day: pd.Timestamp):
         try:
             items = bot.watchlist(ctx)

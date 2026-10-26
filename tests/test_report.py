@@ -120,3 +120,17 @@ def test_matcha_does_not_reshuffle_every_evening_in_live_mode():
     from chubby.bots.matcha import Matcha
     ctx = SimpleNamespace(first_day_of_month=lambda: False, account=SimpleNamespace(positions={"RY.TO": object()}))
     assert Matcha().decide(ctx).targets is None
+
+
+def test_watchlists_can_be_rebuilt_without_replaying():
+    from chubby.arena import Arena
+    from chubby.bots import all_bots
+    from tests.fakes import fake_market
+    data = fake_market(320)
+    store = Store(":memory:")
+    Arena(store, data, all_bots()).run(start=data.trading_days()[300])
+    store.db.execute("DELETE FROM watchlist")
+    trades = store.db.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
+    assert Arena(store, data, all_bots()).refresh_watchlists() == len(all_bots())
+    assert store.get_watchlist("muffin")["items"]
+    assert store.db.execute("SELECT COUNT(*) FROM trades").fetchone()[0] == trades  # rien n'a été rejoué
