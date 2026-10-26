@@ -47,8 +47,8 @@ def test_stop_not_reached_does_nothing():
 
 def test_bots_place_stops_from_their_cost_and_settings():
     acct = holding(cost=140.0)  # 100 $ US à 1,40
-    levels = Muffin().stops(acct.positions, {"stop": 0.10}, lambda t: 1.4)
-    assert levels == {"RY.TO": (90.0, "below")}
+    levels = Muffin().stops(acct.positions, {"stop": 0.08, "crash_stop": 0.10}, lambda t: 1.4)
+    assert levels == {"RY.TO": (90.0, "below")}  # seul le stop de secours est posé chez le courtier
     short = {"OPT:XLF:P:40:2024-04-19": Position("OPT:XLF:P:40:2024-04-19", -2, 0.5 * 100 * 1.4, "2024-03-01")}
     assert JalapenoV2().stops(short, {"stop": 3.0}, lambda t: 1.4) == {"OPT:XLF:P:40:2024-04-19": (1.5, "above")}
 
@@ -56,7 +56,7 @@ def test_bots_place_stops_from_their_cost_and_settings():
 def test_season_triggers_stops_and_writes_them_down():
     arena, _ = run_arena(400)
     stops = arena.store.db.execute("SELECT bot_id, payload FROM events WHERE kind = 'stop'").fetchall()
-    assert stops and {r["bot_id"] for r in stops} <= {"muffin", "jalapeno", "jalapeno-v2"}
+    assert stops and {r["bot_id"] for r in stops} <= {"muffin", "jalapeno", "jalapeno-v2", "jalapeno-v3"}
     assert arena.store.db.execute("SELECT COUNT(*) FROM journal WHERE text LIKE 'Mon ordre stop%'").fetchone()[0] == len(stops)
 
 
@@ -75,3 +75,17 @@ def test_live_shows_a_stop_being_hit():
     muffin = next(e for e in live["bots"] if e["id"] == "muffin")
     hit = [x for x in muffin["stops"] if x["ticker"] == stock]
     assert hit and hit[0]["hit"] and "stop" in muffin["reaction"]
+
+
+def test_jalapeno_v3_buys_long_in_the_money_calls_and_rolls_them():
+    from chubby import options as opt
+    arena, _ = run_arena(500)
+    buys = arena.store.db.execute("SELECT day, ticker, price FROM trades WHERE bot_id = 'jalapeno-v3' AND side = 'buy'").fetchall()
+    assert buys, "Jalapeño v3 n'a rien acheté"
+    for r in buys:
+        under, kind, strike, expiry = opt.parse(r["ticker"])
+        spot = arena.data.price(under, r["day"], "Open")
+        assert kind == "C" and strike < spot  # dans la monnaie
+        assert (expiry - pd.Timestamp(r["day"])).days > 150  # option longue
+    notes = [r["text"] for r in arena.store.db.execute("SELECT text FROM journal WHERE bot_id = 'jalapeno-v3'")]
+    assert any("renouvelle" in n or "cash" in n for n in notes) or len(buys) == 1

@@ -183,7 +183,8 @@ class Muffin(Bot):
         "max_positions": Param(6, 3, 8, "nombre maximum de positions", integer=True),
         "rsi_buy": Param(30, 20, 35, "RSI sous lequel un titre est « en solde »"),
         "rsi_sell": Param(60, 55, 70, "RSI au-dessus duquel il revend (rebond)"),
-        "stop": Param(0.08, 0.05, 0.15, "perte maximale tolérée par position"),
+        "stop": Param(0.08, 0.05, 0.15, "perte maximale tolérée par position, vérifiée à la clôture"),
+        "crash_stop": Param(0.15, 0.10, 0.30, "stop de secours chez le courtier, déclenché pendant la séance"),
         "max_days": Param(35, 20, 60, "durée maximale de détention, en jours", integer=True),
     }
     rules = [
@@ -191,12 +192,16 @@ class Muffin(Bot):
         "Ne les achète que si elles restent au-dessus de 95 % de leur moyenne 200 jours : une bonne société en solde, pas une qui s'effondre.",
         "Au plus {max_positions:.0f} positions, environ 15 % du capital chacune, les plus survendues d'abord.",
         "Revend quand le RSI remonte au-dessus de {rsi_sell:.0f} (le rebond est venu) ou après {max_days:.0f} jours.",
-        "Ordre stop chez le courtier à -{stop:.0%} du prix d'achat : il se déclenche pendant la séance.",
+        "Vend le soir un titre qui clôture à -{stop:.0%} ou plus sous son prix d'achat. Il ne regarde qu'à la clôture : "
+        "un titre survendu plonge souvent pendant la journée puis remonte, et vendre au creux ferait rater le rebond.",
+        "Stop de secours chez le courtier à -{crash_stop:.0%}, déclenché pendant la séance : la protection contre un vrai effondrement.",
     ]
     slot = 0.15
 
     def stops(self, positions, params, fx):
-        stop = self.param(params, "stop")
+        # Seulement le stop de secours : le -8 % se vérifie à la clôture, dans decide(). Testé sur 2022-2025, un stop
+        # serré pendant la séance coûtait 12 points à Muffin (il vendait au creux de la journée, avant le rebond).
+        stop = self.param(params, "crash_stop")
         return {t: (round(p.avg_cost_cad * (1 - stop) / fx(t), 2), "below") for t, p in positions.items() if p.qty > 0}
 
     def decide(self, ctx: BotContext) -> Decision:
@@ -410,4 +415,71 @@ class JalapenoV2(Bot):
                         trades=[(sym, -n)])
 
 
-RULE_BOTS = [Tortue, Flan, Dumpling, Mochi, Muffin, Jalapeno, JalapenoV2]
+class JalapenoV3(Bot):
+    """Le casse-cou devenu patient : des calls longs, déjà dans la monnaie, sur le Nasdaq ou le S&P 500.
+
+    Une option longue et dans la monnaie perd peu de valeur chaque jour et suit l'indice presque comme
+    des actions, avec un effet de levier. Il n'en achète que quand la tendance est haussière, les
+    renouvelle avant qu'elles ne vieillissent, et range tout au cash quand le marché casse.
+    """
+
+    id, name, personality = "jalapeno-v3", "Jalapeño v3", "Casse-cou patient · options longues"
+    universe = ["QQQ", "SPY"]
+    params = {
+        "budget": Param(0.25, 0.10, 0.40, "part du capital mise en options"),
+        "itm": Param(0.15, 0.05, 0.25, "prix d'exercice sous le cours (dans la monnaie)"),
+        "dte": Param(365, 180, 540, "jours avant l'échéance au moment de l'achat", integer=True),
+        "roll_days": Param(90, 60, 150, "renouvelle l'option quand il reste moins de jours que ça", integer=True),
+        "roll_gain": Param(1.0, 0.5, 2.0, "renouvelle aussi après ce gain, pour encaisser (1,0 = +100 %)"),
+        "exit_buffer": Param(0.03, 0.0, 0.08, "sortie si le Nasdaq passe ce pourcentage sous sa moyenne 200 jours"),
+        "stop": Param(0.5, 0.3, 0.7, "stop de secours chez le courtier, déclenché pendant la séance"),
+    }
+    rules = [
+        "Achète des calls sur le Nasdaq (QQQ) ou le S&P 500 (SPY), celui des deux qui monte le plus sur 3 mois.",
+        "Des options longues (environ {dte:.0f} jours) et déjà dans la monnaie ({itm:.0%} sous le cours) : elles perdent peu "
+        "de valeur chaque jour et suivent l'indice presque comme des actions, avec un effet de levier.",
+        "Met {budget:.0%} de son capital en options. Le reste dort au cash et rapporte des intérêts.",
+        "N'achète que si le Nasdaq est au-dessus de sa moyenne 200 jours. S'il passe {exit_buffer:.0%} en dessous, il vend tout et attend au cash.",
+        "Renouvelle son option quand il lui reste moins de {roll_days:.0f} jours, ou après +{roll_gain:.0%} de gain pour encaisser.",
+        "Stop de secours à -{stop:.0%} chez le courtier, déclenché pendant la séance.",
+    ]
+
+    def stops(self, positions, params, fx):
+        stop = self.param(params, "stop")
+        return {t: (max(0.01, round(p.avg_cost_cad * (1 - stop) / (opt.MULTIPLIER * fx(t)), 2)), "below")
+                for t, p in positions.items() if opt.is_option(t) and p.qty > 0}
+
+    def _new_call(self, ctx: BotContext) -> tuple[str, float]:
+        best = max(self.universe, key=lambda t: ind.pct_return(ctx.closes(t, 70), 63) or -1)
+        sym = ctx.data.contract(best, "C", ctx.day, -self.p(ctx, "itm"), self.p(ctx, "dte"))
+        return sym, min(0.5, self.p(ctx, "budget") * ctx.aggressiveness)
+
+    def decide(self, ctx: BotContext) -> Decision:
+        nasdaq = ctx.closes("QQQ", 210)
+        sma200 = ind.sma(nasdaq, 200)
+        if sma200 is None:
+            return Decision(None)
+        last = nasdaq.iloc[-1]
+        held = [t for t, p in ctx.account.positions.items() if opt.is_option(t) and p.qty > 0]
+        if held:
+            sym = held[0]
+            if last < sma200 * (1 - self.p(ctx, "exit_buffer")):
+                return Decision({}, [f"Le Nasdaq casse sa moyenne 200 jours : je vends mon {opt.describe(sym)} et j'attends au cash."])
+            pos = ctx.account.positions[sym]
+            value = ctx.broker.value_of(ctx.account, ctx.day).get(sym, 0.0)
+            gain = value / (pos.avg_cost_cad * pos.qty) - 1
+            days_left = (opt.parse(sym)[3] - ctx.day).days
+            if days_left > self.p(ctx, "roll_days") and gain < self.p(ctx, "roll_gain"):
+                return Decision(None)
+            new, weight = self._new_call(ctx)
+            why = f"il ne lui reste que {days_left} jours" if days_left <= self.p(ctx, "roll_days") else f"j'encaisse {gain:+.0%}"
+            return Decision({new: weight}, [f"Je renouvelle mon {opt.describe(sym)} ({why}) : {opt.describe(new)}."])
+        if last <= sma200:
+            return Decision(None)
+        new, weight = self._new_call(ctx)
+        premium = ctx.data.price(new, ctx.day) or 0
+        return Decision({new: weight}, [f"La tendance est haussière : j'achète un {opt.describe(new)} "
+                                        f"(≈ {premium * 100:,.0f} $ US par contrat), et je suis patient."])
+
+
+RULE_BOTS = [Tortue, Flan, Dumpling, Mochi, Muffin, Jalapeno, JalapenoV2, JalapenoV3]

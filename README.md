@@ -12,9 +12,10 @@ Une arène où des bots de trading, les **Chubbies**, s'affrontent avec **10 000
 | Flan | Rentier · dividendes | Chaque mois, garde les 8 meilleurs rendements en dividendes (entre 2 % et 9 %, pas en chute libre) |
 | Dumpling | Équilibré · diversification | Mix d'ETF (actions Canada, É.-U., international, émergents, obligations, or), rééquilibré quand un poids dérive |
 | Mochi | Chasseur de tendance | Chaque semaine, vise les 5 titres les plus forts sur 3 mois parmi 100 grandes sociétés canadiennes et américaines ; garde un titre tant qu'il reste dans le top 10 et coupe ce qui casse sa moyenne 50 jours |
-| Muffin | Chasseur d'aubaines | Parmi les mêmes 100 sociétés, achète les plus survendues (RSI < 30, au-dessus de la moyenne 200 jours), revend au rebond, stop à -8 % |
+| Muffin | Chasseur d'aubaines | Parmi les mêmes 100 sociétés, achète les plus survendues (RSI < 30, au-dessus de la moyenne 200 jours), revend au rebond. Vend le soir à -8 % (vérifié à la clôture), avec un stop de secours à -15 % pendant la séance |
 | Jalapeño | Casse-cou · options | Calls sur l'indice ou le FNB le plus en forme quand le Nasdaq est au-dessus de sa moyenne 200 jours, petits puts sinon ; 30 % du capital en primes, sortie sur gain (+100 %), stop (-50 %), retournement ou à 7 jours de l'échéance |
 | Jalapeño v2 | Vendeur d'options · la roue | Vend des puts garantis par son cash sur des FNB bon marché (XLF, EEM, SLV, KRE, GDX) et encaisse la prime ; s'il est exercé, il vend des calls couverts sur ses actions. Rachète à 50 % de la prime gagnée, ou pour couper une perte. Gagne souvent un peu, peut perdre gros dans un krach |
+| Jalapeño v3 | Casse-cou patient · options longues | Calls d'environ un an, déjà dans la monnaie, sur QQQ ou SPY quand la tendance est haussière : peu de perte de valeur chaque jour, un effet de levier modéré. Les renouvelle avant qu'ils ne vieillissent, range tout au cash si le Nasdaq casse sa moyenne 200 jours |
 | Matcha | Apprentie machine learning | Chaque mois, réentraîne un modèle sur deux ans d'historique pour apprendre quels signaux ont annoncé les meilleurs titres, puis achète ses 8 favoris. Elle écrit dans son journal ce qu'elle a appris |
 
 Le code est dans [`chubby/bots/`](chubby/bots/). Pour créer un Chubby, il suffit d'hériter de `Bot` et d'écrire `decide()`, qui renvoie les poids voulus. Les **réglages** (`params`) déclarés par chaque bot, avec leurs bornes, sont ce que le coaching peut ajuster.
@@ -77,7 +78,8 @@ chubby direct      # la même chose dans le terminal
 Le but est d'être réaliste, pour que les résultats veuillent dire quelque chose :
 
 - **Pas de triche sur le futur** : un bot décide le soir avec les clôtures du jour, et ses ordres sont exécutés **à l'ouverture du lendemain**. Matcha n'apprend que sur des exemples dont le résultat était déjà connu.
-- **Ordres stop pendant la séance** : Muffin (stop à -8 %), Jalapeño (-50 % sur ses options) et Jalapeño v2 (rachat si l'option vendue vaut 3 fois la prime) laissent un ordre stop, comme chez un vrai courtier.
+- **Ordres stop pendant la séance** : Muffin (stop de secours à -15 %), Jalapeño et Jalapeño v3 (-50 % sur leurs options) et Jalapeño v2 (rachat si l'option vendue vaut 3 fois la prime) laissent un ordre stop, comme chez un vrai courtier.
+  - **Pourquoi -15 % pour Muffin, et pas -8 %.** Sur 2022-2025, un stop à -8 % pendant la séance lui coûtait 12 points (+23 % au lieu de +35 %). Muffin achète des titres survendus, qui plongent souvent dans la journée avant de remonter : il vendait au creux, juste avant le rebond. Son -8 % se vérifie donc à la clôture.
   - **Quand il s'exécute.** Il se déclenche dès que le plus bas, ou le plus haut, de la journée franchit le seuil. Il est exécuté au prix du stop, ou à l'ouverture si le titre a ouvert au-delà (un trou à l'ouverture).
   - **Dans les backtests.** On utilise le plus haut et le plus bas de chaque jour.
   - **En direct.** Le tableau de bord montre les stops proches (« Stop · UPS 61,05 (à 5,1 %) »), et le Chubby crie quand le sien est touché. La vente est comptabilisée à la séance du soir, au prix du stop.

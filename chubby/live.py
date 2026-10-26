@@ -103,6 +103,13 @@ REACTIONS = {
         "down": ["{t} {m}… tant que ça reste au-dessus de mon prix d'exercice, ça va.", "Un peu de baisse, rien de grave pour la roue."],
         "big_down": ["{t} {m} ! Si on m'exerce, j'achèterai les actions et je vendrai des calls.", "Gros recul : je surveille mon stop."],
     },
+    "jalapeno-v3": {
+        "big_up": ["{t} {m} ! Mes calls longs adorent ça, et je ne bouge pas.", "Effet de levier, mais avec patience !"],
+        "up": ["{t} {m}. Mon option suit l'indice tranquillement.", "Doucement vers le haut, comme prévu."],
+        "flat": ["Journée calme : mon option longue ne perd presque rien à attendre.", "Je suis patient, moi, maintenant."],
+        "down": ["{t} {m}… tant que le Nasdaq tient sa moyenne 200 jours, je garde.", "Petit recul, mon échéance est loin."],
+        "big_down": ["{t} {m} ! Si le Nasdaq casse sa moyenne 200 jours, je range tout au cash.", "Ça secoue, mais mon plan est clair."],
+    },
     "matcha": {
         "big_up": ["Mon modèle avait vu juste : {t} {m} !", "Les données ne mentent pas, {t} {m}."],
         "up": ["{t} {m}, conforme à mes prédictions.", "Signal confirmé, on monte."],

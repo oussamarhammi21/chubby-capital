@@ -9,6 +9,7 @@
     muffin:   { base: '#F7C9AE', light: '#FFEDE2', dark: '#DE9A74', shape: 'tuft' },
     jalapeno: { base: '#F2A39A', light: '#FFDCD6', dark: '#D9736A', shape: 'arms' },
     'jalapeno-v2': { base: '#F6B98C', light: '#FFE6D2', dark: '#DB8B56', shape: 'arms' },
+    'jalapeno-v3': { base: '#E58FA6', light: '#FFDCE6', dark: '#C9637F', shape: 'arms' },
     matcha:   { base: '#C8E6A8', light: '#EEF8E2', dark: '#93C26E', shape: 'round' }
   };
   var DEFAULT_LOOK = { base: '#C9C6D9', light: '#EEEDF5', dark: '#9C99B0', shape: 'round' };

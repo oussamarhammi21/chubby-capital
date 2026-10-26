@@ -49,7 +49,7 @@ def test_report_tells_the_whole_story():
     assert len(r["curve"]["days"]) == played and r["curve"]["twin"] is None
     assert r["stats"]["trades"] == arena.store.db.execute("SELECT COUNT(*) FROM trades WHERE bot_id = 'muffin'").fetchone()[0]
     kinds = {e["kind"] for d in r["timeline"] for m in ("open", "session", "close", "evening") for e in d[m]}
-    assert {"trade", "journal", "stop"} <= kinds
+    assert {"trade", "journal"} <= kinds
     assert any(d.get("decided_on") for d in r["timeline"])  # les ordres de l'ouverture viennent de la veille
     assert all(p["stop"] for p in r["positions"])  # Muffin a un stop sur chaque position
     assert r["monthly"] and r["round_trips"]
