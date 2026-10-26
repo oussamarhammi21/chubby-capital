@@ -82,6 +82,8 @@ class Arena:
         self._record(bot, day, broker.settle_expired(acct, day))
         for ticker, amount in broker.credit_dividends(acct, day):
             self.store.event(day, bot.id, "dividend", ticker=ticker, amount_cad=round(amount, 2))
+        if acct.cash > 0:  # le cash rapporte des intérêts, versés chaque séance
+            acct.cash += acct.cash * self.cfg.cash_rate / 252
         fee = broker.cfg.monthly_fee
         if fee and self._first_day_of_month(day):
             acct.cash -= fee

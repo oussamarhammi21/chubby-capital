@@ -21,6 +21,7 @@ class ArenaConfig:
     usd_account: bool = True  # compte en dollars américains : pas de conversion à chaque trade
     usd_account_monthly_fee: float = 10.0  # prix du forfait qui donne le compte en USD, en CAD
     commission: float = 0.0  # par ordre, en CAD
+    cash_rate: float = 0.03  # intérêt annuel sur le cash (un compte rapportait 3 à 5 % en 2023-2024)
     option_slippage: float = 0.02  # l'écart achat-vente des options est large : 2 % de la prime
     option_fee_per_contract: float = 0.75  # frais par contrat d'option, à ajuster selon ton courtier
     min_trade_cad: float = 100.0  # on ignore les ajustements plus petits

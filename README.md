@@ -52,6 +52,7 @@ Le but est d'être réaliste, pour que les résultats veuillent dire quelque cho
   - Tortue, Dumpling et Flan, surtout investis au Canada, ont un **compte en CAD sans forfait** : chaque trade ou dividende américain paie **1,5 % de conversion**.
   - Avec `--sans-compte-usd`, tout le monde passe au compte en CAD.
 - **Compte CELI par défaut** : retenue de 15 % sur les dividendes américains (pas en REER). Option `--compte`.
+- **Le cash rapporte 3 % par an** (option `--taux-cash`), versé chaque séance, comme un compte d'épargne ou des bons du Trésor. Sans ça, les Chubbies qui attendent au cash seraient injustement pénalisés.
 - **Actions entières**, comptes en CAD, taux USD/CAD réel du jour.
 
 ## Le score
@@ -143,6 +144,8 @@ part américaine et forfait USD).
   (ou `Market Price`). Les titres d'une bourse canadienne reçoivent automatiquement le suffixe `.TO`.
 
 ## Sur le PC serveur (Docker)
+
+Le guide pas à pas (Ubuntu Server ou Windows, Docker, Tailscale, sauvegardes) est dans [`docs/SERVEUR.md`](docs/SERVEUR.md).
 
 ```bash
 cp .env.example .env          # puis mets ta clé API Anthropic dedans (facultatif)

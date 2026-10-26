@@ -108,3 +108,22 @@ def test_mochi_and_jalapeno_do_not_churn():
         "SELECT bot_id, COUNT(DISTINCT day) AS n FROM trades GROUP BY bot_id")}
     assert counts["jalapeno"] <= 240 / 3  # un aller-retour sur options dure plusieurs séances
     assert counts["matcha"] <= 240 / 21 * 2 + 4  # environ un rééquilibrage par mois
+
+
+def test_idle_cash_earns_interest():
+    from chubby.bots import Bot, Decision
+    from chubby.config import ArenaConfig
+
+    class Sleeper(Bot):
+        id, name, personality, universe = "dormeur", "Dormeur", "Garde tout au cash", []
+        usd_account = False  # pas de forfait, pour ne mesurer que les intérêts
+
+        def decide(self, ctx):
+            return Decision(None)
+
+    data = fake_market(300)
+    days = data.trading_days()
+    arena = Arena(Store(":memory:"), data, [Sleeper()], ArenaConfig(cash_rate=0.03))
+    arena.run(days[48], days[299])  # 252 séances
+    equity = arena.store.equity_series("dormeur").iloc[-1]
+    assert 10_290 < equity < 10_320  # environ +3 % en un an

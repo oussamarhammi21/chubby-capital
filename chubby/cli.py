@@ -167,6 +167,7 @@ def main(argv=None):
     p.add_argument("--sans-compte-usd", action="store_true",
                    help="compte en CAD seulement : 1,5 %% de conversion sur chaque trade américain")
     p.add_argument("--sans-ia", action="store_true", help="pas de versions IA ni de coach Claude")
+    p.add_argument("--taux-cash", type=float, default=3.0, help="intérêt annuel sur le cash, en %% (défaut : 3)")
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -201,7 +202,8 @@ def main(argv=None):
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose or args.cmd == "serve" else logging.WARNING,
                         format="%(asctime)s %(levelname)s %(message)s")
-    args.fn(args, ArenaConfig(account_type=args.compte, usd_account=not args.sans_compte_usd))
+    args.fn(args, ArenaConfig(account_type=args.compte, usd_account=not args.sans_compte_usd,
+                              cash_rate=args.taux_cash / 100))
 
 
 if __name__ == "__main__":
