@@ -14,7 +14,7 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .up { color: var(--up); } .down { color: var(--down); }
 
 /* ---------- la scène : ton image, et tout ce qui vit dessus, dans les coordonnées de l'image (1548 × 1016) ---------- */
-#stage { position: absolute; left: 0; top: 0; width: 1548px; height: 1016px; transform-origin: 0 0; }
+#stage { position: absolute; left: 0; top: 0; width: 1548px; height: 1016px; transform-origin: 0 0; z-index: 1; } /* sous les panneaux (10+) */
 #stage .bg { position: absolute; inset: 0; background: url('/static/img/ile.webp') 0 0 / 100% 100%; }
 #flows { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
 .flow { fill: none; stroke-width: 5; stroke-dasharray: 12 9; stroke-linecap: round; animation: march 0.9s linear infinite; filter: drop-shadow(0 0 4px rgba(255,255,255,0.8)); }
@@ -149,6 +149,19 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
   .timeline { gap: 6px; padding-right: 8px; } .seg button { padding: 6px 7px; } .track { min-width: 60px; } .play { width: 38px; height: 38px; }
   .bubble { max-width: 220px; font-size: 14px; }
 }
+/* ---------- balade 3D : l'île est dessinée en relief (relief.js), tout le reste est placé par-dessus, image par image ---------- */
+body.relief { background: linear-gradient(180deg, #8ACDF6 0%, #5FB4EA 35%, #1D8FD6 70%, #0F67A8 100%); }
+body.relief #stage { transform: none !important; width: 100vw; height: 100vh; pointer-events: none; }
+body.relief #stage .bg, body.relief #flows { display: none; }
+body.relief #stage .bot, body.relief #stage .plate, body.relief #stage .zone, body.relief #stage .bubble, body.relief #stage .screen {
+  left: 0 !important; top: 0 !important; transform-origin: 0 0; transition: none; }
+body.relief #stage .bot { pointer-events: auto; }
+body.relief #stage #indices { position: fixed; left: auto !important; right: 16px; top: 16px !important; transform: none; z-index: 9000; } /* en 3D, les indices restent en haut de l'écran */
+#flows3d { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; display: none; }
+body.relief #flows3d { display: block; }
+.hint { left: 50%; bottom: 84px; transform: translateX(-50%); padding: 8px 14px; font-weight: 800; font-size: 12.5px; color: var(--muted); display: none; white-space: nowrap; }
+body.relief .hint { display: block; } body.relief.nopanels .hint { display: none; }
+@media (max-width: 900px) { .hint { display: none !important; } }
 @media (prefers-reduced-motion: reduce) { .bot .body, .bot.talk .body, .flow { animation: none; } .bot { transition: none; } }
 </style>
 </head>
@@ -161,6 +174,7 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
   <div id="plates"></div>
   <div id="zones"></div>
   <svg id="flows" viewBox="0 0 1548 1016"></svg>
+  <svg id="flows3d"></svg>
   <div id="bots"></div>
   <div id="bubbles"></div>
 </div>
@@ -172,11 +186,13 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
   </select>
   <button id="b-music" aria-pressed="false">🎵 Musique</button>
   <button id="b-team" aria-pressed="false" title="Montrer les versions coachées par Claude">🤖 Versions IA</button>
+  <button id="b-relief" aria-pressed="false" title="Se balader dans l'île en 3D">🧭 Balade 3D</button>
   <button id="b-zones" aria-pressed="false">🗺 Lieux</button>
   <button id="b-panels" aria-pressed="true">▤ Panneaux</button>
   <a href="/" class="btn" style="padding:8px 11px;font-weight:800;font-size:13px;color:inherit;text-decoration:none">← Tableau</a>
 </div>
 <div class="glass toast" id="toast"></div>
+<div class="glass hint hideable">🖱 Glisse pour tourner · molette pour zoomer · clic droit pour te déplacer · double-clic pour revenir · clic sur un Chubby pour aller le voir</div>
 
 <section class="glass feed hideable" aria-label="Ce qui se passe">
   <h2><span><span class="dot" id="feed-dot"></span>Ce qui se passe</span><button class="iconbtn" id="feed-more" aria-expanded="false">Tout voir ⤢</button></h2>
@@ -206,6 +222,7 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
 
 <script src="/static/chubbies.js"></script>
 <script src="/static/sons.js"></script>
+<script src="/static/relief.js"></script>
 <script>
 (function () {
   'use strict';
@@ -229,6 +246,45 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
   addEventListener('pointermove', function (e) { if (pan) { panX = pan.start + (e.clientX - pan.x); fit(); } });
   addEventListener('pointerup', function () { pan = null; });
   function centerOn(ix) { panX = (W / 2 - ix) * scale; fit(); } // amène un point de l'image au centre de l'écran
+
+  // ---------- balade 3D : l'île en relief (relief.js) ; chaque Chubby, écran et étiquette suit son point de l'image ----------
+  var relief = false;
+  // Les écrans peints : leur coin haut-gauche, puis l'endroit où lire leur profondeur (le milieu de l'écran).
+  var SCREENS = { 'arena-chart': [549, 166, 635, 238], 'arena-list': [729, 168, 791, 238] };
+  function place3d(el, x, y, sx, sy, after, kmin, kmax) {
+    var p = window.Relief.project(x, y, sx, sy);
+    if (!p || !p.visible) { el.style.visibility = 'hidden'; return null; }
+    var k = Math.max(kmin, Math.min(kmax, p.k));
+    el.style.visibility = ''; el.style.transform = 'translate(' + p.x.toFixed(1) + 'px,' + p.y.toFixed(1) + 'px) scale(' + k.toFixed(3) + ')' + (after || '');
+    return p;
+  }
+  function layout3d() {
+    Object.keys(bots).forEach(function (id) {
+      var o = bots[id]; o.cx += (o.x - o.cx) * 0.035; o.cy += (o.y - o.cy) * 0.035;
+      var p = place3d(o.el, o.cx, o.cy, null, null, ' translate(-50%,-100%)', 0.4, 1.4);
+      if (p) o.el.style.zIndex = 10 + Math.round(p.y); // le plus proche passe devant
+    });
+    Object.keys(SCREENS).forEach(function (id) { var a = SCREENS[id]; place3d(document.getElementById(id), a[0], a[1], a[2], a[3], id === 'arena-chart' ? ' skewY(-1.2deg)' : '', 0.2, 3); });
+    [].forEach.call(document.querySelectorAll('#plates .plate'), function (el) { place3d(el, parseFloat(el.style.left), parseFloat(el.style.top), null, null, ' translate(-50%,-50%) rotate(-7deg)', 0.3, 2.5); });
+    [].forEach.call(document.querySelectorAll('#zones .zone'), function (el) { place3d(el, parseFloat(el.style.left), parseFloat(el.style.top), null, null, ' translate(-50%,0)', 0.5, 1.6); });
+    var bub = document.querySelector('.bubble'), ob = bub && bots[bub.dataset.id], pb = ob && window.Relief.project(ob.cx, ob.cy);
+    if (bub) { // la bulle suit son Chubby mais garde une taille lisible
+      if (pb && pb.visible) { var kb = Math.max(0.4, Math.min(2, pb.k)); bub.style.visibility = ''; bub.style.zIndex = 5000; bub.style.transform = 'translate(' + pb.x.toFixed(1) + 'px,' + (pb.y - 108 * kb).toFixed(1) + 'px) translate(-50%,-100%)'; }
+      else bub.style.visibility = 'hidden';
+    }
+    drawFlows();
+  }
+  function setRelief(want) {
+    relief = !!want && window.Relief.supported();
+    document.body.classList.toggle('relief', relief);
+    $('#b-relief').setAttribute('aria-pressed', String(relief));
+    try { localStorage.setItem('chubby-relief', relief ? '1' : '0'); } catch (e) {}
+    if (relief) { window.Relief.start(layout3d); return; }
+    window.Relief.stop(); $('#flows3d').innerHTML = '';
+    [].forEach.call(document.querySelectorAll('#stage .bot, #stage .plate, #stage .zone, #stage .bubble, #stage .screen'), function (el) { el.style.transform = el.style.visibility = el.style.zIndex = ''; });
+    Object.keys(bots).forEach(function (id) { bots[id].cx = bots[id].x; bots[id].cy = bots[id].y; });
+    fit(); drawFlows();
+  }
 
   // ---------- les lieux de l'île : où va un Chubby selon ce qu'il est en train de faire ----------
   var MARKET = [1222, 300]; // l'enseigne « Le Marché »
@@ -304,12 +360,13 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
       var slot = take(s.zone);
       var o = bots[s.id];
       if (!o) {
-        o = bots[s.id] = { el: document.createElement('div') }; o.el.className = 'bot'; o.el.dataset.id = s.id;
+        o = bots[s.id] = { el: document.createElement('div'), cx: ZONES.maison.at[0], cy: ZONES.maison.at[1] + 200 }; o.el.className = 'bot'; o.el.dataset.id = s.id;
         o.el.style.left = (ZONES.maison.at[0]) + 'px'; o.el.style.top = (ZONES.maison.at[1]) + 'px';
         o.el.addEventListener('click', function () { select(s.id, true); });
         $('#bots').appendChild(o.el);
       }
       o.x = slot[0]; o.y = slot[1]; o.state = s;
+      if (!relief) { o.cx = o.x; o.cy = o.y; } // en 3D, il marche jusque-là image par image (layout3d)
       requestAnimationFrame(function () { o.el.style.left = slot[0] + 'px'; o.el.style.top = slot[1] + 'px'; });
       var face = s.mood + '|' + s.closeness.toFixed(1) + '|' + s.crossed;
       o.el.classList.toggle('sel', s.id === sel);
@@ -319,8 +376,9 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
       else o.el.querySelector('.chip').outerHTML = chip;
     });
   }
+  var flowData = [];
   function flows(list) {
-    var svg = '', tags = '';
+    flowData = [];
     list.forEach(function (s, k) {
       var o = bots[s.id]; if (!o) return;
       var items = [];
@@ -328,14 +386,28 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
       (s.trades || []).slice(0, 1).forEach(function (e) {
         items.push({ up: e.kind === 'trade' && e.side === 'buy', text: (e.kind === 'stop' ? '⬇ STOP ' : e.side === 'buy' ? '⬆ ACHAT ' : '⬇ VENTE ') + C.pretty(e.ticker).replace(/ \(.*\)/, '') + (e.value_cad ? ' · ' + C.money(e.value_cad) : '') });
       });
-      items.forEach(function (it) {
-        var x1 = o.x, y1 = o.y - 60, x2 = MARKET[0] + (k % 3 - 1) * 26, y2 = MARKET[1] + 30, mx = (x1 + x2) / 2, my = Math.min(y1, y2) - 70;
-        var col = it.up ? '#12875A' : '#D9534F', w = it.text.length * 8.4 + 26, tx = (x1 + 2 * mx + x2) / 4, ty = (y1 + 2 * my + y2) / 4;
-        svg += '<path class="flow" stroke="' + col + '" d="M' + x1 + ' ' + y1 + ' Q' + mx + ' ' + my + ' ' + x2 + ' ' + y2 + '"/><circle cx="' + x2 + '" cy="' + y2 + '" r="7" fill="' + col + '"/>';
-        tags += '<g class="flowtag" transform="translate(' + tx + ',' + ty + ')"><rect x="' + (-w / 2) + '" y="-15" width="' + w + '" height="30" rx="15" stroke="' + col + '"/><text text-anchor="middle" y="5" fill="' + col + '">' + esc(it.text) + '</text></g>';
-      });
+      items.forEach(function (it) { flowData.push({ id: s.id, k: k, up: it.up, text: it.text }); });
     });
-    $('#flows').innerHTML = svg + tags;
+    drawFlows();
+  }
+  // Une ligne du Chubby jusqu'au marché. À plat : en coordonnées de l'image ; en 3D : projetée à l'écran, à chaque image.
+  function drawFlows() {
+    var svg = '', tags = '';
+    flowData.forEach(function (f) {
+      var o = bots[f.id]; if (!o) return;
+      var a = pt(o.cx, o.cy - 60, o.cx, o.cy), b = pt(MARKET[0] + (f.k % 3 - 1) * 26, MARKET[1] + 30, MARKET[0], MARKET[1] + 120);
+      if (!a || !b) return;
+      var lift = 70 * (relief ? (a.k + b.k) / 2 : 1), mx = (a.x + b.x) / 2, my = Math.min(a.y, b.y) - lift;
+      var col = f.up ? '#12875A' : '#D9534F', w = f.text.length * 8.4 + 26, tx = (a.x + 2 * mx + b.x) / 4, ty = (a.y + 2 * my + b.y) / 4;
+      svg += '<path class="flow" stroke="' + col + '" d="M' + a.x + ' ' + a.y + ' Q' + mx + ' ' + my + ' ' + b.x + ' ' + b.y + '"/><circle cx="' + b.x + '" cy="' + b.y + '" r="7" fill="' + col + '"/>';
+      tags += '<g class="flowtag" transform="translate(' + tx + ',' + ty + ')"><rect x="' + (-w / 2) + '" y="-15" width="' + w + '" height="30" rx="15" stroke="' + col + '"/><text text-anchor="middle" y="5" fill="' + col + '">' + esc(f.text) + '</text></g>';
+    });
+    (relief ? $('#flows3d') : $('#flows')).innerHTML = svg + tags;
+  }
+  // Un point de l'image : tel quel à plat, projeté en 3D (avec la profondeur lue en (sx, sy)).
+  function pt(x, y, sx, sy) {
+    if (!relief) return { x: x, y: y, k: 1 };
+    var p = window.Relief.project(x, y, sx, sy); return p && p.visible ? p : null;
   }
   function screens() {
     var list = shown(), when, ix = [];
@@ -446,7 +518,7 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
     clearTimeout(bubbleTimer);
     Object.keys(bots).forEach(function (k) { bots[k].el.classList.remove('talk'); });
     var y = o.y - 108, x = Math.max(160, Math.min(W - 160, o.x));
-    $('#bubbles').innerHTML = '<div class="bubble" style="left:' + x + 'px;top:' + y + 'px">' + esc(text) + '</div>';
+    $('#bubbles').innerHTML = '<div class="bubble" data-id="' + esc(id) + '" style="left:' + x + 'px;top:' + y + 'px">' + esc(text) + '</div>';
     o.el.classList.add('talk');
     S.speak(id, text, o.state && o.state.mood, force);
     bubbleTimer = setTimeout(function () { $('#bubbles').innerHTML = ''; o.el.classList.remove('talk'); }, Math.max(5000, text.length * 70));
@@ -550,7 +622,8 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
     Object.keys(bots).forEach(function (k) { bots[k].el.classList.toggle('sel', k === id); });
     // La fiche s'ouvre du côté opposé au Chubby, pour qu'on le voie toujours parler.
     var o = bots[id]; // sa place d'arrivée, même s'il est encore en train de marcher
-    $('#fiche').classList.toggle('left', !!o && o.x * scale + offX > innerWidth / 2);
+    if (relief && o) window.Relief.focus(o.x, o.y - 40);
+    $('#fiche').classList.toggle('left', !relief && !!o && o.x * scale + offX > innerWidth / 2); // en 3D, la caméra le centre : fiche à droite
     if (o && innerWidth <= 900) centerOn(o.x);
     drawSide();
     if (!fiches[id]) fetch('/api/bots/' + encodeURIComponent(id) + '/fiche').then(function (r) { return r.json(); }).then(function (f) { if (!f.erreur) { fiches[id] = f; if (sel === id) drawSide(); } });
@@ -634,6 +707,7 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
   function render() {
     var list = shown();
     place(list); flows(list); screens(); drawTrack(); buildFeed(); drawSide();
+    if (relief && window.Relief.active) layout3d(); // pas d'image où les nouveaux éléments traînent dans le coin
   }
 
   // ---------- boutons ----------
@@ -646,6 +720,9 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
     team = team === 'orig' ? 'ia' : 'orig'; $('#b-team').setAttribute('aria-pressed', String(team === 'ia'));
     if (sel) sel = twinOf(sel); talkQueue = []; toast(team === 'ia' ? 'Les versions coachées par Claude' : 'Les Chubbies originaux'); render();
   };
+  $('#b-relief').onclick = function () { setRelief(!relief); if (relief) toast('Balade 3D : glisse pour tourner, molette pour zoomer'); };
+  if (!window.Relief.supported()) $('#b-relief').style.display = 'none';
+  else if ((function () { try { return localStorage.getItem('chubby-relief') === '1'; } catch (e) { return false; } })()) setRelief(true);
   $('#b-zones').onclick = function () { var on = document.body.classList.toggle('zones'); this.setAttribute('aria-pressed', String(on)); };
   function togglePanels() {
     var off = document.body.classList.toggle('nopanels'), b = $('#b-panels');
