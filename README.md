@@ -38,13 +38,28 @@ Chaque séance donne de l'XP : 10 pour tout le monde, plus 30, 20 et 10 pour le 
 
 ## Installation
 
-Python 3.11 ou plus récent :
+Python 3.11 ou plus récent.
+
+Linux / macOS :
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
 ```
+
+Windows (PowerShell) :
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+pytest
+```
+
+Si PowerShell refuse d'activer l'environnement, lance une fois
+`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. Si la commande `chubby` reste introuvable,
+`python -m chubby.cli` fait exactement la même chose (ex. `python -m chubby.cli classement`).
 
 ## Utilisation
 
