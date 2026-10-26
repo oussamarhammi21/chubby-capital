@@ -3,6 +3,7 @@ compter l'argent, classer les Chubbies, puis les laisser décider pour demain.""
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 
 import pandas as pd
@@ -25,6 +26,8 @@ class Arena:
         self.data = OptionData(data) if data is not None and not isinstance(data, OptionData) else data
         self.cfg = cfg or ArenaConfig()
         self.broker = PaperBroker(self.cfg, self.data)
+        # Chaque personnalité a son type de compte : USD avec forfait, ou CAD sans forfait.
+        self._cad_broker = PaperBroker(dataclasses.replace(self.cfg, usd_account=False), self.data)
         for bot in bots:
             store.ensure_bot(bot, self.cfg.starting_cash, bot.defaults())
         store.commit()
@@ -53,28 +56,35 @@ class Arena:
         self.store.set_meta("day_index", str(day_index + 1))
         self.store.commit()
 
-    def _play(self, bot: Bot, day: pd.Timestamp, day_index: int):
-        acct = self.store.load_account(bot.id)
-        targets = self.store.pop_pending(bot.id)
-        if targets is not None:
-            for f in self.broker.rebalance(acct, targets, day):
-                self.store.add_trade(bot.id, day, f)
-                self.store.event(day, bot.id, "trade", side=f.side, ticker=f.ticker, qty=f.qty,
-                                 value_cad=round(f.value_cad, 2))
-        for f in self.broker.settle_expired(acct, day):
+    def broker_for(self, bot: Bot) -> PaperBroker:
+        return self.broker if self.cfg.usd_account and bot.usd_account else self._cad_broker
+
+    def _record(self, bot: Bot, day, fills):
+        for f in fills:
+            if f is None:
+                continue
             self.store.add_trade(bot.id, day, f)
             self.store.event(day, bot.id, "trade", side=f.side, ticker=f.ticker, qty=f.qty,
                              value_cad=round(f.value_cad, 2))
-        for ticker, amount in self.broker.credit_dividends(acct, day):
+
+    def _play(self, bot: Bot, day: pd.Timestamp, day_index: int):
+        broker = self.broker_for(bot)
+        acct = self.store.load_account(bot.id)
+        targets, trades = self.store.pop_pending(bot.id)
+        if targets is not None:
+            self._record(bot, day, broker.rebalance(acct, targets, day))
+        self._record(bot, day, [broker.trade(acct, t, int(q), day) for t, q in trades])
+        self._record(bot, day, broker.settle_expired(acct, day))
+        for ticker, amount in broker.credit_dividends(acct, day):
             self.store.event(day, bot.id, "dividend", ticker=ticker, amount_cad=round(amount, 2))
-        if self.cfg.monthly_fee and self._first_day_of_month(day):
-            acct.cash -= self.cfg.monthly_fee
-            self.store.event(day, bot.id, "fee", reason="forfait compte USD", amount_cad=self.cfg.monthly_fee)
-        self.store.add_snapshot(bot.id, day, self.broker.equity(acct, day), acct.cash,
-                                self.broker.value_of(acct, day))
+        fee = broker.cfg.monthly_fee
+        if fee and self._first_day_of_month(day):
+            acct.cash -= fee
+            self.store.event(day, bot.id, "fee", reason="forfait compte USD", amount_cad=fee)
+        self.store.add_snapshot(bot.id, day, broker.equity(acct, day), acct.cash, broker.value_of(acct, day))
 
         row = self.store.bot_row(bot.id)
-        ctx = BotContext(day, self.data, self.broker, acct, row["aggressiveness"], day_index,
+        ctx = BotContext(day, self.data, broker, acct, row["aggressiveness"], day_index,
                          self.store.get_params(bot.id))
         try:
             decision = bot.decide(ctx)
@@ -83,8 +93,8 @@ class Arena:
             self.store.event(day, bot.id, "error", message="décision impossible")
             decision = None
         if decision is not None:
-            if decision.targets is not None:
-                self.store.set_pending(bot.id, decision.targets, day)
+            if decision.targets is not None or decision.trades:
+                self.store.set_pending(bot.id, decision.targets, day, decision.trades)
             for note in decision.notes:
                 self.store.journal(bot.id, day, note)
         self.store.save_account(acct)

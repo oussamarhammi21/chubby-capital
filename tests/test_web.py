@@ -4,6 +4,7 @@ import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
 
+from chubby.bots import ALL_BOTS
 from chubby.config import ArenaConfig
 from chubby.store import Store
 from chubby.web import api
@@ -57,7 +58,7 @@ def test_server_serves_page_and_api(tmp_path):
         page = urllib.request.urlopen(base + "/").read().decode()
         assert "Chubby Capital" in page
         data = json.loads(urllib.request.urlopen(base + "/api/overview").read())
-        assert len(data["leaderboard"]) == 7
+        assert len(data["leaderboard"]) == len(ALL_BOTS)
         detail = json.loads(urllib.request.urlopen(base + "/api/bots/flan").read())
         assert detail["name"] == "Flan"
         assert "Chubby Capital" in urllib.request.urlopen(base + "/ile").read().decode()

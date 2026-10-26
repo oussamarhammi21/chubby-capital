@@ -124,6 +124,8 @@ class PaperBroker:
         values = self.value_of(acct, day, "Open")
         fills: list[Fill] = []
         for t in list(acct.positions):
+            if acct.positions[t].qty < 0:
+                continue  # les options vendues se gèrent avec des ordres directs
             excess = values.get(t, 0.0) - targets.get(t, 0.0) * eq
             if targets.get(t, 0.0) <= 0:
                 qty = acct.positions[t].qty
@@ -148,8 +150,77 @@ class PaperBroker:
                 fills.append(f)
         return fills
 
+    def collateral(self, acct: Account, day) -> float:
+        """Cash bloqué en garantie des puts vendus (prix d'exercice × 100 par contrat)."""
+        total = 0.0
+        for t, pos in acct.positions.items():
+            if is_option(t) and pos.qty < 0 and parse(t)[1] == "P":
+                total += -pos.qty * parse(t)[2] * MULTIPLIER * self.fx(t, day)
+        return total
+
+    def free_cash(self, acct: Account, day) -> float:
+        return acct.cash - self.collateral(acct, day)
+
+    def trade(self, acct: Account, ticker: str, qty: int, day) -> Fill | None:
+        """Ordre direct au prix d'ouverture : qty > 0 achète (ou rachète une option vendue), qty < 0 vend.
+
+        Vendre une option qu'on ne détient pas ouvre une position vendue : on encaisse la prime,
+        et un put vendu doit être entièrement garanti par du cash libre.
+        """
+        pos = acct.positions.get(ticker)
+        if qty > 0 and pos and pos.qty < 0:
+            return self._buy_to_close(acct, ticker, min(qty, -pos.qty), day)
+        if qty > 0:
+            return self.buy(acct, ticker, qty, day)
+        if pos and pos.qty > 0:
+            return self.sell(acct, ticker, -qty, day)
+        if is_option(ticker):
+            return self._sell_to_open(acct, ticker, -qty, day)
+        return None  # pas de vente à découvert d'actions
+
+    def _sell_to_open(self, acct: Account, ticker: str, qty: int, day) -> Fill | None:
+        px = self.data.price(ticker, day, "Open")
+        if not px or qty <= 0:
+            return None
+        underlying, kind, strike, _ = parse(ticker)
+        fx = self.fx(ticker, day)
+        if kind == "P" and self.free_cash(acct, day) < qty * strike * MULTIPLIER * fx:
+            return None  # put non garanti : refusé
+        if kind == "C":
+            covered = acct.positions.get(underlying)
+            short_calls = sum(-p.qty for t, p in acct.positions.items()
+                              if is_option(t) and p.qty < 0 and parse(t)[0] == underlying and parse(t)[1] == "C")
+            if not covered or covered.qty < (short_calls + qty) * MULTIPLIER:
+                return None  # call non couvert : refusé
+        gross = qty * px * (1 - self.slippage(ticker)) * MULTIPLIER * fx
+        fee = gross * self.cfg.trade_fx_fee if currency_of(ticker) == "USD" else 0.0
+        fee += self.cfg.option_fee_per_contract * qty
+        proceeds = gross - fee
+        acct.cash += proceeds
+        pos = acct.positions.get(ticker)
+        if pos:
+            pos.avg_cost_cad = (pos.avg_cost_cad * -pos.qty + proceeds) / (-pos.qty + qty)
+            pos.qty -= qty
+        else:
+            acct.positions[ticker] = Position(ticker, -qty, proceeds / qty, str(pd.Timestamp(day).date()))
+        return Fill(ticker, "sell", qty, px * (1 - self.slippage(ticker)), currency_of(ticker), fx, fee, proceeds)
+
+    def _buy_to_close(self, acct: Account, ticker: str, qty: int, day) -> Fill | None:
+        px = self.data.price(ticker, day, "Open")
+        if not px or qty <= 0:
+            return None
+        unit, unit_fee = self._unit_cost(ticker, px, day)
+        cost = unit * qty
+        acct.cash -= cost  # racheter une option vendue est toujours permis : c'est réduire le risque
+        pos = acct.positions[ticker]
+        pos.qty += qty
+        if pos.qty == 0:
+            del acct.positions[ticker]
+        return Fill(ticker, "buy", qty, px * (1 + self.slippage(ticker)), currency_of(ticker), self.fx(ticker, day),
+                    unit_fee * qty, cost)
+
     def settle_expired(self, acct: Account, day) -> list[Fill]:
-        """Les options arrivées à échéance sont réglées à leur valeur intrinsèque (souvent zéro)."""
+        """Options arrivées à échéance : réglées à leur valeur intrinsèque, ou exercées pour les options vendues."""
         fills = []
         for t, pos in list(acct.positions.items()):
             if not is_option(t):
@@ -159,6 +230,9 @@ class PaperBroker:
                 continue
             spot = self.data.price(underlying, day) or 0.0
             intrinsic = max(spot - strike, 0.0) if kind == "C" else max(strike - spot, 0.0)
+            if pos.qty < 0:
+                fills.extend(self._settle_short(acct, t, pos, underlying, kind, strike, intrinsic, day))
+                continue
             fx = self.fx(t, day)
             fee = self.cfg.trade_fx_fee if currency_of(t) == "USD" else 0.0
             proceeds = pos.qty * intrinsic * MULTIPLIER * fx * (1 - fee)
@@ -166,6 +240,33 @@ class PaperBroker:
             del acct.positions[t]
             fills.append(Fill(t, "expire", pos.qty, intrinsic, currency_of(t), fx, 0.0, proceeds))
         return fills
+
+    def _settle_short(self, acct, t, pos, underlying, kind, strike, intrinsic, day) -> list[Fill]:
+        """Une option vendue expire sans valeur (on garde la prime) ou est exercée contre nous."""
+        del acct.positions[t]
+        n, fx = -pos.qty, self.fx(t, day)
+        if intrinsic <= 0:
+            return [Fill(t, "expire", n, 0.0, currency_of(t), fx, 0.0, 0.0)]
+        shares = n * MULTIPLIER
+        if kind == "P":  # on achète les actions au prix d'exercice
+            cost = shares * strike * fx
+            acct.cash -= cost
+            held = acct.positions.get(underlying)
+            if held:
+                held.avg_cost_cad = (held.avg_cost_cad * held.qty + cost) / (held.qty + shares)
+                held.qty += shares
+            else:
+                acct.positions[underlying] = Position(underlying, shares, cost / shares, str(pd.Timestamp(day).date()))
+            return [Fill(t, "assign", n, strike, currency_of(t), fx, 0.0, cost)]
+        held = acct.positions.get(underlying)  # call couvert : nos actions partent au prix d'exercice
+        delivered = min(shares, held.qty if held else 0)
+        proceeds = delivered * strike * fx - (shares - delivered) * intrinsic * fx
+        acct.cash += proceeds
+        if held:
+            held.qty -= delivered
+            if held.qty == 0:
+                del acct.positions[underlying]
+        return [Fill(t, "assign", n, strike, currency_of(t), fx, 0.0, proceeds)]
 
     def credit_dividends(self, acct: Account, day) -> list[tuple[str, float]]:
         """Verse les dividendes des titres détenus à leur date ex-dividende."""

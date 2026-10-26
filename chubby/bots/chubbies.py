@@ -26,6 +26,7 @@ class Tortue(Bot):
 
     id, name, personality = "tortue", "Tortue", "Indicielle passive"
     universe = ["XIC.TO", "VFV.TO"]
+    usd_account = False  # que des FNB canadiens : le forfait USD ne lui servirait à rien
     params = {"canada": Param(0.5, 0.2, 0.8, "part de l'indice canadien (XIC) ; le reste va au S&P 500 (VFV)")}
 
     def decide(self, ctx: BotContext) -> Decision:
@@ -43,6 +44,7 @@ class Flan(Bot):
     id, name, personality = "flan", "Flan", "Rentier · dividendes"
     universe = ["ENB.TO", "RY.TO", "BNS.TO", "TD.TO", "BMO.TO", "FTS.TO", "BCE.TO", "T.TO",
                 "TRP.TO", "CU.TO", "PPL.TO", "KO", "PG", "JNJ", "PEP", "VZ"]
+    usd_account = False  # surtout canadien : il paie la conversion sur ses quelques titres américains
     params = {
         "holdings": Param(8, 4, 12, "nombre de titres gardés", integer=True),
         "min_yield": Param(0.02, 0.01, 0.04, "rendement en dividendes minimum"),
@@ -76,6 +78,7 @@ class Dumpling(Bot):
     id, name, personality = "dumpling", "Dumpling", "Équilibré · diversification"
     stocks = {"VCN.TO": 0.25, "VFV.TO": 0.25, "XEF.TO": 0.12, "XEC.TO": 0.05}
     universe = list(stocks) + ["ZAG.TO", "CGL.TO"]
+    usd_account = False
     params = {
         "bonds": Param(0.28, 0.10, 0.50, "part en obligations (ZAG)"),
         "gold": Param(0.05, 0.0, 0.15, "part en or (CGL)"),
@@ -271,4 +274,77 @@ class Jalapeno(Bot):
         return Decision({}, [f"Je vends mon {opt.describe(sym)} : {why}."])
 
 
-RULE_BOTS = [Tortue, Flan, Dumpling, Mochi, Muffin, Jalapeno]
+class JalapenoV2(Bot):
+    """Le casse-cou devenu vendeur d'options : il encaisse les primes que les acheteurs paient.
+
+    La « roue » : il vend un put garanti par son cash sur un FNB bon marché. Si le put expire sans
+    valeur, il garde la prime et recommence. S'il est exercé, il reçoit les actions et vend des calls
+    couverts dessus jusqu'à ce qu'elles soient reprises. Il rachète une option quand il a déjà gagné
+    une bonne partie de la prime, ou pour couper une perte si elle s'emballe.
+    Gagne souvent un peu ; peut perdre gros si le marché s'effondre.
+    """
+
+    id, name, personality = "jalapeno-v2", "Jalapeño v2", "Vendeur d'options · la roue"
+    universe = ["XLF", "EEM", "SLV", "KRE", "GDX"]
+    signals = ["QQQ"]
+    params = {
+        "otm": Param(0.05, 0.02, 0.10, "distance du prix d'exercice sous (put) ou au-dessus (call) du cours"),
+        "dte": Param(35, 21, 60, "jours avant l'échéance au moment de vendre", integer=True),
+        "take_profit": Param(0.5, 0.3, 0.9, "part de la prime gagnée qui déclenche le rachat"),
+        "stop": Param(3.0, 2.0, 5.0, "rachat si l'option vaut ce multiple de la prime reçue"),
+        "budget": Param(0.9, 0.3, 1.0, "part du cash libre engagée en garantie de puts"),
+    }
+
+    def decide(self, ctx: BotContext) -> Decision:
+        shorts = {t: p for t, p in ctx.account.positions.items() if opt.is_option(t) and p.qty < 0}
+        for sym, pos in shorts.items():  # 1. gérer les options déjà vendues
+            premium = pos.avg_cost_cad / (opt.MULTIPLIER * ctx.broker.fx(sym, ctx.day))
+            now = ctx.data.price(sym, ctx.day)
+            if now is None:
+                continue
+            if now <= premium * (1 - self.p(ctx, "take_profit")):
+                return Decision(None, [f"Je rachète mon {opt.describe(sym)} : {1 - now / premium:.0%} de la prime déjà gagnée."],
+                                trades=[(sym, -pos.qty)])
+            if now >= premium * self.p(ctx, "stop"):
+                return Decision(None, [f"Je rachète mon {opt.describe(sym)} pour couper la perte (×{now / premium:.1f})."],
+                                trades=[(sym, -pos.qty)])
+        if shorts:
+            return Decision(None)
+        shares = [t for t, p in ctx.account.positions.items() if not opt.is_option(t) and p.qty >= opt.MULTIPLIER]
+        if shares:  # 2. on a été exercé : vendre des calls couverts
+            under = shares[0]
+            pos = ctx.account.positions[under]
+            spot = ctx.price(under)
+            cost = pos.avg_cost_cad / ctx.broker.fx(under, ctx.day)
+            strike = opt.pick_strike(max(spot, cost), self.p(ctx, "otm"), "C")
+            sym = opt.symbol(under, "C", strike, opt.pick_expiry(ctx.day, self.p(ctx, "dte")))
+            n = pos.qty // opt.MULTIPLIER
+            return Decision(None, [f"J'ai {pos.qty} actions {under} : je vends {n} call(s) couvert(s) à {strike:g}."],
+                            trades=[(sym, -n)])
+        # 3. rien en cours : vendre un put garanti sur le FNB le plus payant qui rentre dans le budget
+        nasdaq = ctx.closes("QQQ", 210)
+        sma200 = ind.sma(nasdaq, 200)
+        budget = self.p(ctx, "budget") * ctx.aggressiveness * (0.5 if sma200 and nasdaq.iloc[-1] < sma200 else 1.0)
+        free = ctx.broker.free_cash(ctx.account, ctx.day) * min(budget, 1.0)
+        best = None
+        for under in self.universe:
+            spot = ctx.price(under)
+            if not spot:
+                continue
+            strike = opt.pick_strike(spot, self.p(ctx, "otm"), "P")
+            n = int(free // (strike * opt.MULTIPLIER * ctx.broker.fx(under, ctx.day)))
+            if n < 1:
+                continue
+            sym = opt.symbol(under, "P", strike, opt.pick_expiry(ctx.day, self.p(ctx, "dte")))
+            income = (ctx.data.price(sym, ctx.day) or 0) * n
+            if best is None or income > best[0]:
+                best = (income, sym, n, under, strike)
+        if best is None or best[0] <= 0:
+            return Decision(None)
+        income, sym, n, under, strike = best
+        return Decision(None, [f"Je vends {n} put(s) {under} {strike:g} : environ {income * 100:,.0f} $ US de prime "
+                               f"à encaisser. Si {under} tombe sous {strike:g}, j'achèterai les actions."],
+                        trades=[(sym, -n)])
+
+
+RULE_BOTS = [Tortue, Flan, Dumpling, Mochi, Muffin, Jalapeno, JalapenoV2]

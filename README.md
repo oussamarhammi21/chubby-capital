@@ -14,11 +14,16 @@ Une arène où des bots de trading, les **Chubbies**, s'affrontent avec **10 000
 | Mochi | Chasseur de tendance | Chaque semaine, vise les 5 titres les plus forts sur 3 mois parmi 100 grandes sociétés canadiennes et américaines ; garde un titre tant qu'il reste dans le top 10 et coupe ce qui casse sa moyenne 50 jours |
 | Muffin | Chasseur d'aubaines | Parmi les mêmes 100 sociétés, achète les plus survendues (RSI < 30, au-dessus de la moyenne 200 jours), revend au rebond, stop à -8 % |
 | Jalapeño | Casse-cou · options | Calls sur l'indice ou le FNB le plus en forme quand le Nasdaq est au-dessus de sa moyenne 200 jours, petits puts sinon ; 30 % du capital en primes, sortie sur gain (+100 %), stop (-50 %), retournement ou à 7 jours de l'échéance |
+| Jalapeño v2 | Vendeur d'options · la roue | Vend des puts garantis par son cash sur des FNB bon marché (XLF, EEM, SLV, KRE, GDX) et encaisse la prime ; s'il est exercé, il vend des calls couverts sur ses actions. Rachète à 50 % de la prime gagnée, ou pour couper une perte. Gagne souvent un peu, peut perdre gros dans un krach |
 | Matcha | Apprentie machine learning | Chaque mois, réentraîne un modèle sur deux ans d'historique pour apprendre quels signaux ont annoncé les meilleurs titres, puis achète ses 8 favoris. Elle écrit dans son journal ce qu'elle a appris |
 
 Le code est dans [`chubby/bots/`](chubby/bots/). Pour créer un Chubby, il suffit d'hériter de `Bot` et d'écrire `decide()`, qui renvoie les poids voulus. Les **réglages** (`params`) déclarés par chaque bot, avec leurs bornes, sont ce que le coaching peut ajuster.
 
 ### Les options de Jalapeño
+
+Jalapeño **achète** des options, Jalapeño v2 en **vend** : les deux tradent côte à côte pour comparer.
+Un put vendu doit être entièrement garanti par du cash libre, et un call vendu doit être couvert par 100 actions détenues.
+À l'échéance, une option vendue expire sans valeur (la prime est gardée) ou est exercée (achat ou livraison des actions au prix d'exercice).
 
 Il n'existe pas d'historique gratuit des prix d'options. Elles sont donc **évaluées avec Black-Scholes** à partir du prix du sous-jacent, avec une volatilité implicite estimée sur la volatilité des 21 dernières séances ([`chubby/options.py`](chubby/options.py)). Contrats de 100 actions, échéances mensuelles (3e vendredi), 2 % d'écart achat-vente et 0,75 $ par contrat (à ajuster selon ton courtier). À l'échéance, l'option est réglée à sa valeur intrinsèque.
 
@@ -42,7 +47,10 @@ Le but est d'être réaliste, pour que les résultats veuillent dire quelque cho
 
 - **Pas de triche sur le futur** : un bot décide le soir avec les clôtures du jour, et ses ordres sont exécutés **à l'ouverture du lendemain**. Matcha n'apprend que sur des exemples dont le résultat était déjà connu.
 - **Frais réels** : 0 $ de commission et 0,05 % de glissement à chaque exécution (2 % sur les options).
-- **Compte en USD par défaut**, comme un forfait Wealthsimple à **10 $ par mois** (prélevés chaque mois sur chaque Chubby) : pas de conversion sur les trades américains. Avec `--sans-compte-usd`, chaque trade ou dividende américain paie **1,5 % de conversion** CAD ↔ USD, et il n'y a pas de forfait.
+- **Un compte adapté à chaque personnalité** :
+  - Mochi, Muffin, Matcha et les deux Jalapeño ont le **compte en USD** (forfait Wealthsimple de **10 $ par mois**) : pas de conversion sur leurs trades américains.
+  - Tortue, Dumpling et Flan, surtout investis au Canada, ont un **compte en CAD sans forfait** : chaque trade ou dividende américain paie **1,5 % de conversion**.
+  - Avec `--sans-compte-usd`, tout le monde passe au compte en CAD.
 - **Compte CELI par défaut** : retenue de 15 % sur les dividendes américains (pas en REER). Option `--compte`.
 - **Actions entières**, comptes en CAD, taux USD/CAD réel du jour.
 

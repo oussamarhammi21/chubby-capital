@@ -175,6 +175,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   var ZONE_ORDER = ['mochi', 'flan', 'dumpling', 'tortue', 'muffin', 'jalapeno', 'matcha'];
   function baseId(id) { return String(id).replace(/-ia$/, ''); }
   function isAI(id) { return /-ia$/.test(String(id)); }
+  function kindOf(id) { return baseId(id).replace(/-v\d+$/, ''); } // Jalapeño v2 a l'allure de Jalapeño
   function pretty(t) { var p = String(t).split(':'); return p[0] === 'OPT' ? (p[2] === 'C' ? 'call ' : 'put ') + p[1] + ' ' + p[3] : t; }
 
   // ---------- Scène ----------
@@ -261,7 +262,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
 
   var antennaMat = new THREE.MeshBasicMaterial({ color: 0xB8A9FF });
   function makeChubby(fullId, color, sy, idx) {
-    var id = baseId(fullId);
+    var id = kindOf(fullId);
     var g = new THREE.Group(); g.userData.bot = idx;
     var body = new THREE.Group(); g.add(body);
     var bodyMat = mat(color, { roughness: 0.5 }), dk = mat(new THREE.Color(color).multiplyScalar(0.85), { roughness: 0.5 });
@@ -312,11 +313,11 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     var angle = {};
     bases.forEach(function (k, i) {
       var a = i * 2 * Math.PI / bases.length + Math.PI / 6; angle[k] = a;
-      var zone = new THREE.Group(); zone.position.set(Math.sin(a) * 10.8, 0, Math.cos(a) * 10.8); zone.rotation.y = a + Math.PI; buildZone(k, zone); scene.add(zone);
+      var zone = new THREE.Group(); zone.position.set(Math.sin(a) * 10.8, 0, Math.cos(a) * 10.8); zone.rotation.y = a + Math.PI; buildZone(kindOf(k), zone); scene.add(zone);
     });
     var ordered = data.bots.slice().sort(function (x, y) { return bases.indexOf(baseId(x.id)) - bases.indexOf(baseId(y.id)) || (isAI(x.id) ? 1 : 0) - (isAI(y.id) ? 1 : 0); });
     ordered.forEach(function (info, i) {
-      var id = info.id, L = LOOK[baseId(id)] || { color: 0xC9C6D9, css: '#9C99B0', sy: 1 };
+      var id = info.id, L = LOOK[kindOf(id)] || { color: 0xC9C6D9, css: '#9C99B0', sy: 1 };
       var a = angle[baseId(id)] + (isAI(id) ? 0.22 : 0); // la version IA se tient juste à côté
       var parts = makeChubby(id, L.color, L.sy, i);
       var home = new THREE.Vector3(Math.sin(a) * 9.0, 0, Math.cos(a) * 9.0);

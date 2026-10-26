@@ -24,6 +24,7 @@ TRAITS = {
     "mochi": {"risk": 4, "style": "croissance"},
     "matcha": {"risk": 4, "style": "croissance"},
     "jalapeno": {"risk": 5, "style": "croissance"},
+    "jalapeno-v2": {"risk": 4, "style": "revenu"},
 }
 CERTIFIED_SESSIONS = 120  # environ six mois d'arène avant de pouvoir conseiller
 # FNB très diversifiés : en avoir une grosse part n'est pas une concentration.

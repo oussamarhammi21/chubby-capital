@@ -169,7 +169,7 @@ td.r, th.r { text-align: right; }
   var $ = function (s) { return document.querySelector(s); };
   function baseId(id) { return String(id).replace(/-ia$/, ''); }
   function isAI(id) { return /-ia$/.test(String(id)); }
-  function look(id) { return LOOK[baseId(id)] || DEFAULT_LOOK; }
+  function look(id) { var b = baseId(id); return LOOK[b] || LOOK[b.replace(/-v\d+$/, '')] || DEFAULT_LOOK; }
   function pretty(t) { var p = String(t).split(':'); return p[0] === 'OPT' ? (p[2] === 'C' ? 'call ' : 'put ') + p[1] + ' ' + p[3] + ' (' + p[4] + ')' : t; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function money(v) { return Math.round(v).toLocaleString('fr-CA') + ' $'; }

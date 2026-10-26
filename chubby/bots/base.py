@@ -14,6 +14,7 @@ from ..broker import Account
 class Decision:
     targets: dict[str, float] | None  # poids visés (somme <= 1), None = ne rien changer
     notes: list[str] = field(default_factory=list)  # ce que le bot écrit dans son journal
+    trades: list[tuple[str, int]] = field(default_factory=list)  # ordres directs : quantité > 0 achète, < 0 vend
 
 
 @dataclass(frozen=True)
@@ -85,6 +86,7 @@ class Bot(ABC):
     signals: list[str] = []  # tickers seulement observés (jamais achetés)
     params: dict[str, Param] = {}
     ai: bool = False  # vrai pour les versions coachées par Claude
+    usd_account: bool = True  # forfait avec compte en USD ; False = compte en CAD sans forfait
 
     @abstractmethod
     def decide(self, ctx: BotContext) -> Decision:

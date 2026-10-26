@@ -53,6 +53,8 @@ class Store:
             self.db.execute("ALTER TABLE snapshots ADD COLUMN holdings TEXT")
         if "params" not in {r["name"] for r in self.db.execute("PRAGMA table_info(bots)")}:
             self.db.execute("ALTER TABLE bots ADD COLUMN params TEXT")
+        if "trades" not in {r["name"] for r in self.db.execute("PRAGMA table_info(pending)")}:
+            self.db.execute("ALTER TABLE pending ADD COLUMN trades TEXT")
 
     def commit(self):
         self.db.commit()
@@ -95,15 +97,17 @@ class Store:
 
     # --- Ordres en attente (décidés le soir, exécutés à l'ouverture suivante) ---
 
-    def set_pending(self, bot_id: str, targets: dict[str, float], day):
-        self.db.execute("INSERT OR REPLACE INTO pending VALUES (?, ?, ?)", (bot_id, json.dumps(targets), _d(day)))
+    def set_pending(self, bot_id: str, targets: dict[str, float] | None, day, trades: list | None = None):
+        self.db.execute("INSERT OR REPLACE INTO pending (bot_id, targets, decided_on, trades) VALUES (?, ?, ?, ?)",
+                        (bot_id, json.dumps(targets), _d(day), json.dumps(trades or [])))
 
-    def pop_pending(self, bot_id: str) -> dict[str, float] | None:
-        row = self.db.execute("SELECT targets FROM pending WHERE bot_id = ?", (bot_id,)).fetchone()
+    def pop_pending(self, bot_id: str) -> tuple[dict[str, float] | None, list]:
+        """Ordres décidés la veille : poids visés (ou None) et ordres directs [ticker, quantité signée]."""
+        row = self.db.execute("SELECT targets, trades FROM pending WHERE bot_id = ?", (bot_id,)).fetchone()
         if row is None:
-            return None
+            return None, []
         self.db.execute("DELETE FROM pending WHERE bot_id = ?", (bot_id,))
-        return json.loads(row["targets"])
+        return json.loads(row["targets"] or "null"), json.loads(row["trades"] or "[]")
 
     # --- Historique -------------------------------------------------------
 

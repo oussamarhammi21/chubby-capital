@@ -95,8 +95,11 @@ def test_score_rewards_return_and_punishes_drawdown():
 def test_usd_account_fee_is_charged_once_a_month():
     arena, played = run_arena()
     n = arena.store.db.execute(
-        "SELECT COUNT(*) AS n FROM events WHERE kind = 'fee' AND bot_id = 'tortue'").fetchone()["n"]
+        "SELECT COUNT(*) AS n FROM events WHERE kind = 'fee' AND bot_id = 'mochi'").fetchone()["n"]
     assert 11 <= n <= 13  # 240 séances, environ 11 à 12 mois
+    cad_fees = arena.store.db.execute(
+        "SELECT COUNT(*) AS n FROM events WHERE kind = 'fee' AND bot_id IN ('tortue', 'dumpling', 'flan')").fetchone()["n"]
+    assert cad_fees == 0  # compte en CAD : pas de forfait
 
 
 def test_mochi_and_jalapeno_do_not_churn():
