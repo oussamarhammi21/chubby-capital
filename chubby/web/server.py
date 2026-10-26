@@ -14,9 +14,10 @@ from ..store import Store
 from . import api
 
 STATIC = Path(__file__).parent / "static"
-PAGES = {"/": "index.html", "/ile": "ile.html", "/conseiller": "conseiller.html", "/chubby": "chubby.html"}
+PAGES = {"/": "index.html", "/ile": "carte.html", "/ile-3d": "ile.html", "/conseiller": "conseiller.html", "/chubby": "chubby.html"}
 TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8",
-         ".png": "image/png", ".svg": "image/svg+xml"}
+         ".png": "image/png", ".svg": "image/svg+xml",
+         ".webp": "image/webp"}
 log = logging.getLogger(__name__)
 
 
