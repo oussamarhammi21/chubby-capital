@@ -62,6 +62,7 @@ Pendant la bourse, l'île 3D s'ouvre directement sur la vraie séance (bouton «
 - les Chubbies sautent de joie quand leur journée s'améliore, et vont vérifier le tableau des cotes quand elle se gâte ;
 - ils **parlent** : leur bulle s'affiche et leur bouche bouge. Avec le bouton « 🔊 Son », chacun a sa petite voix en « blabla » (plus aiguë et robotique pour les versions IA) ;
 - quelques bruitages accompagnent la partie : pièces des dividendes, sauts, fanfare du podium.
+- avec le bouton « 🎵 Musique », une petite musique d'ascenseur jazzy tourne en fond. Elle est composée à la volée, donc jamais tout à fait la même, ralentit le soir et baisse quand un Chubby parle.
 
 Les sons sont créés dans le navigateur, sans aucun fichier audio.
 
@@ -209,4 +210,4 @@ Les données restent dans `./data` sur le PC.
 - [x] Prix d'options réels en direct (chaînes d'options de Yahoo) au lieu du modèle
 - [x] Courbes « original contre version IA » côte à côte dans le tableau de bord
 - [x] Arène en direct pendant la bourse : capital toutes les 5 minutes et réactions des Chubbies
-- [x] Voix et bruitages sur l'île 3D
+- [x] Voix, bruitages et musique d'ascenseur sur l'île 3D

@@ -22,7 +22,7 @@ body { background: #CFE6F7; color: var(--ink); font-family: var(--body); overflo
 .label { position: absolute; left: 0; top: 0; background: var(--panel); border-radius: 999px; padding: 3px 9px; font: 800 12px/1.3 var(--body); white-space: nowrap; box-shadow: 0 2px 6px rgba(42,40,56,0.12); display: flex; gap: 6px; }
 .label.sel { background: var(--accent); color: #fff; }
 .speech { position: absolute; left: 0; top: 0; max-width: 220px; background: #fff; color: var(--ink); border-radius: 16px 16px 16px 4px; padding: 7px 11px; font: 700 13px/1.35 var(--body); box-shadow: 0 4px 14px rgba(42,40,56,0.18); white-space: normal; }
-#sound[aria-pressed="true"] { background: var(--accent); color: #fff; }
+#sound[aria-pressed="true"], #music[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .label.sel .up, .label.sel .down { color: #fff; }
 .up { color: var(--up); } .down { color: var(--down); }
 
@@ -104,6 +104,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       <div class="clock panel" role="status"><b id="date">—</b><span id="status">Chargement…</span></div>
       <div class="panel" style="padding:6px;display:flex;gap:4px;flex-wrap:wrap" role="group" aria-label="Caméra">
         <button class="btn ghost" id="sound" aria-pressed="false" title="Les Chubbies parlent et font des petits bruits">🔇 Son</button>
+        <button class="btn ghost" id="music" aria-pressed="false" title="Petite musique d'ascenseur en fond">🎵 Musique</button>
         <button class="btn ghost" id="overview">Vue d'ensemble</button>
       </div>
     </header>
@@ -317,9 +318,16 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   // Chaque personnalité a sa hauteur de voix ; la version IA parle un peu plus aigu, avec un timbre de robot.
   var VOICE = { tortue: 170, dumpling: 250, matcha: 290, flan: 320, muffin: 370, mochi: 420, jalapeno: 470 };
   var audio = { ctx: null, on: false, last: 0 };
-  try { audio.want = localStorage.getItem('chubby-son') === '1'; } catch (e) { audio.want = false; }
+  try { audio.want = localStorage.getItem('chubby-son') === '1'; audio.wantMusic = localStorage.getItem('chubby-musique') === '1'; } catch (e) { audio.want = audio.wantMusic = false; }
   function audioStart() {
-    if (!audio.ctx) { var A = window.AudioContext || window.webkitAudioContext; if (!A) return false; audio.ctx = new A(); audio.master = audio.ctx.createGain(); audio.master.gain.value = 0.5; audio.master.connect(audio.ctx.destination); }
+    if (!audio.ctx) {
+      var A = window.AudioContext || window.webkitAudioContext; if (!A) return false;
+      audio.ctx = new A(); audio.master = audio.ctx.createGain(); audio.master.gain.value = 0.5; audio.master.connect(audio.ctx.destination);
+      // La musique passe par son propre volume (baissé quand un Chubby parle) et un filtre qui l'adoucit.
+      audio.music = audio.ctx.createGain(); audio.music.gain.value = 0;
+      var soft = audio.ctx.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 2200;
+      audio.music.connect(soft); soft.connect(audio.ctx.destination);
+    }
     if (audio.ctx.state === 'suspended') audio.ctx.resume();
     return true;
   }
@@ -327,6 +335,49 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     audio.on = on && audioStart(); $('#sound').setAttribute('aria-pressed', String(audio.on)); $('#sound').textContent = (audio.on ? '🔊' : '🔇') + ' Son';
     try { localStorage.setItem('chubby-son', audio.on ? '1' : '0'); } catch (e) {}
   }
+  // ---------- Musique d'ascenseur : jazz doux composé à la volée ----------
+  // Accords de septième (notes MIDI) sur une grille ii-V-I tranquille ; le soir et en bourse fermée, tempo plus lent.
+  var CHORDS = [[50, 53, 57, 60, 64], [43, 53, 55, 59, 64], [48, 52, 55, 59, 62], [45, 52, 55, 60, 64],
+                [41, 52, 57, 60, 64], [40, 50, 55, 59, 62], [38, 53, 57, 60, 64], [43, 53, 57, 59, 62]];
+  var music = { on: false, timer: null, next: 0, step: 0 };
+  function hz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function note(m, at, dur, type, vol, dest, vibrato) {
+    var c = audio.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.value = hz(m); o.detune.value = (Math.random() - 0.5) * 8;
+    if (vibrato) { var l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 5.5; lg.gain.value = 4; l.connect(lg); lg.connect(o.detune); l.start(at); l.stop(at + dur + 0.1); }
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g); g.connect(dest); o.start(at); o.stop(at + dur + 0.05);
+  }
+  function musicTempo() { return (liveMode && live && !live.open) || lastPhase === 'evening' ? 66 : 80; }
+  function scheduleMusic() {
+    var c = audio.ctx;
+    while (music.next < c.currentTime + 0.4) {
+      var beat = 60 / musicTempo(), eighth = beat / 2, at = music.next, i = music.step;
+      var bar = Math.floor(i / 8) % CHORDS.length, pos = i % 8, chord = CHORDS[bar];
+      if (pos === 0) chord.slice(1).forEach(function (m) { note(m, at, beat * 3.6, 'sine', 0.035, audio.music); note(m + 12, at + 0.02, beat * 2, 'triangle', 0.008, audio.music); });
+      if (pos === 4 && Math.random() < 0.6) chord.slice(1).forEach(function (m) { note(m, at, beat * 1.5, 'sine', 0.022, audio.music); });
+      if (pos === 0 || pos === 4) note(pos === 0 ? chord[0] : chord[0] + 7, at, beat * 1.6, 'triangle', 0.09, audio.music);
+      if (pos === 6 && Math.random() < 0.4) note(chord[0] + 12, at, beat * 0.8, 'triangle', 0.05, audio.music);
+      var swing = pos % 2 ? eighth * 0.18 : 0; // un petit swing jazz
+      if (pos > 0 && Math.random() < 0.32) note(chord[1 + Math.floor(Math.random() * 4)] + 24, at + swing, beat * 1.3, 'sine', 0.03, audio.music, true);
+      music.next += eighth; music.step++;
+    }
+  }
+  function setMusic(on) {
+    music.on = on && audioStart();
+    $('#music').setAttribute('aria-pressed', String(music.on));
+    try { localStorage.setItem('chubby-musique', music.on ? '1' : '0'); } catch (e) {}
+    if (!audio.ctx) return;
+    var t = audio.ctx.currentTime;
+    audio.music.gain.cancelScheduledValues(t); audio.music.gain.setTargetAtTime(music.on ? 1 : 0, t, 0.6);
+    if (music.on && !music.timer) { music.next = t + 0.1; music.timer = setInterval(scheduleMusic, 120); }
+    if (!music.on && music.timer) { var tm = music.timer; music.timer = null; setTimeout(function () { if (!music.on) clearInterval(tm); else music.timer = tm; }, 2500); }
+  }
+  function duck(seconds) { // baisse la musique pendant qu'un Chubby parle
+    if (!music.on) return; var g = audio.music.gain, t = audio.ctx.currentTime;
+    g.cancelScheduledValues(t); g.setTargetAtTime(0.35, t, 0.08); g.setTargetAtTime(1, t + seconds, 0.5);
+  }
+
   function blip(freq, at, dur, type, vol, toFreq) {
     var c = audio.ctx, o = c.createOscillator(), g = c.createGain();
     o.type = type; o.frequency.setValueAtTime(freq, at);
@@ -365,6 +416,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   function talkTick(dt) {
     talkWait -= dt; if (talkWait > 0 || !talkQueue.length) return;
     var x = talkQueue.shift(), dur = babble(x.b, x.text);
+    if (dur) duck(dur + 0.3);
     x.b.talk = Math.max(dur, 0.9); x.b.sayText = x.text; x.b.sayTimer = Math.max(3.5, x.text.length / 18);
     talkWait = Math.max(1.6, x.b.talk + 0.6);
   }
@@ -501,7 +553,12 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   }
   function deselect() { selected = null; wantRadius = baseRadius(); wantTarget.set(0, 0, 0); $('#card').hidden = true; $('#hud').classList.remove('has-card'); updateRanks(); }
   $('#sound').addEventListener('click', function () { setSound(!audio.on); if (audio.on && selected) say(selected, 'Coucou coach !', true); });
-  window.addEventListener('pointerdown', function first() { window.removeEventListener('pointerdown', first); if (audio.want && !audio.on) setSound(true); });
+  $('#music').addEventListener('click', function () { setMusic(!music.on); });
+  window.addEventListener('pointerdown', function first(e) {
+    window.removeEventListener('pointerdown', first);
+    if (audio.want && !audio.on && e.target.id !== 'sound') setSound(true);
+    if (audio.wantMusic && !music.on && e.target.id !== 'music') setMusic(true);
+  });
   $('#c-close').addEventListener('click', deselect); $('#overview').addEventListener('click', deselect);
   function lastJournal(b) {
     for (var i = dayIdx; i >= 0; i--) { var j = data.journal[data.days[i]]; if (j && j[b.id]) return { day: data.days[i], text: j[b.id] }; }
