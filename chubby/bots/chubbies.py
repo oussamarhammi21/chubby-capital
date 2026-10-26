@@ -7,6 +7,18 @@ import pandas as pd
 from .. import indicators as ind
 from .base import Bot, BotContext, Decision
 
+# Grandes capitalisations du TSX et de Wall Street. Liste large plutôt que des gagnants choisis à la main.
+CANADA_LARGE = ["RY.TO", "TD.TO", "SHOP.TO", "ENB.TO", "BN.TO", "CNQ.TO", "CP.TO", "CNR.TO", "BMO.TO", "BNS.TO",
+                "CM.TO", "TRI.TO", "ATD.TO", "CSU.TO", "SU.TO", "MFC.TO", "WCN.TO", "TRP.TO", "IFC.TO", "SLF.TO",
+                "NTR.TO", "ABX.TO", "AEM.TO", "FNV.TO", "WPM.TO", "CVE.TO", "IMO.TO", "TOU.TO", "GWO.TO", "POW.TO",
+                "L.TO", "DOL.TO", "QSR.TO", "BCE.TO", "T.TO", "FTS.TO", "EMA.TO", "CCO.TO", "TECK-B.TO", "MG.TO",
+                "GIB-A.TO", "WSP.TO", "NA.TO", "FFH.TO", "SAP.TO", "MRU.TO", "CTC-A.TO", "X.TO", "OTEX.TO", "H.TO"]
+US_LARGE = ["AAPL", "MSFT", "NVDA", "AMZN", "GOOGL", "META", "AVGO", "TSLA", "BRK-B", "LLY", "JPM", "V", "UNH",
+            "XOM", "MA", "JNJ", "PG", "HD", "COST", "ABBV", "MRK", "WMT", "NFLX", "CRM", "BAC", "CVX", "KO", "AMD",
+            "PEP", "ORCL", "ADBE", "TMO", "LIN", "ACN", "MCD", "CSCO", "ABT", "WFC", "DIS", "INTC", "QCOM", "TXN",
+            "CAT", "IBM", "GE", "AMGN", "PFE", "NKE", "BA", "UPS"]
+BROAD = CANADA_LARGE + US_LARGE
+
 
 class Tortue(Bot):
     """Achète le marché canadien et américain, puis ne bouge presque plus."""
@@ -76,8 +88,7 @@ class Mochi(Bot):
     """
 
     id, name, personality = "mochi", "Mochi", "Chasseur de tendance · momentum"
-    universe = ["SHOP.TO", "RY.TO", "CNQ.TO", "CP.TO", "ATD.TO", "CSU.TO", "NVDA", "MSFT", "AAPL", "AMZN",
-                "META", "GOOGL", "AVGO", "LLY", "COST", "NFLX", "AMD", "TSLA", "JPM", "V"]
+    universe = BROAD
     holdings, keep_rank = 5, 10
 
     def decide(self, ctx: BotContext) -> Decision:
@@ -121,8 +132,7 @@ class Muffin(Bot):
     """Achète les bons titres quand ils sont survendus, revend quand ils rebondissent."""
 
     id, name, personality = "muffin", "Muffin", "Chasseur d'aubaines · value"
-    universe = ["RY.TO", "TD.TO", "ENB.TO", "CNR.TO", "BCE.TO", "MFC.TO", "SU.TO", "NTR.TO",
-                "JNJ", "PFE", "KO", "INTC", "CVS", "DIS", "NKE", "MMM"]
+    universe = BROAD
     max_positions, slot = 6, 0.15
 
     def decide(self, ctx: BotContext) -> Decision:
@@ -138,17 +148,18 @@ class Muffin(Bot):
                 changed = True
                 why = "il a rebondi" if r and r > 60 else "trop long" if held_days > 35 else "stop à -8 %"
                 notes.append(f"Je revends {t} ({why}).")
+        bargains = []
         for t in self.universe:
-            if len(weights) >= self.max_positions:
-                break
             if t in weights:
                 continue
             closes = ctx.closes(t, 220)
             r, sma200 = ind.rsi(closes), ind.sma(closes, 200)
             if r is not None and sma200 and r < 30 and closes.iloc[-1] > 0.95 * sma200:
-                weights[t] = self.slot * ctx.aggressiveness
-                changed = True
-                notes.append(f"{t} est en solde (RSI {r:.0f}), j'en prends.")
+                bargains.append((r, t))
+        for r, t in sorted(bargains)[: max(0, self.max_positions - len(weights))]:  # les plus survendus d'abord
+            weights[t] = self.slot * ctx.aggressiveness
+            changed = True
+            notes.append(f"{t} est en solde (RSI {r:.0f}), j'en prends.")
         if not changed:
             return Decision(None)
         total = sum(weights.values())
@@ -161,14 +172,22 @@ class Jalapeno(Bot):
     """Mise tout sur le FNB à levier le plus en forme. Les vraies options viendront en v2.
 
     Garde chaque position au moins 7 séances, sauf si elle casse (stop), et ne change
-    de FNB que si le nouveau est nettement plus fort.
+    de FNB que si le nouveau est nettement plus fort. Interrupteur de marché : tout au cash
+    quand le Nasdaq (QQQ) passe sous sa moyenne 200 jours.
     """
 
     id, name, personality = "jalapeno", "Jalapeño", "Casse-cou · levier"
     universe = ["TQQQ", "SOXL", "UPRO", "TNA"]
+    signals = ["QQQ"]
     min_hold, switch_margin = 7, 0.03
 
     def decide(self, ctx: BotContext) -> Decision:
+        nasdaq = ctx.closes("QQQ", 210)
+        sma200 = ind.sma(nasdaq, 200)
+        if sma200 and nasdaq.iloc[-1] < sma200:
+            if ctx.account.positions:
+                return Decision({}, ["Le Nasdaq passe sous sa moyenne 200 jours : interrupteur coupé, tout au cash."])
+            return Decision(None)
         strength = {}
         for t in self.universe:
             closes = ctx.closes(t, 30)
@@ -205,4 +224,4 @@ def all_bots() -> list[Bot]:
 
 
 def all_tickers() -> list[str]:
-    return sorted({t for cls in ALL_BOTS for t in cls.universe})
+    return sorted({t for cls in ALL_BOTS for t in cls.universe + getattr(cls, "signals", [])})

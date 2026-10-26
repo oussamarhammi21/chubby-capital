@@ -4,3 +4,12 @@ services:
     restart: unless-stopped
     volumes:
       - ./data:/app/data
+
+  tableau:
+    build: .
+    command: ["chubby", "web", "--port", "8000"]
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data

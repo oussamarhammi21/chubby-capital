@@ -23,5 +23,8 @@ chubby = "chubby.cli:main"
 [tool.setuptools.packages.find]
 include = ["chubby*"]
 
+[tool.setuptools.package-data]
+"chubby.web" = ["static/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

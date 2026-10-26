@@ -108,6 +108,11 @@ def cmd_coach(args, cfg):
     print(f"{row['name']} : agressivité {row['aggressiveness']:.2f} -> {value:.2f} (+15 XP)")
 
 
+def cmd_web(args, cfg):
+    from .web.server import serve
+    serve(args.db, cfg, host=args.host, port=args.port)
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="chubby", description="Arène de bots en argent fictif.")
     p.add_argument("--db", default="data/arena.db", help="fichier SQLite de l'arène")
@@ -133,6 +138,10 @@ def main(argv=None):
     c.add_argument("bot")
     c.add_argument("conseil", choices=["moins", "plus", "garde"])
     c.set_defaults(fn=cmd_coach)
+    w = sub.add_parser("web", help="ouvrir le tableau de bord dans le navigateur")
+    w.add_argument("--port", type=int, default=8000)
+    w.add_argument("--host", default="0.0.0.0")
+    w.set_defaults(fn=cmd_web)
 
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose or args.cmd == "serve" else logging.WARNING,

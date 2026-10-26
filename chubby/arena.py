@@ -63,7 +63,8 @@ class Arena:
         if self.cfg.monthly_fee and self._first_day_of_month(day):
             acct.cash -= self.cfg.monthly_fee
             self.store.event(day, bot.id, "fee", reason="forfait compte USD", amount_cad=self.cfg.monthly_fee)
-        self.store.add_snapshot(bot.id, day, self.broker.equity(acct, day), acct.cash)
+        self.store.add_snapshot(bot.id, day, self.broker.equity(acct, day), acct.cash,
+                                self.broker.value_of(acct, day))
 
         row = self.store.bot_row(bot.id)
         ctx = BotContext(day, self.data, self.broker, acct, row["aggressiveness"], day_index)

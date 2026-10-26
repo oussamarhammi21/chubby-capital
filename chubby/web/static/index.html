@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chubby Capital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap">
+<style>
+:root {
+  --bg: #0D0E1A; --surface: #171829; --surface-2: #1F2038; --line: #2A2C44;
+  --ink: #F2F1FA; --muted: #A9A8C0; --up: #5BD69A; --down: #FF9A8A; --gold: #FFD98A;
+  --display: 'Fredoka', 'Nunito', system-ui, sans-serif; --body: 'Nunito', system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 24px 16px 64px; display: flex; flex-direction: column; gap: 28px; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand b { font: 700 24px var(--display); display: block; }
+.brand span { color: var(--muted); font-size: 14px; font-weight: 700; }
+.pill { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 10px 16px; font-size: 13px; font-weight: 700; color: var(--muted); }
+button { font: inherit; cursor: pointer; }
+.btn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 800; }
+.btn:hover { background: var(--surface-2); }
+button:focus-visible { outline: 3px solid #C9B8FF; outline-offset: 2px; }
+h2 { margin: 0 0 14px; font: 600 24px var(--display); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 28px; padding: 22px; }
+
+.hero { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-end; justify-content: center; padding-bottom: 0; overflow: hidden; }
+.podium { display: flex; align-items: flex-end; gap: 12px; flex: 1 1 520px; justify-content: center; }
+.step { flex: 1 1 0; max-width: 190px; display: flex; flex-direction: column; align-items: center; cursor: pointer; background: none; border: 0; color: inherit; padding: 0; }
+.block { width: 100%; border-radius: 18px 18px 0 0; background: linear-gradient(180deg, #33355A, #1F2038); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-top: 6px solid; }
+.block .n { font: 700 34px var(--display); }
+.block .nm { font-weight: 800; }
+.hero-text { flex: 1 1 300px; align-self: center; padding-bottom: 22px; }
+.hero-text h1 { margin: 0 0 8px; font: 700 40px/1.05 var(--display); text-wrap: balance; }
+.hero-text p { margin: 0; color: var(--muted); line-height: 1.5; }
+
+.rows { display: flex; flex-direction: column; gap: 10px; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 12px 18px; color: inherit; }
+.row:hover { background: var(--surface-2); }
+.rk { width: 34px; text-align: center; }
+.rk b { font: 700 20px var(--display); display: block; }
+.mv { font-size: 12px; font-weight: 800; color: var(--muted); }
+.who { flex: 1 1 200px; min-width: 0; }
+.who b { font: 700 19px var(--display); }
+.who small { display: block; color: var(--muted); font-size: 13px; font-weight: 700; }
+.tag { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,0.08); margin-left: 6px; vertical-align: 2px; }
+.nums { display: grid; grid-template-columns: repeat(5, minmax(78px, auto)); gap: 4px 18px; font-variant-numeric: tabular-nums; }
+.nums div { display: flex; flex-direction: column; }
+.nums small { color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+.nums span { font: 600 17px var(--display); }
+.up { color: var(--up); } .down { color: var(--down); }
+
+.grid2 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
+.chart-box { position: relative; height: 340px; }
+.chart-box svg { display: block; width: 100%; height: 100%; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.legend button { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.legend button[aria-pressed="false"] { opacity: 0.4; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.tip { position: absolute; pointer-events: none; background: #0D0E1A; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; font-size: 12px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tip div { display: flex; gap: 6px; align-items: center; }
+.feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; max-height: 360px; overflow: auto; font-size: 14px; font-weight: 700; }
+.feed li { display: flex; gap: 10px; align-items: flex-start; }
+.feed time { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-size: 12px; padding-top: 2px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; margin-top: 5px; }
+.empty { color: var(--muted); }
+
+dialog { width: min(760px, 100% - 24px); max-height: calc(100% - 24px); border: 1px solid var(--line); border-radius: 28px; background: var(--surface); color: var(--ink); padding: 0; }
+dialog::backdrop { background: rgba(5, 6, 14, 0.7); }
+.dlg { padding: 22px; display: flex; flex-direction: column; gap: 18px; }
+.dlg-head { display: flex; gap: 14px; align-items: center; }
+.dlg-head h2 { margin: 0; }
+.dlg-head p { margin: 0; color: var(--muted); font-weight: 700; }
+.dlg-head .btn { margin-left: auto; width: 44px; padding: 0; font-size: 20px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.stats div { background: var(--surface-2); border-radius: 14px; padding: 10px 12px; }
+.stats small { display: block; color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
+.stats span { font: 600 19px var(--display); font-variant-numeric: tabular-nums; }
+h3 { margin: 0 0 8px; font: 600 18px var(--display); }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+td.r, th.r { text-align: right; }
+.journal { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.journal li { background: var(--surface-2); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+.journal time { color: var(--muted); font-size: 12px; display: block; }
+.note { color: var(--muted); font-size: 13px; }
+.err { background: #3A1F28; color: #FFD0C8; border-radius: 16px; padding: 14px; font-weight: 700; }
+
+@media (max-width: 860px) {
+  .step svg { width: 84px; height: 84px; }
+  .block .n { font-size: 26px; }
+  .grid2 { grid-template-columns: minmax(0, 1fr); }
+  .nums { grid-template-columns: repeat(3, minmax(70px, auto)); }
+  .hero-text h1 { font-size: 30px; }
+}
+@media (prefers-reduced-motion: no-preference) { .step svg { transition: transform 0.2s; } .step:hover svg { transform: translateY(-4px); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><span id="logo"></span><div><b>Chubby Capital</b><span id="season">Chargement…</span></div></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <span class="pill" id="updated">—</span>
+      <button class="btn" id="refresh">Actualiser</button>
+    </div>
+  </header>
+  <div id="error" class="err" hidden></div>
+
+  <section class="card hero" aria-label="Podium">
+    <div class="hero-text">
+      <h1>Qui mène l'arène ?</h1>
+      <p>Chaque Chubby a commencé avec 10 000 $ fictifs. Le score sur 100 combine rendement, risque, pire baisse et régularité.</p>
+    </div>
+    <div class="podium" id="podium"></div>
+  </section>
+
+  <section>
+    <h2>Classement</h2>
+    <div class="rows" id="rows"></div>
+  </section>
+
+  <div class="grid2">
+    <section class="card">
+      <h2>Courbes de capital</h2>
+      <div class="legend" id="legend" role="group" aria-label="Afficher ou masquer une courbe"></div>
+      <div class="chart-box" id="chart-box"></div>
+      <p class="note">Clique sur un nom pour masquer ou afficher sa courbe. La ligne pointillée marque les 10 000 $ de départ.</p>
+    </section>
+    <section class="card">
+      <h2>Derniers événements</h2>
+      <ul class="feed" id="feed"></ul>
+    </section>
+  </div>
+</div>
+
+<dialog id="dlg" aria-labelledby="d-name"><div class="dlg" id="dlg-body"></div></dialog>
+
+<script>
+(function () {
+  'use strict';
+  var LOOK = {
+    tortue:   { base: '#B5D6EE', light: '#E8F3FC', dark: '#7FAED6', shape: 'tortue' },
+    flan:     { base: '#FBE29A', light: '#FFF6D2', dark: '#E2B84A', shape: 'round' },
+    dumpling: { base: '#B4E0DD', light: '#E6F8F6', dark: '#6FB9B3', shape: 'bell' },
+    mochi:    { base: '#DCC8E6', light: '#F4EAFA', dark: '#A98CC4', shape: 'star' },
+    muffin:   { base: '#F7C9AE', light: '#FFEDE2', dark: '#DE9A74', shape: 'tuft' },
+    jalapeno: { base: '#F2A39A', light: '#FFDCD6', dark: '#D9736A', shape: 'arms' }
+  };
+  var DEFAULT_LOOK = { base: '#C9C6D9', light: '#EEEDF5', dark: '#9C99B0', shape: 'round' };
+  var SHAPES = {
+    round: 'M60 16 C88 16 104 36 104 60 C104 84 86 100 60 100 C34 100 16 84 16 60 C16 36 32 16 60 16 Z',
+    bell: 'M22 100 C14 100 16 80 20 62 C24 30 40 12 60 12 C80 12 96 30 100 62 C104 80 106 100 98 100 Z',
+    tortue: 'M30 98 C12 98 10 66 18 44 C26 22 48 12 66 15 C86 19 96 40 94 60 C93 72 98 80 106 80 C114 84 110 100 96 99 Z',
+    star: 'M60 18 C76 18 84 34 86 46 C98 46 112 50 110 60 C108 68 96 70 90 72 C92 84 90 100 78 100 C70 100 66 94 60 94 C54 94 50 100 42 100 C30 100 28 84 30 72 C24 70 12 68 10 60 C8 50 22 46 34 46 C36 34 44 18 60 18 Z',
+    tuft: 'M60 24 C86 24 100 44 100 66 C100 88 84 100 60 100 C36 100 20 88 20 66 C20 44 34 24 60 24 Z',
+    arms: 'M60 20 C86 20 100 40 100 62 C100 86 84 100 60 100 C36 100 20 86 20 62 C20 40 34 20 60 20 Z'
+  };
+  var uid = 0;
+  var $ = function (s) { return document.querySelector(s); };
+  function look(id) { return LOOK[id] || DEFAULT_LOOK; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function money(v) { return Math.round(v).toLocaleString('fr-CA') + ' $'; }
+  function pct(v, digits) { var p = v * 100; return (p >= 0 ? '+' : '−') + Math.abs(p).toFixed(digits == null ? 1 : digits).replace('.', ',') + ' %'; }
+  function cls(v) { return v >= 0 ? 'up' : 'down'; }
+  function moodOf(e) { return e.day_change > 0.005 ? 'content' : e.day_change < -0.005 ? 'inquiet' : 'calme'; }
+  var MOOD_LABEL = { content: 'Content', inquiet: 'Inquiet', calme: 'Calme' };
+
+  function avatar(id, mood, size, label) {
+    var L = look(id), g = 'g' + (++uid), s = 's' + uid;
+    var face;
+    if (mood === 'content') {
+      face = '<path d="M43 57 Q48 51 53 57" stroke="#1E1D26" stroke-width="3.5" fill="none" stroke-linecap="round"/>' +
+        '<path d="M67 57 Q72 51 77 57" stroke="#1E1D26" stroke-width="3.5" fill="none" stroke-linecap="round"/>' +
+        '<path d="M52 65 Q60 75 68 65 Z" fill="#1E1D26"/>';
+    } else if (mood === 'inquiet') {
+      face = '<circle cx="48" cy="58" r="5" fill="#1E1D26"/><circle cx="72" cy="58" r="5" fill="#1E1D26"/>' +
+        '<path d="M41 47 L53 51 M79 47 L67 51" stroke="#1E1D26" stroke-width="3" stroke-linecap="round"/>' +
+        '<path d="M53 73 Q60 67 67 73" stroke="#1E1D26" stroke-width="3.5" fill="none" stroke-linecap="round"/>' +
+        '<path d="M92 26 C87 34 87 39 92 39 C97 39 97 34 92 26 Z" fill="#8FC3EA"/>';
+    } else {
+      face = '<circle cx="48" cy="58" r="5" fill="#1E1D26"/><circle cx="49.6" cy="56.4" r="1.6" fill="#fff"/>' +
+        '<circle cx="72" cy="58" r="5" fill="#1E1D26"/><circle cx="73.6" cy="56.4" r="1.6" fill="#fff"/>' +
+        '<path d="M55 67 Q60 71 65 67" stroke="#1E1D26" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    }
+    var extra = '';
+    if (L.shape === 'tuft') extra = '<path d="M54 26 C48 12 56 4 60 16 C62 4 72 6 66 24" stroke="' + L.dark + '" stroke-width="7" fill="none" stroke-linecap="round"/>';
+    if (L.shape === 'arms') extra = '<path d="M22 62 C12 60 8 70 14 74 M98 62 C108 60 112 70 106 74" stroke="' + L.dark + '" stroke-width="7" fill="none" stroke-linecap="round"/>';
+    var aria = label ? ' role="img" aria-label="' + esc(label) + '"' : ' aria-hidden="true"';
+    return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 120 120"' + aria + '>' +
+      '<defs><radialGradient id="' + g + '" cx="0.35" cy="0.3" r="0.8"><stop offset="0" stop-color="' + L.light + '"/><stop offset="0.55" stop-color="' + L.base + '"/><stop offset="1" stop-color="' + L.dark + '"/></radialGradient>' +
+      '<radialGradient id="' + s + '"><stop offset="0" stop-color="#000" stop-opacity="0.5"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>' +
+      '<ellipse cx="60" cy="106" rx="40" ry="7" fill="url(#' + s + ')"/>' + extra +
+      '<path d="' + SHAPES[L.shape] + '" fill="url(#' + g + ')"/>' +
+      (id === 'flan' ? '<path d="M24 40 C34 18 86 18 96 40 C80 33 40 33 24 40 Z" fill="#C88A3E"/>' : '') +
+      '<ellipse cx="42" cy="34" rx="12" ry="6.5" fill="#fff" opacity="0.55" transform="rotate(-25 42 34)"/>' + face + '</svg>';
+  }
+
+  function api(path) {
+    return fetch(path).then(function (r) { if (!r.ok) throw new Error('Le serveur a répondu ' + r.status); return r.json(); });
+  }
+
+  var state = { overview: null, chart: null };
+
+  function renderHeader(ov) {
+    var s = ov.season;
+    $('#season').textContent = s.sessions ? 'Saison du ' + s.start + ' au ' + s.end + ' · ' + s.sessions + ' séances' : 'Aucune séance jouée pour l’instant';
+    $('#updated').textContent = 'Mis à jour à ' + new Date().toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function renderPodium(board) {
+    var order = [1, 0, 2], heights = [160, 125, 100], el = $('#podium');
+    el.innerHTML = '';
+    order.forEach(function (i) {
+      var e = board[i]; if (!e) return;
+      var L = look(e.id), b = document.createElement('button');
+      b.className = 'step'; b.type = 'button';
+      b.innerHTML = avatar(e.id, i === 0 ? 'content' : moodOf(e), i === 0 ? 150 : 120, e.name + ', ' + (i + 1) + 'e') +
+        '<div class="block" style="height:' + heights[i] + 'px;border-top-color:' + L.base + '"><span class="n" style="color:' + L.base + '">' + (i + 1) + '</span>' +
+        '<span class="nm">' + esc(e.name) + '</span><span class="' + cls(e.metrics.total_return) + '">' + pct(e.metrics.total_return) + '</span></div>';
+      b.addEventListener('click', function () { openBot(e.id); });
+      el.appendChild(b);
+    });
+  }
+
+  function renderRows(board) {
+    var el = $('#rows');
+    if (!board.length) { el.innerHTML = '<p class="empty">Aucune donnée dans cette base. Lance un backtest ou attends la première séance.</p>'; return; }
+    el.innerHTML = '';
+    board.forEach(function (e, i) {
+      var m = e.metrics, mood = moodOf(e), b = document.createElement('button');
+      var mv = e.rank_move > 0 ? '▲' + e.rank_move : e.rank_move < 0 ? '▼' + (-e.rank_move) : '=';
+      b.className = 'row'; b.type = 'button';
+      b.setAttribute('aria-label', (i + 1) + 'e, ' + e.name + ', score ' + e.score + '. Ouvrir sa fiche.');
+      b.innerHTML = '<div class="rk"><b>' + (i + 1) + '</b><span class="mv ' + (e.rank_move > 0 ? 'up' : e.rank_move < 0 ? 'down' : '') + '">' + mv + '</span></div>' +
+        avatar(e.id, mood, 58) +
+        '<div class="who"><b>' + esc(e.name) + '</b><span class="tag">' + MOOD_LABEL[mood] + '</span><small>' + esc(e.personality) + ' · niv. ' + e.level + '</small></div>' +
+        '<div class="nums">' +
+        '<div><small>Capital</small><span>' + money(e.equity) + '</span></div>' +
+        '<div><small>Saison</small><span class="' + cls(m.total_return) + '">' + pct(m.total_return) + '</span></div>' +
+        '<div><small>Pire baisse</small><span>' + pct(m.max_drawdown) + '</span></div>' +
+        '<div><small>Frais</small><span>' + money(e.fees) + '</span></div>' +
+        '<div><small>Score</small><span>' + e.score + '</span></div></div>';
+      b.addEventListener('click', function () { openBot(e.id); });
+      el.appendChild(b);
+    });
+  }
+
+  var KIND = {
+    trade: function (e) { return (e.side === 'buy' ? 'achète ' : 'vend ') + e.qty + ' ' + e.ticker + ' (' + money(e.value_cad) + ')'; },
+    dividend: function (e) { return 'reçoit ' + money(e.amount_cad) + ' de dividendes (' + e.ticker + ')'; },
+    rank_change: function (e) { return (e.new < e.old ? 'monte' : 'descend') + ' de la ' + e.old + 'e à la ' + e.new + 'e place'; },
+    fee: function (e) { return 'paie ' + money(e.amount_cad) + ' (' + e.reason + ')'; },
+    error: function () { return 'n’a pas pu décider aujourd’hui'; }
+  };
+  function renderFeed(ov) {
+    var names = {}; ov.leaderboard.forEach(function (e) { names[e.id] = e.name; });
+    var el = $('#feed'); el.innerHTML = '';
+    if (!ov.events.length) { el.innerHTML = '<li class="empty">Rien pour l’instant.</li>'; return; }
+    ov.events.forEach(function (e) {
+      var li = document.createElement('li'), text = KIND[e.kind] ? KIND[e.kind](e) : e.kind;
+      li.innerHTML = '<span class="dot" style="background:' + look(e.bot_id).base + '"></span><div><time>' + esc(e.day) + '</time> <b>' + esc(names[e.bot_id] || e.bot_id) + '</b> ' + esc(text) + '</div>';
+      el.appendChild(li);
+    });
+  }
+
+  var hidden = {};
+  function renderChart(eq, ov) {
+    state.eq = eq; state.ov = ov;
+    var names = {}; ov.leaderboard.forEach(function (e) { names[e.id] = e.name; });
+    var ids = ov.leaderboard.map(function (e) { return e.id; }).filter(function (id) { return eq.series[id]; });
+    var legend = $('#legend'); legend.innerHTML = '';
+    ids.forEach(function (id) {
+      var b = document.createElement('button'); b.type = 'button';
+      b.setAttribute('aria-pressed', String(!hidden[id]));
+      b.innerHTML = '<i style="background:' + look(id).base + '"></i>' + esc(names[id]);
+      b.addEventListener('click', function () { hidden[id] = !hidden[id]; renderChart(state.eq, state.ov); });
+      legend.appendChild(b);
+    });
+    var box = $('#chart-box'), W = box.clientWidth || 600, H = box.clientHeight || 340;
+    var padL = 52, padR = 12, padT = 10, padB = 28, n = eq.days.length;
+    if (n < 2) { box.innerHTML = '<p class="empty">Il faut au moins deux séances pour tracer les courbes.</p>'; return; }
+    var shown = ids.filter(function (id) { return !hidden[id]; });
+    var lo = ov.starting_cash, hi = ov.starting_cash;
+    shown.forEach(function (id) { eq.series[id].forEach(function (v) { if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }); });
+    var span = (hi - lo) || 1; lo -= span * 0.05; hi += span * 0.05;
+    function X(i) { return padL + i * (W - padL - padR) / (n - 1); }
+    function Y(v) { return padT + (hi - v) * (H - padT - padB) / (hi - lo); }
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Capital de chaque Chubby au fil des séances">';
+    for (var k = 0; k <= 4; k++) {
+      var v = lo + (hi - lo) * k / 4, y = Y(v).toFixed(1);
+      svg += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y + '" y2="' + y + '" stroke="rgba(255,255,255,0.06)"/>' +
+        '<text x="' + (padL - 8) + '" y="' + y + '" fill="#A9A8C0" font-size="11" text-anchor="end" dominant-baseline="middle">' + (v / 1000).toFixed(1).replace('.', ',') + ' k$</text>';
+    }
+    for (var t = 0; t < 6; t++) {
+      var i = Math.round(t * (n - 1) / 5);
+      svg += '<text x="' + X(i).toFixed(1) + '" y="' + (H - 8) + '" fill="#A9A8C0" font-size="11" text-anchor="' + (t === 0 ? 'start' : t === 5 ? 'end' : 'middle') + '">' + esc(eq.days[i]) + '</text>';
+    }
+    svg += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + Y(ov.starting_cash).toFixed(1) + '" y2="' + Y(ov.starting_cash).toFixed(1) + '" stroke="#5A5C7A" stroke-dasharray="6 6"/>';
+    shown.forEach(function (id) {
+      var d = '', pen = false;
+      eq.series[id].forEach(function (v, i) { if (v == null) { pen = false; return; } d += (pen ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1); pen = true; });
+      svg += '<path d="' + d + '" fill="none" stroke="' + look(id).base + '" stroke-width="2" stroke-linejoin="round"/>';
+    });
+    svg += '<line id="cursor" y1="' + padT + '" y2="' + (H - padB) + '" stroke="rgba(255,255,255,0.3)" visibility="hidden"/></svg>';
+    box.innerHTML = svg + '<div class="tip" id="tip" hidden></div>';
+    var el = box.querySelector('svg'), tip = $('#tip'), cur = box.querySelector('#cursor');
+    el.addEventListener('mousemove', function (ev) {
+      var r = el.getBoundingClientRect(), x = (ev.clientX - r.left) * W / r.width;
+      var i = Math.max(0, Math.min(n - 1, Math.round((x - padL) * (n - 1) / (W - padL - padR))));
+      cur.setAttribute('x1', X(i)); cur.setAttribute('x2', X(i)); cur.setAttribute('visibility', 'visible');
+      var rows = shown.map(function (id) { return [id, eq.series[id][i]]; }).filter(function (p) { return p[1] != null; })
+        .sort(function (a, b) { return b[1] - a[1]; });
+      tip.innerHTML = '<b>' + esc(eq.days[i]) + '</b>' + rows.map(function (p) { return '<div><i class="dot" style="margin:0;background:' + look(p[0]).base + '"></i>' + esc(names[p[0]]) + ' ' + money(p[1]) + '</div>'; }).join('');
+      tip.hidden = false;
+      var left = X(i) * r.width / W; tip.style.left = (left > r.width / 2 ? left - tip.offsetWidth - 12 : left + 12) + 'px'; tip.style.top = '8px';
+    });
+    el.addEventListener('mouseleave', function () { tip.hidden = true; cur.setAttribute('visibility', 'hidden'); });
+  }
+  window.addEventListener('resize', function () { if (state.eq) renderChart(state.eq, state.ov); });
+
+  function openBot(id) {
+    api('/api/bots/' + encodeURIComponent(id)).then(function (d) {
+      var m = d.metrics || { total_return: 0, max_drawdown: 0, sharpe: 0, volatility: 0, regularity: 0 };
+      var pos = d.positions.length ? '<div class="tbl"><table><thead><tr><th>Titre</th><th class="r">Qté</th><th class="r">Coût</th><th class="r">Valeur</th><th class="r">Gain</th><th>Depuis</th></tr></thead><tbody>' +
+        d.positions.map(function (p) {
+          var gain = p.value_cad != null ? p.value_cad / p.cost_cad - 1 : null;
+          return '<tr><td>' + esc(p.ticker) + '</td><td class="r">' + p.qty + '</td><td class="r">' + money(p.cost_cad) + '</td><td class="r">' + (p.value_cad != null ? money(p.value_cad) : '—') +
+            '</td><td class="r ' + (gain != null ? cls(gain) : '') + '">' + (gain != null ? pct(gain) : '—') + '</td><td>' + esc(p.opened_on) + '</td></tr>';
+        }).join('') + '</tbody></table></div>' : '<p class="empty">Tout en cash.</p>';
+      var trades = d.trades.length ? '<div class="tbl"><table><thead><tr><th>Jour</th><th>Ordre</th><th>Titre</th><th class="r">Qté</th><th class="r">Prix</th><th class="r">Montant</th><th class="r">Frais</th></tr></thead><tbody>' +
+        d.trades.map(function (t) {
+          return '<tr><td>' + esc(t.day) + '</td><td class="' + (t.side === 'buy' ? 'up' : 'down') + '">' + (t.side === 'buy' ? 'Achat' : 'Vente') + '</td><td>' + esc(t.ticker) + '</td><td class="r">' + t.qty +
+            '</td><td class="r">' + t.price.toFixed(2) + ' ' + esc(t.currency) + '</td><td class="r">' + money(t.value_cad) + '</td><td class="r">' + money(t.fees_cad) + '</td></tr>';
+        }).join('') + '</tbody></table></div>' : '<p class="empty">Aucun trade.</p>';
+      var journal = d.journal.length ? '<ul class="journal">' + d.journal.map(function (j) { return '<li><time>' + esc(j.day) + '</time>« ' + esc(j.text) + ' »</li>'; }).join('') + '</ul>' : '<p class="empty">Journal vide.</p>';
+      $('#dlg-body').innerHTML =
+        '<div class="dlg-head">' + avatar(d.id, 'calme', 72) + '<div><h2 id="d-name">' + esc(d.name) + '</h2><p>' + esc(d.personality) + ' · niveau ' + d.level + ' · ' + d.xp + ' XP</p></div>' +
+        '<button class="btn" id="d-close" aria-label="Fermer la fiche">×</button></div>' +
+        '<div class="stats">' +
+        '<div><small>Capital</small><span>' + money(d.equity) + '</span></div>' +
+        '<div><small>Cash</small><span>' + money(d.cash) + '</span></div>' +
+        '<div><small>Saison</small><span class="' + cls(m.total_return) + '">' + pct(m.total_return) + '</span></div>' +
+        '<div><small>Pire baisse</small><span>' + pct(m.max_drawdown) + '</span></div>' +
+        '<div><small>Sharpe</small><span>' + m.sharpe.toFixed(2).replace('.', ',') + '</span></div>' +
+        '<div><small>Semaines +</small><span>' + Math.round(m.regularity * 100) + ' %</span></div>' +
+        '<div><small>Agressivité</small><span>' + d.aggressiveness.toFixed(2).replace('.', ',') + '</span></div></div>' +
+        '<section><h3>Positions</h3>' + pos + '</section>' +
+        '<section><h3>Journal</h3>' + journal + '</section>' +
+        '<section><h3>Derniers trades</h3>' + trades + '</section>';
+      $('#d-close').addEventListener('click', function () { $('#dlg').close(); });
+      $('#dlg').showModal();
+    }).catch(showError);
+  }
+  $('#dlg').addEventListener('click', function (e) { if (e.target === $('#dlg')) $('#dlg').close(); });
+
+  function showError(err) { var el = $('#error'); el.hidden = false; el.textContent = 'Impossible de charger les données : ' + err.message + '. Le serveur « chubby web » tourne-t-il toujours ?'; }
+
+  function load() {
+    Promise.all([api('/api/overview'), api('/api/equity')]).then(function (res) {
+      $('#error').hidden = true;
+      var ov = res[0]; state.overview = ov;
+      renderHeader(ov); renderPodium(ov.leaderboard); renderRows(ov.leaderboard); renderFeed(ov); renderChart(res[1], ov);
+    }).catch(showError);
+  }
+  $('#logo').innerHTML = avatar('flan', 'content', 46);
+  $('#refresh').addEventListener('click', load);
+  load();
+  setInterval(load, 60000);
+})();
+</script>
+</body>
+</html>

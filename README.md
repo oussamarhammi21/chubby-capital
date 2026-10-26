@@ -13,9 +13,9 @@ Ce dépôt contient le **moteur** (Python). L'île 3D viendra se brancher dessus
 | Tortue | Indicielle passive | 50 % XIC.TO + 50 % VFV.TO, puis ne bouge plus (réinvestit seulement les dividendes) |
 | Flan | Rentier · dividendes | Chaque mois, garde les 8 meilleurs rendements en dividendes (entre 2 % et 9 %, pas en chute libre) |
 | Dumpling | Équilibré · diversification | Mix fixe d'ETF (actions Canada, É.-U., international, émergents, obligations, or), rééquilibré si un poids dérive de plus de 5 points |
-| Mochi | Chasseur de tendance | Chaque semaine, vise les 5 titres les plus forts sur 3 mois ; garde un titre tant qu'il reste dans le top 10 et coupe ce qui casse sa moyenne 50 jours |
-| Muffin | Chasseur d'aubaines | Achète les bons titres survendus (RSI < 30, au-dessus de la moyenne 200 jours), revend au rebond, stop à -8 % |
-| Jalapeño | Casse-cou · levier | Tout sur le FNB à levier le plus en forme (TQQQ, SOXL, UPRO, TNA), gardé au moins 7 séances sauf s'il s'effondre. Les options viendront en v2 |
+| Mochi | Chasseur de tendance | Chaque semaine, vise les 5 titres les plus forts sur 3 mois parmi 100 grandes sociétés canadiennes et américaines ; garde un titre tant qu'il reste dans le top 10 et coupe ce qui casse sa moyenne 50 jours |
+| Muffin | Chasseur d'aubaines | Parmi les mêmes 100 sociétés, achète les plus survendues (RSI < 30, au-dessus de la moyenne 200 jours), revend au rebond, stop à -8 % |
+| Jalapeño | Casse-cou · levier | Tout sur le FNB à levier le plus en forme (TQQQ, SOXL, UPRO, TNA), gardé au moins 7 séances sauf s'il s'effondre ; tout au cash quand le Nasdaq passe sous sa moyenne 200 jours. Les options viendront en v2 |
 
 Le code de chaque Chubby est dans [`chubby/bots/chubbies.py`](chubby/bots/chubbies.py). Pour en créer un nouveau, il suffit d'hériter de `Bot` et d'écrire `decide()`, qui renvoie les poids voulus.
 
@@ -81,10 +81,21 @@ chubby coach jalapeno moins     # moins | plus | garde : change son agressivité
 
 Tout est enregistré dans un fichier SQLite (`data/arena.db`) : comptes, trades, valeurs quotidiennes, journal de chaque bot et **événements** (`trade`, `dividend`, `rank_change`, `leader`). Ce sont ces événements que l'île 3D animera.
 
+## Tableau de bord
+
+```bash
+chubby web                                  # arène en direct : http://localhost:8000
+chubby --db data/backtest-v2.db web         # ou n'importe quel backtest
+```
+
+Podium, classement, courbes de capital, derniers événements, et la fiche de chaque Chubby
+(positions, journal, trades) en cliquant dessus. La page se met à jour toute seule chaque minute.
+Elle n'a besoin d'aucune connexion Internet à part les polices.
+
 ## Sur le PC serveur (Docker)
 
 ```bash
-docker compose up -d          # lance « chubby serve » en continu
+docker compose up -d          # l'arène (« chubby serve ») + le tableau de bord sur le port 8000
 docker compose logs -f
 docker compose run --rm arene chubby classement
 ```
@@ -94,8 +105,9 @@ Les données restent dans `./data` sur le PC.
 ## Feuille de route
 
 - [x] Moteur : données yfinance, courtier fictif, 6 Chubbies, score, journal, événements
-- [ ] API + flux d'événements en direct pour l'île 3D
+- [x] Tableau de bord web et API JSON (`/api/overview`, `/api/equity`, `/api/bots/<id>`)
+- [ ] Coach Claude hebdomadaire qui ajuste les réglages de chaque Chubby
+- [ ] Bot ML réentraîné chaque mois
 - [ ] Île 3D (React Three Fiber) branchée sur le moteur
-- [ ] Coach Claude : analyse des trades, leçons, réponses aux questions des Chubbies
 - [ ] Jalapeño aux vraies options
 - [ ] Profil investisseur et mode conseiller pour un compte Wealthsimple (lecture seule, via export CSV)

@@ -1,0 +1,93 @@
+"""Ce que le tableau de bord affiche, lu directement dans la base de l'arène."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict
+
+from ..config import ArenaConfig
+from ..scoring import metrics, score
+from ..store import Store
+
+
+def _bots(store: Store) -> list:
+    return store.db.execute("SELECT * FROM bots ORDER BY id").fetchall()
+
+
+def overview(store: Store, cfg: ArenaConfig) -> dict:
+    db = store.db
+    span = db.execute("SELECT MIN(day) AS a, MAX(day) AS b, COUNT(DISTINCT day) AS n FROM snapshots").fetchone()
+    costs = {r["bot_id"]: [r["n"], r["fees"] or 0.0] for r in db.execute(
+        "SELECT bot_id, COUNT(*) AS n, SUM(fees_cad) AS fees FROM trades GROUP BY bot_id")}
+    for r in db.execute("SELECT bot_id, SUM(json_extract(payload, '$.amount_cad')) AS fees"
+                        " FROM events WHERE kind = 'fee' GROUP BY bot_id"):
+        costs.setdefault(r["bot_id"], [0, 0.0])[1] += r["fees"]
+    board = []
+    for bot in _bots(store):
+        eq = store.equity_series(bot["id"])
+        if eq.empty:
+            continue
+        m = metrics(eq, cfg.starting_cash)
+        last_two = db.execute("SELECT rank FROM snapshots WHERE bot_id = ? AND rank IS NOT NULL"
+                              " ORDER BY day DESC LIMIT 2", (bot["id"],)).fetchall()
+        n, fees = costs.get(bot["id"], [0, 0.0])
+        board.append({
+            "id": bot["id"], "name": bot["name"], "personality": bot["personality"],
+            "equity": round(float(eq.iloc[-1]), 2),
+            "day_change": float(eq.iloc[-1] / eq.iloc[-2] - 1) if len(eq) > 1 else 0.0,
+            "score": score(m), "metrics": asdict(m), "trades": n, "fees": round(fees, 2),
+            "xp": bot["xp"], "level": bot["xp"] // 200 + 1, "aggressiveness": bot["aggressiveness"],
+            "rank_move": (last_two[1]["rank"] - last_two[0]["rank"]) if len(last_two) == 2 else 0,
+        })
+    board.sort(key=lambda e: (-e["score"], -e["equity"]))
+    return {
+        "season": {"start": span["a"], "end": span["b"], "sessions": span["n"]},
+        "starting_cash": cfg.starting_cash,
+        "leaderboard": board,
+        "events": events(store, limit=25),
+    }
+
+
+def equity_curves(store: Store) -> dict:
+    out = {"days": [], "series": {}}
+    rows = store.db.execute("SELECT bot_id, day, equity FROM snapshots ORDER BY day").fetchall()
+    days = sorted({r["day"] for r in rows})
+    index = {d: i for i, d in enumerate(days)}
+    for r in rows:
+        series = out["series"].setdefault(r["bot_id"], [None] * len(days))
+        series[index[r["day"]]] = round(r["equity"], 2)
+    out["days"] = days
+    return out
+
+
+def bot_detail(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
+    db = store.db
+    bot = store.bot_row(bot_id)
+    if bot is None:
+        return None
+    last = db.execute("SELECT * FROM snapshots WHERE bot_id = ? ORDER BY day DESC LIMIT 1", (bot_id,)).fetchone()
+    values = json.loads(last["holdings"] or "{}") if last else {}
+    positions = [{"ticker": r["ticker"], "qty": r["qty"], "cost_cad": round(r["qty"] * r["avg_cost_cad"], 2),
+                  "value_cad": values.get(r["ticker"]), "opened_on": r["opened_on"]}
+                 for r in db.execute("SELECT * FROM positions WHERE bot_id = ? ORDER BY ticker", (bot_id,))]
+    eq = store.equity_series(bot_id)
+    return {
+        "id": bot_id, "name": bot["name"], "personality": bot["personality"],
+        "xp": bot["xp"], "level": bot["xp"] // 200 + 1, "aggressiveness": bot["aggressiveness"],
+        "cash": round(last["cash"], 2) if last else cfg.starting_cash,
+        "equity": round(last["equity"], 2) if last else cfg.starting_cash,
+        "metrics": asdict(metrics(eq, cfg.starting_cash)) if not eq.empty else None,
+        "positions": sorted(positions, key=lambda p: -(p["value_cad"] or 0)),
+        "trades": [dict(r) for r in db.execute(
+            "SELECT day, ticker, side, qty, price, currency, fees_cad, value_cad FROM trades"
+            " WHERE bot_id = ? ORDER BY id DESC LIMIT 40", (bot_id,))],
+        "journal": [dict(r) for r in db.execute(
+            "SELECT day, text FROM journal WHERE bot_id = ? ORDER BY id DESC LIMIT 40", (bot_id,))],
+    }
+
+
+def events(store: Store, limit: int = 50) -> list[dict]:
+    rows = store.db.execute("SELECT * FROM events WHERE kind != 'leader' ORDER BY id DESC LIMIT ?",
+                            (limit,)).fetchall()
+    return [{"id": r["id"], "day": r["day"], "bot_id": r["bot_id"], "kind": r["kind"],
+             **json.loads(r["payload"] or "{}")} for r in rows]

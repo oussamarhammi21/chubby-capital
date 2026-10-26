@@ -45,9 +45,12 @@ class Store:
     def __init__(self, path: str | Path):
         if str(path) != ":memory:":
             Path(path).parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(str(path))
+        self.db = sqlite3.connect(str(path), timeout=30, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        columns = {r["name"] for r in self.db.execute("PRAGMA table_info(snapshots)")}
+        if "holdings" not in columns:  # bases créées avant l'ajout de la colonne
+            self.db.execute("ALTER TABLE snapshots ADD COLUMN holdings TEXT")
 
     def commit(self):
         self.db.commit()
@@ -101,9 +104,10 @@ class Store:
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (bot_id, _d(day), f.ticker, f.side, f.qty, f.price, f.currency, f.fx, f.fees_cad, f.value_cad))
 
-    def add_snapshot(self, bot_id: str, day, equity: float, cash: float):
-        self.db.execute("INSERT OR REPLACE INTO snapshots (bot_id, day, equity, cash) VALUES (?, ?, ?, ?)",
-                        (bot_id, _d(day), equity, cash))
+    def add_snapshot(self, bot_id: str, day, equity: float, cash: float, holdings: dict[str, float] | None = None):
+        self.db.execute("INSERT OR REPLACE INTO snapshots (bot_id, day, equity, cash, holdings) VALUES (?, ?, ?, ?, ?)",
+                        (bot_id, _d(day), equity, cash,
+                         json.dumps({t: round(v, 2) for t, v in (holdings or {}).items()})))
 
     def set_rank(self, bot_id: str, day, score: int, rank: int):
         self.db.execute("UPDATE snapshots SET score = ?, rank = ? WHERE bot_id = ? AND day = ?",
