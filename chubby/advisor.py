@@ -10,10 +10,17 @@ from __future__ import annotations
 import csv
 import io
 import json
+import logging
+import re
+from collections import defaultdict
+from datetime import date
+from pathlib import Path
 
 from .config import ArenaConfig, currency_of
 from .scoring import metrics, score
 from .store import Store
+
+log = logging.getLogger(__name__)
 
 # Risque de 1 (très prudent) à 5 (très audacieux) et style de chaque personnalité.
 TRAITS = {
@@ -63,11 +70,115 @@ def _number(text: str) -> float | None:
         return None
 
 
-def parse_holdings(text: str, usdcad: float) -> tuple[list[dict], list[str]]:
-    """Lit un export de positions (Wealthsimple ou un CSV simple « symbole, quantité, valeur »).
+# Export des activités Wealthsimple : ces opérations changent le nombre d'actions détenues.
+SHARE_ACTIVITIES = {"Trade", "CorporateAction", "LegacyCorporateAction", "InternalSecurityTransfer", "OptionExpiry"}
+OCC_OPTION = re.compile(r"^[A-Z.]+\s+\d{6}[CP]\d{8}$")  # ex. « NVDA  240628C00130000 »
+CANADIAN_SUFFIXES = (".TO", ".V", ".NE", ".CN")  # TSX, TSX croissance, Cboe Canada, CSE
+
+
+def yahoo_prices(cache_dir: str | Path | None = None):
+    """Renvoie une fonction (symbole, devise) -> (symbole Yahoo, prix) qui cherche le dernier cours.
+
+    Un symbole en CAD est essayé sur les bourses canadiennes, dans l'ordre. Les prix trouvés sont gardés
+    pour la journée dans le cache, pour ne pas tout retélécharger à chaque analyse.
+    """
+    import warnings
+
+    import yfinance as yf
+
+    warnings.filterwarnings("ignore", module=r"yfinance(\..*)?")
+    path = Path(cache_dir) / f"prix-du-jour-{date.today()}.json" if cache_dir else None
+    cache = json.loads(path.read_text()) if path and path.exists() else {}
+
+    def lookup(symbol: str, currency: str):
+        key = f"{symbol}|{currency}"
+        if key not in cache:
+            candidates = [symbol + s for s in CANADIAN_SUFFIXES] if currency == "CAD" else [symbol]
+            cache[key] = None
+            for ticker in candidates:
+                try:
+                    hist = yf.Ticker(ticker).history(period="10d")
+                except Exception:  # symbole inconnu, réseau…
+                    continue
+                if not hist.empty:
+                    cache[key] = [ticker, float(hist["Close"].dropna().iloc[-1])]
+                    break
+            if path:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(cache))
+        return tuple(cache[key]) if cache[key] else None
+
+    return lookup
+
+
+def parse_activities(rows: list[dict], usdcad: float, price_of) -> tuple[list[dict], list[str], list[str]]:
+    """Reconstruit les positions à partir de l'historique des activités, puis les évalue au prix du jour.
+
+    Renvoie les positions, les symboles sans prix, et des remarques (crypto, options, prix approximatifs).
+    """
+    quantity, currency, last_price = defaultdict(float), {}, {}
+    crypto = options = 0
+    for r in rows:
+        symbol = (r.get("symbol") or "").strip()
+        if not symbol or r.get("activity_type") not in SHARE_ACTIVITIES:
+            continue
+        if r.get("account_type") == "Crypto":
+            crypto += 1
+            continue
+        if OCC_OPTION.match(symbol):
+            options += 1
+            continue
+        quantity[symbol] += _number(r.get("quantity", "")) or 0.0
+        if r.get("currency"):
+            currency[symbol] = r["currency"].upper()
+        if r.get("activity_type") == "Trade" and _number(r.get("unit_price", "")):
+            last_price[symbol] = _number(r["unit_price"])
+    holdings, skipped, notes, stale = [], [], [], []
+    for symbol, qty in quantity.items():
+        if qty <= 1e-6:
+            continue
+        cur = currency.get(symbol, "USD")
+        found = price_of(symbol, cur)
+        if found:
+            yahoo, price = found
+        elif symbol in last_price:
+            yahoo, price = symbol + (".TO" if cur == "CAD" else ""), last_price[symbol]
+            stale.append(symbol)
+        else:
+            skipped.append(symbol)
+            continue
+        holdings.append({"symbol": yahoo, "quantity": qty, "currency": cur,
+                         "value_cad": qty * price * (usdcad if cur == "USD" else 1.0)})
+    if stale:
+        notes.append(f"Prix du jour introuvable pour {', '.join(stale)} : j'ai pris ton dernier prix d'achat ou de vente.")
+    if crypto:
+        notes.append("Ton compte crypto n'est pas pris en compte : les Chubbies ne tradent que des actions et des FNB.")
+    if options:
+        notes.append("Les options de ton historique sont ignorées (seules les actions et FNB sont comparés).")
+    return sorted(holdings, key=lambda h: -h["value_cad"]), skipped, notes
+
+
+def parse_holdings(text: str, usdcad: float, price_of=None) -> tuple[list[dict], list[str]]:
+    """Lit un export de positions (Wealthsimple ou un CSV simple « symbole, quantité, valeur »),
+    ou l'export des activités Wealthsimple, dont on reconstruit les positions.
 
     Renvoie les positions (valeur en CAD) et les lignes ignorées, pour pouvoir les signaler.
     """
+    holdings, skipped, _ = read_portfolio(text, usdcad, price_of)
+    return holdings, skipped
+
+
+def read_portfolio(text: str, usdcad: float, price_of=None) -> tuple[list[dict], list[str], list[str]]:
+    """Comme parse_holdings, avec en plus des remarques sur la lecture."""
+    head = text.lstrip("\ufeff").strip().splitlines()[0].lower() if text.strip() else ""
+    if "activity_type" in head and "quantity" in head:
+        rows = list(csv.DictReader(io.StringIO(text.lstrip("\ufeff").strip())))
+        return parse_activities(rows, usdcad, price_of or yahoo_prices())
+    holdings, skipped = _parse_positions(text, usdcad)
+    return holdings, skipped, []
+
+
+def _parse_positions(text: str, usdcad: float) -> tuple[list[dict], list[str]]:
     rows = list(csv.reader(io.StringIO(text.strip())))
     header_at = next((i for i, r in enumerate(rows) if _find(r, "symbol") is not None), None)
     if header_at is None:

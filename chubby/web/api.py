@@ -119,9 +119,9 @@ def replay(store: Store, cfg: ArenaConfig) -> dict:
             "rank": rank, "score": scores, "events": by_day, "journal": journal}
 
 
-def advice(store: Store, cfg: ArenaConfig, profile: dict, csv_text: str) -> dict:
+def advice(store: Store, cfg: ArenaConfig, profile: dict, csv_text: str, price_of=None, cache_dir=None) -> dict:
     """Compare ton portefeuille au Chubby qui te ressemble. Le fichier n'est pas conservé, seul le profil l'est."""
-    from ..advisor import advise, parse_holdings
+    from ..advisor import advise, read_portfolio, yahoo_prices
 
     clean = {"risk": max(1, min(5, int(profile.get("risk", 3)))),
              "style": profile.get("style") if profile.get("style") in ("revenu", "croissance", "equilibre") else "equilibre",
@@ -130,8 +130,10 @@ def advice(store: Store, cfg: ArenaConfig, profile: dict, csv_text: str) -> dict
     store.set_meta("profil", json.dumps(clean))
     store.commit()
     usdcad = float(store.get_meta("usdcad") or 1.37)
-    holdings, skipped = parse_holdings(csv_text, usdcad) if csv_text.strip() else ([], [])
+    holdings, skipped, reading_notes = (read_portfolio(csv_text, usdcad, price_of or yahoo_prices(cache_dir))
+                                        if csv_text.strip() else ([], [], []))
     out = advise(store, cfg, clean, holdings)
+    out["notes"] = reading_notes + out["notes"]
     out["holdings"] = holdings
     out["skipped"] = skipped
     out["usdcad"] = usdcad

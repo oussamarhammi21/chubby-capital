@@ -140,8 +140,12 @@ part américaine et forfait USD).
 
 - **Lecture seule** : le fichier n'est jamais enregistré, seul ton profil l'est. C'est toi qui passes les ordres.
 - Un Chubby est **« certifié »** après 120 séances d'arène (environ six mois) ; avant, ses idées sont des pistes.
-- Le lecteur accepte l'export Wealthsimple et tout CSV avec des colonnes `Symbol`, `Quantity` et `Market Value`
-  (ou `Market Price`). Les titres d'une bourse canadienne reçoivent automatiquement le suffixe `.TO`.
+- Le lecteur accepte :
+  - **l'export des activités Wealthsimple** (tout l'historique de tes comptes) : il reconstruit tes positions à partir des achats,
+    ventes et opérations sur titres, puis cherche leur prix du jour sur Yahoo Finance (gardé en cache pour la journée).
+    Le compte crypto et les options sont ignorés ; un titre sans cours est évalué à ton dernier prix payé, et c'est signalé ;
+  - ou tout CSV de positions avec des colonnes `Symbol`, `Quantity` et `Market Value` (ou `Market Price`).
+    Les titres d'une bourse canadienne reçoivent automatiquement le suffixe `.TO`.
 
 ## Sur le PC serveur (Docker)
 

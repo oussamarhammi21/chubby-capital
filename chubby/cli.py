@@ -137,7 +137,7 @@ def cmd_conseil(args, cfg):
     from .web.api import advice
     text = open(args.fichier, encoding="utf-8-sig").read() if args.fichier else ""
     profile = {"risk": args.risque, "style": args.style, "horizon": args.horizon, "usd_account": args.compte_usd}
-    out = advice(Store(args.db), cfg, profile, text)
+    out = advice(Store(args.db), cfg, profile, text, cache_dir=args.cache)
     print(f"\nTon portefeuille : {out['total_cad']:,.0f} $ CAD")
     print("\nLes Chubbies qui te ressemblent :")
     for m in out["matches"]:

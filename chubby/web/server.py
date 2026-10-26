@@ -55,7 +55,9 @@ def make_handler(db_path: str, cfg: ArenaConfig):
                 if path == "/api/conseil":
                     length = min(int(self.headers.get("Content-Length") or 0), 2_000_000)
                     body = json.loads(self.rfile.read(length) or b"{}")
-                    return self._json(api.advice(Store(db_path), cfg, body.get("profil") or {}, str(body.get("csv") or "")))
+                    cache = Path(db_path).parent / "cache"
+                    return self._json(api.advice(Store(db_path), cfg, body.get("profil") or {}, str(body.get("csv") or ""),
+                                                 cache_dir=cache))
                 return self._json({"erreur": "page introuvable"}, 404)
             except ValueError as e:  # inclut un JSON ou un CSV illisible
                 return self._json({"erreur": str(e) or "requête invalide"}, 400)

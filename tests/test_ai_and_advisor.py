@@ -112,3 +112,31 @@ def test_advisor_matches_profile_and_compares(live_arena):
     assert any("SHOP.TO" in n for n in out["notes"])  # 40 % sur un seul titre
     assert {r["symbol"] for r in out["rows"]} >= {"XEQT.TO", "AAPL", "SHOP.TO"}
     assert not out["advisor"]["certified"]  # trop peu de séances pour l'instant
+
+
+ACTIVITIES = """effective_date,activity_type,activity_sub_type,direction,symbol,account_type,currency,quantity,unit_price,net_cash_amount
+2024-01-02,MoneyMovement,EFT,,,TFSA,CAD,5000,,5000
+2024-01-03,Trade,BUY,LONG,XEQT,TFSA,CAD,100,30,-3000
+2024-02-01,Trade,BUY,LONG,AAPL,TFSA,USD,10,180,-1800
+2024-03-01,Trade,SELL,LONG,AAPL,TFSA,USD,-4,190,760
+2024-03-05,Dividend,-,,XEQT,TFSA,CAD,12.5,,12.5
+2024-04-01,CorporateAction,CONSOLIDATION,LONG,XEQT,TFSA,,-50,,
+2024-05-01,Trade,BUY,LONG,BTC,Crypto,CAD,0.01,60000,-600
+2024-06-01,Trade,BUY,LONG,NVDA  240628C00130000,TFSA,USD,2,1.5,-300
+2024-06-28,OptionExpiry,-,LONG,NVDA  240628C00130000,TFSA,,-2,,
+2024-07-01,Trade,BUY,LONG,ZZZZ,TFSA,CAD,10,2,-20
+2024-07-02,Trade,BUY,LONG,GONE,TFSA,USD,10,1,-10
+"""
+
+
+def test_rebuild_positions_from_activity_export():
+    from chubby.advisor import read_portfolio
+
+    prices = {("XEQT", "CAD"): ("XEQT.TO", 35.0), ("AAPL", "USD"): ("AAPL", 200.0)}
+    holdings, skipped, notes = read_portfolio(ACTIVITIES, 1.4, lambda s, c: prices.get((s, c)))
+    by = {h["symbol"]: h for h in holdings}
+    assert by["XEQT.TO"]["quantity"] == 50  # achat de 100, regroupement de 2 pour 1
+    assert by["AAPL"]["quantity"] == 6 and by["AAPL"]["value_cad"] == pytest.approx(6 * 200 * 1.4)
+    assert by["ZZZZ.TO"]["value_cad"] == pytest.approx(20)  # pas de cours : dernier prix payé
+    assert "BTC" not in str(holdings) and not any("NVDA" in s for s in by)  # crypto et options exclues
+    assert skipped == [] and any("crypto" in n for n in notes) and any("ZZZZ" in n for n in notes)
