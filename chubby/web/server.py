@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -97,8 +98,18 @@ def make_handler(db_path: str, cfg: ArenaConfig, live=None):
     return Handler
 
 
+class Server(ThreadingHTTPServer):
+    # Sous Windows, « réutiliser l'adresse » laisse deux serveurs écouter le même port : un ancien tableau de bord
+    # oublié répondrait alors à la place du nouveau, avec son ancien code. On refuse donc un port déjà pris.
+    allow_reuse_address = os.name != "nt"
+
+
 def serve(db_path: str, cfg: ArenaConfig, host: str = "0.0.0.0", port: int = 8000, live=None, block: bool = True):
-    server = ThreadingHTTPServer((host, port), make_handler(db_path, cfg, live))
+    try:
+        server = Server((host, port), make_handler(db_path, cfg, live))
+    except OSError:
+        raise SystemExit(f"Le port {port} est déjà utilisé : un autre tableau de bord tourne sans doute encore "
+                         f"(une autre fenêtre ou un ancien terminal). Ferme-le, ou lance celui-ci avec --port {port + 1}.")
     if not block:  # dans un fil à côté de l'arène (chubby serve --web)
         import threading
         threading.Thread(target=server.serve_forever, daemon=True).start()
