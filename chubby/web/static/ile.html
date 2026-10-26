@@ -21,6 +21,8 @@ body { background: #CFE6F7; color: var(--ink); font-family: var(--body); overflo
 #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
 .label { position: absolute; left: 0; top: 0; background: var(--panel); border-radius: 999px; padding: 3px 9px; font: 800 12px/1.3 var(--body); white-space: nowrap; box-shadow: 0 2px 6px rgba(42,40,56,0.12); display: flex; gap: 6px; }
 .label.sel { background: var(--accent); color: #fff; }
+.speech { position: absolute; left: 0; top: 0; max-width: 220px; background: #fff; color: var(--ink); border-radius: 16px 16px 16px 4px; padding: 7px 11px; font: 700 13px/1.35 var(--body); box-shadow: 0 4px 14px rgba(42,40,56,0.18); white-space: normal; }
+#sound[aria-pressed="true"] { background: var(--accent); color: #fff; }
 .label.sel .up, .label.sel .down { color: #fff; }
 .up { color: var(--up); } .down { color: var(--down); }
 
@@ -39,6 +41,7 @@ body { background: #CFE6F7; color: var(--ink); font-family: var(--body); overflo
 .btn[aria-pressed="true"] { background: var(--ink); color: #fff; }
 .btn.primary { background: var(--accent); color: #fff; }
 .btn.ghost { border: 2px solid var(--line); }
+#golive[aria-pressed="true"] { background: #E5484D; color: #fff; }
 button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
 .timeline { grid-column: 2; grid-row: 3; align-self: end; padding: 8px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
@@ -100,6 +103,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       <div class="brand panel"><b>Chubby Capital</b><a href="/">Tableau de bord</a></div>
       <div class="clock panel" role="status"><b id="date">—</b><span id="status">Chargement…</span></div>
       <div class="panel" style="padding:6px;display:flex;gap:4px;flex-wrap:wrap" role="group" aria-label="Caméra">
+        <button class="btn ghost" id="sound" aria-pressed="false" title="Les Chubbies parlent et font des petits bruits">🔇 Son</button>
         <button class="btn ghost" id="overview">Vue d'ensemble</button>
       </div>
     </header>
@@ -112,7 +116,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       </div>
       <dl class="stats">
         <div><dt>Capital</dt><dd id="c-val"></dd></div>
-        <div><dt>Ce jour-là</dt><dd id="c-day"></dd></div>
+        <div><dt id="c-day-label">Ce jour-là</dt><dd id="c-day"></dd></div>
         <div><dt>Saison</dt><dd id="c-season"></dd></div>
         <div><dt>Score</dt><dd id="c-score"></dd></div>
         <div><dt>Rang</dt><dd id="c-rank"></dd></div>
@@ -138,6 +142,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     </section>
 
     <div class="timeline panel" role="group" aria-label="Lecture de la saison">
+      <button class="btn" id="golive" hidden aria-pressed="false">● En direct</button>
       <button class="btn" id="play" aria-label="Lecture ou pause">Pause</button>
       <button class="btn" id="sp1" aria-pressed="true">×1</button>
       <button class="btn" id="sp10" aria-pressed="false">×10</button>
@@ -304,6 +309,65 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   var data = null, bots = [], byId = {};
   var dayIdx = 0, tDay = 0, playing = true, speed = 1, dayEvents = [], feed = [], lastPhase = null;
   var DAY_SECONDS = 36; // durée d'une séance à ×1
+  // Mode direct : pendant la bourse, les Chubbies vivent la vraie séance (rafraîchie chaque minute).
+  var live = null, liveMode = false, liveById = {};
+  function liveOf(b) { return liveMode ? liveById[b.id] : null; }
+
+  // ---------- Son : voix « blabla » et petits bruits, synthétisés dans le navigateur ----------
+  // Chaque personnalité a sa hauteur de voix ; la version IA parle un peu plus aigu, avec un timbre de robot.
+  var VOICE = { tortue: 170, dumpling: 250, matcha: 290, flan: 320, muffin: 370, mochi: 420, jalapeno: 470 };
+  var audio = { ctx: null, on: false, last: 0 };
+  try { audio.want = localStorage.getItem('chubby-son') === '1'; } catch (e) { audio.want = false; }
+  function audioStart() {
+    if (!audio.ctx) { var A = window.AudioContext || window.webkitAudioContext; if (!A) return false; audio.ctx = new A(); audio.master = audio.ctx.createGain(); audio.master.gain.value = 0.5; audio.master.connect(audio.ctx.destination); }
+    if (audio.ctx.state === 'suspended') audio.ctx.resume();
+    return true;
+  }
+  function setSound(on) {
+    audio.on = on && audioStart(); $('#sound').setAttribute('aria-pressed', String(audio.on)); $('#sound').textContent = (audio.on ? '🔊' : '🔇') + ' Son';
+    try { localStorage.setItem('chubby-son', audio.on ? '1' : '0'); } catch (e) {}
+  }
+  function blip(freq, at, dur, type, vol, toFreq) {
+    var c = audio.ctx, o = c.createOscillator(), g = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, at);
+    if (toFreq) o.frequency.exponentialRampToValueAtTime(toFreq, at + dur);
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g); g.connect(audio.master); o.start(at); o.stop(at + dur + 0.02);
+  }
+  function sfx(kind) {
+    if (!audio.on) return; var t = audio.ctx.currentTime;
+    if (t - audio.last < 0.12) return; audio.last = t; // pas de vacarme en accéléré
+    if (kind === 'coin') { blip(988, t, 0.07, 'square', 0.05); blip(1319, t + 0.07, 0.18, 'square', 0.05); }
+    else if (kind === 'hop') blip(260, t, 0.16, 'sine', 0.12, 620);
+    else if (kind === 'oops') blip(420, t, 0.25, 'triangle', 0.1, 180);
+    else if (kind === 'trade') { blip(660, t, 0.05, 'triangle', 0.08); blip(880, t + 0.05, 0.08, 'triangle', 0.08); }
+    else if (kind === 'fanfare') [523, 659, 784, 1047].forEach(function (f, i) { blip(f, t + i * 0.11, i === 3 ? 0.4 : 0.12, 'triangle', 0.1); });
+  }
+  // Une syllabe toutes les ~75 ms, à une hauteur qui varie autour de la voix du Chubby. Une question finit plus haut.
+  function babble(b, text) {
+    if (!audio.on) return 0;
+    var base = (VOICE[kindOf(b.id)] || 300) * (isAI(b.id) ? 1.12 : 1), t = audio.ctx.currentTime + 0.02;
+    var n = Math.max(3, Math.min(16, Math.round(text.length / 7))), mood = moodOf(b), step = 0.075;
+    for (var i = 0; i < n; i++) {
+      var f = base * (0.88 + Math.random() * 0.34) * (mood === 'content' ? 1.08 : mood === 'inquiet' ? 0.92 : 1);
+      if (i === n - 1 && /\?/.test(text)) f *= 1.35;
+      blip(f, t + i * step, step * 0.8, isAI(b.id) ? 'square' : 'triangle', isAI(b.id) ? 0.05 : 0.11, f * (0.9 + Math.random() * 0.25));
+    }
+    return n * step;
+  }
+  // Un seul Chubby parle à la fois : les autres attendent leur tour.
+  var talkQueue = [], talkWait = 0;
+  function say(b, text, now) {
+    if (!b || !text) return;
+    if (now) talkQueue.unshift({ b: b, text: text }); else if (talkQueue.length < 6) talkQueue.push({ b: b, text: text });
+    if (now) talkWait = 0;
+  }
+  function talkTick(dt) {
+    talkWait -= dt; if (talkWait > 0 || !talkQueue.length) return;
+    var x = talkQueue.shift(), dur = babble(x.b, x.text);
+    x.b.talk = Math.max(dur, 0.9); x.b.sayText = x.text; x.b.sayTimer = Math.max(3.5, x.text.length / 18);
+    talkWait = Math.max(1.6, x.b.talk + 0.6);
+  }
 
   function buildBots() {
     // Un coin par personnalité ; la version IA vit dans le même coin que l'originale.
@@ -324,7 +388,8 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       var work = new THREE.Vector3(Math.sin(a) * 7.4, 0, Math.cos(a) * 7.4);
       parts.group.position.copy(work); scene.add(parts.group);
       var label = document.createElement('div'); label.className = 'label'; $('#labels').appendChild(label);
-      var b = Object.assign({}, info, parts, L, { i: i, label: label, home: home, work: work, boardSpot: new THREE.Vector3(-3 + (i % 7), 0, -2.7 + Math.floor(i / 7) * 0.9),
+      var speech = document.createElement('div'); speech.className = 'speech'; speech.hidden = true; $('#labels').appendChild(speech);
+      var b = Object.assign({}, info, parts, L, { i: i, label: label, speech: speech, talk: 0, sayTimer: 0, sayText: '', home: home, work: work, boardSpot: new THREE.Vector3(-3 + (i % 7), 0, -2.7 + Math.floor(i / 7) * 0.9),
         state: 'work', target: null, wait: rand(0, 2), hop: -1, hopEvery: rand(1.5, 3.5), baseY: 0, targetY: 0, podium: null, queue: [], speed: 2.6 });
       bots.push(b); byId[id] = b;
     });
@@ -334,19 +399,21 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   function eqAt(b, i) { var v = data.equity[b.id][i]; return v == null ? data.starting_cash : v; }
   function prevEq(b) { return dayIdx > 0 ? eqAt(b, dayIdx - 1) : data.starting_cash; }
   function progress() { return fast() ? 1 : clamp((tDay - 0.08) / 0.72, 0, 1); }
-  function valueOf(b) { var a = prevEq(b), z = eqAt(b, dayIdx); return a + (z - a) * progress(); }
-  function dayPct(b) { return valueOf(b) / prevEq(b) - 1; }
+  function valueOf(b) { var l = liveOf(b); if (l) return l.equity; var a = prevEq(b), z = eqAt(b, dayIdx); return a + (z - a) * progress(); }
+  function dayPct(b) { var l = liveOf(b); if (l) return l.change; return valueOf(b) / prevEq(b) - 1; }
   function seasonPct(b) { return valueOf(b) / data.starting_cash - 1; }
   function rankAt(b, i) { var r = data.rank[b.id][i]; return r == null ? null : r; }
   function shownRankIdx() { return (fast() || tDay >= 0.8 || dayIdx === 0) ? dayIdx : dayIdx - 1; }
   function ranking() {
+    if (liveMode) return bots.slice().sort(function (a, b) { return dayPct(b) - dayPct(a); });
     var i = shownRankIdx();
     return bots.slice().sort(function (a, b) { var ra = rankAt(a, i), rb = rankAt(b, i); if (ra != null && rb != null) return ra - rb; return eqAt(b, i) - eqAt(a, i); });
   }
   function moodOf(b) { var d = dayPct(b); return d > 0.005 ? 'content' : d < -0.005 ? 'inquiet' : 'calme'; }
   function fast() { return speed >= 10; }
-  function phaseOf(t) { if (fast()) return 'open'; if (t < 0.08) return 'morning'; if (t < 0.8) return 'open'; if (t < 0.95) return 'ceremony'; return 'evening'; }
+  function phaseOf(t) { if (liveMode) return live && live.open ? 'open' : 'evening'; if (fast()) return 'open'; if (t < 0.08) return 'morning'; if (t < 0.8) return 'open'; if (t < 0.95) return 'ceremony'; return 'evening'; }
   function atEnd() { return dayIdx >= data.days.length - 1 && tDay >= 1; }
+  function running() { return playing || liveMode; }
 
   function scheduleDay() {
     var evs = (data.events[data.days[dayIdx]] || []).slice();
@@ -357,7 +424,8 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   }
   function startDay(i) {
     dayIdx = clamp(i, 0, data.days.length - 1); tDay = 0; lastPhase = null;
-    bots.forEach(function (b) { b.queue = []; b.coin.visible = false; if (fast()) { b.state = 'work'; b.targetY = 0; } });
+    talkQueue = [];
+    bots.forEach(function (b) { b.queue = []; b.saidToday = false; b.coin.visible = false; if (fast()) { b.state = 'work'; b.targetY = 0; } });
     scheduleDay();
   }
 
@@ -374,12 +442,17 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     var b = byId[e.bot_id]; if (!b) return;
     feed.unshift(NAMES(e.bot_id) + ' ' + describe(e)); feed.length = Math.min(feed.length, 8); renderFeed();
     if (e.kind === 'trade') {
+      sfx('trade');
+      var j = !fast() && data.journal[data.days[dayIdx]]; if (j && j[b.id] && !b.saidToday) { b.saidToday = true; say(b, j[b.id]); }
       if (!fast() && b.state === 'work') { b.state = 'toBoard'; }
       else { b.coin.visible = true; b.coinTimer = 0.6; if (b.hop < 0) b.hop = 0; }
     } else if (e.kind === 'dividend') {
-      rain(b.home, fast() ? 4 : 10);
+      rain(b.home, fast() ? 4 : 10); sfx('coin');
+      if (!fast()) say(b, 'Des dividendes ! Merci ' + e.ticker + ' !');
+    } else if (e.kind === 'ai_coach' && !fast()) {
+      say(b, e.lesson);
     } else if (e.kind === 'rank_change' && e.new === 1) {
-      burst(b.group.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 14);
+      burst(b.group.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 14); sfx('fanfare');
     }
   }
   function renderFeed() {
@@ -396,7 +469,8 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     if (ph === 'ceremony') {
       var rk = ranking();
       rk.forEach(function (b, r) { b.podium = r < 3 ? new THREE.Vector3(PODIUM[r].x, PODIUM[r].h, 0.9) : new THREE.Vector3(-4 + ((r - 3) % 6) * 1.6, 0, 3.0 + Math.floor((r - 3) / 6) * 1.5); b.state = 'toPodium'; b.coin.visible = false; });
-      toast('Fin de séance', rk[0].name + ' mène l’arène');
+      toast('Fin de séance', rk[0].name + ' mène l’arène'); sfx('fanfare');
+      if (!fast()) say(rk[0], 'Je suis premier ! Merci, merci !', true);
     }
   }
 
@@ -422,8 +496,12 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     $('#coach').hidden = true; $('#c-coach').textContent = 'Coacher ' + b.name; $('#c-coach').disabled = false;
     $('#c-sw').style.background = b.css; $('#c-name').textContent = b.name; $('#c-role').textContent = b.personality;
     updateCard(); updateRanks();
+    var l = liveOf(b), j = lastJournal(b);
+    say(b, l ? l.reaction : j ? j.text : 'Coucou ! Je suis ' + b.name + '.', true);
   }
   function deselect() { selected = null; wantRadius = baseRadius(); wantTarget.set(0, 0, 0); $('#card').hidden = true; $('#hud').classList.remove('has-card'); updateRanks(); }
+  $('#sound').addEventListener('click', function () { setSound(!audio.on); if (audio.on && selected) say(selected, 'Coucou coach !', true); });
+  window.addEventListener('pointerdown', function first() { window.removeEventListener('pointerdown', first); if (audio.want && !audio.on) setSound(true); });
   $('#c-close').addEventListener('click', deselect); $('#overview').addEventListener('click', deselect);
   function lastJournal(b) {
     for (var i = dayIdx; i >= 0; i--) { var j = data.journal[data.days[i]]; if (j && j[b.id]) return { day: data.days[i], text: j[b.id] }; }
@@ -437,6 +515,9 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     var sc = data.score[b.id][i]; $('#c-score').textContent = sc == null ? '—' : sc;
     var rk = rankAt(b, i); $('#c-rank').textContent = rk == null ? '—' : (rk + 1) + (rk === 0 ? 're' : 'e');
     $('#c-aggr').textContent = b.aggressiveness.toFixed(2).replace('.', ',');
+    var l = liveOf(b);
+    $('#c-day-label').textContent = l ? 'Aujourd’hui' : 'Ce jour-là';
+    if (l) { $('#c-last').textContent = 'En direct · « ' + l.reaction + ' »'; return; }
     var j = lastJournal(b); $('#c-last').textContent = j ? j.day + ' · « ' + j.text + ' »' : 'Journal vide pour l’instant.';
   }
   $('#c-coach').addEventListener('click', function () {
@@ -455,7 +536,8 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
             b.aggressiveness = res.aggressiveness;
             $('#coach-q').textContent = (o[0] === 'moins' ? 'D’accord, je réduis mes positions.' : o[0] === 'plus' ? 'Compris, je vais oser un peu plus !' : 'Je garde mon plan. Merci coach !') +
               ' Agressivité ' + res.old.toFixed(2).replace('.', ',') + ' → ' + res.aggressiveness.toFixed(2).replace('.', ',') + ' (+15 XP).';
-            opts.innerHTML = ''; b.hop = 0; updateCard();
+            opts.innerHTML = ''; b.hop = 0; updateCard(); sfx('hop');
+            say(b, $('#coach-q').textContent.split(' Agressivité')[0], true);
           })
           .catch(function () { $('#coach-q').textContent = 'Le conseil n’a pas pu être enregistré. Le serveur tourne-t-il toujours ?'; opts.innerHTML = ''; });
       });
@@ -488,7 +570,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   function drawBoard() {
     var c = bctx; c.fillStyle = '#2A2838'; c.fillRect(0, 0, 512, 256);
     c.fillStyle = '#FFD45A'; c.font = '700 28px Fredoka, sans-serif'; c.textAlign = 'left'; c.fillText('COTES DU JOUR', 24, 42);
-    c.fillStyle = '#B9B6C6'; c.font = '700 18px Nunito, sans-serif'; c.textAlign = 'right'; c.fillText(data.days[dayIdx] || '', 488, 42);
+    c.fillStyle = '#B9B6C6'; c.font = '700 18px Nunito, sans-serif'; c.textAlign = 'right'; c.fillText(liveMode ? live.day + ' · ' + live.as_of : (data.days[dayIdx] || ''), 488, 42);
     var rowH = 26;
     bots.slice().sort(function (a, b) { return dayPct(b) - dayPct(a); }).slice(0, 7).forEach(function (b, i) {
       var y = 84 + i * rowH, d = dayPct(b);
@@ -504,12 +586,51 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   // ---------- Lecture ----------
   function setSpeed(s) { speed = s; ['sp1', 'sp10', 'sp50'].forEach(function (id) { $('#' + id).setAttribute('aria-pressed', String(id === 'sp' + s)); }); if (fast()) bots.forEach(function (b) { if (b.state !== 'work') { b.state = 'work'; b.targetY = 0; } }); }
   function setPlaying(v) { playing = v; $('#play').textContent = v ? 'Pause' : 'Lecture'; }
-  $('#sp1').addEventListener('click', function () { setSpeed(1); });
-  $('#sp10').addEventListener('click', function () { setSpeed(10); });
-  $('#sp50').addEventListener('click', function () { setSpeed(50); });
-  $('#play').addEventListener('click', function () { if (!playing && atEnd()) startDay(0); setPlaying(!playing); });
-  $('#restart').addEventListener('click', function () { setSpeed(10); startDay(0); setPlaying(true); });
-  $('#scrub').addEventListener('input', function () { startDay(+$('#scrub').value); });
+  $('#sp1').addEventListener('click', function () { setLive(false); setSpeed(1); });
+  $('#sp10').addEventListener('click', function () { setLive(false); setSpeed(10); });
+  $('#sp50').addEventListener('click', function () { setLive(false); setSpeed(50); });
+  $('#play').addEventListener('click', function () { setLive(false); if (!playing && atEnd()) startDay(0); setPlaying(!playing); });
+  $('#restart').addEventListener('click', function () { setLive(false); setSpeed(10); startDay(0); setPlaying(true); });
+  $('#scrub').addEventListener('input', function () { setLive(false); startDay(+$('#scrub').value); });
+  $('#golive').addEventListener('click', function () { setLive(!liveMode); });
+
+  // ---------- Direct ----------
+  function liveFeed() {
+    feed = bots.map(function (b) { return liveById[b.id]; }).filter(Boolean)
+      .sort(function (a, b) { return Math.abs(b.change) - Math.abs(a.change); })
+      .map(function (l) { return l.name + ' (' + pct(l.change) + ') : « ' + l.reaction + ' »'; });
+    renderFeed();
+  }
+  function setLive(on) {
+    on = !!(on && live && live.ok);
+    if (on === liveMode) return;
+    liveMode = on; $('#golive').setAttribute('aria-pressed', String(on));
+    $('#feed-title').textContent = on ? 'Ce qu’ils disent' : 'Ce jour-là';
+    lastPhase = null;
+    if (on) {
+      setPlaying(false); setSpeed(1); $('#date').textContent = live.day;
+      bots.forEach(function (b) { b.state = 'work'; b.targetY = 0; b.queue = []; });
+      liveFeed(); toast(live.open ? 'En direct' : 'Dernière séance', ranking()[0].name + ' mène la journée');
+      ranking().slice(0, 3).forEach(function (b) { say(b, liveById[b.id].reaction); });
+    } else { startDay(dayIdx); }
+  }
+  function applyLive(lv) {
+    if (!lv || !lv.ok || !lv.bots) return;
+    var before = liveById; live = lv; liveById = {};
+    lv.bots.forEach(function (e) { liveById[e.id] = e; });
+    $('#golive').hidden = false;
+    if (!liveMode) return;
+    $('#date').textContent = lv.day;
+    bots.forEach(function (b) {
+      var now = liveById[b.id], old = before[b.id]; if (!now || !old) return;
+      var moved = now.change - old.change;
+      if (moved > 0.0015) { b.hop = 0; sfx('hop'); if (moved > 0.004) burst(b.group.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 10); }
+      else if (moved < -0.0015 && b.state === 'work') { b.state = 'toBoard'; sfx('oops'); } // va vérifier les cotes
+      if (Math.abs(moved) > 0.0015 || now.reaction !== old.reaction) say(b, now.reaction);
+    });
+    liveFeed();
+  }
+  function pollLive() { fetch('/api/live').then(function (r) { return r.ok ? r.json() : null; }).then(applyLive).catch(function () {}); }
 
   // ---------- Boucle ----------
   function moveTo(b, target, dt) {
@@ -519,7 +640,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     p.x += dx * k; p.z += dz * k; b.facing = Math.atan2(dx, dz); return d <= step;
   }
   function updateBot(b, dt, t) {
-    var mdt = dt * (fast() ? 2 : 1) * (playing ? 1 : 0), mood = moodOf(b);
+    var mdt = dt * (fast() && !liveMode ? 2 : 1) * (running() ? 1 : 0), mood = moodOf(b);
     switch (b.state) {
       case 'work':
         if (!b.target || moveTo(b, b.target, mdt)) { b.wait -= mdt; b.facing = null; if (b.wait <= 0) { b.target = b.work.clone().add(new THREE.Vector3(rand(-1.4, 1.4), 0, rand(-1.4, 1.4))); b.wait = rand(1, 3.5); } }
@@ -537,7 +658,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     if (b.coinTimer > 0) { b.coinTimer -= dt; if (b.coinTimer <= 0 && b.state === 'work') b.coin.visible = false; }
     b.baseY += (b.targetY - b.baseY) * Math.min(1, dt * 6);
     var sleeping = b.state === 'sleep';
-    var canHop = !reduceMotion && playing && !sleeping && (b.state === 'onPodium' ? b.podium.y > 0 : mood === 'content' && b.state === 'work');
+    var canHop = !reduceMotion && running() && !sleeping && (b.state === 'onPodium' ? b.podium.y > 0 : mood === 'content' && b.state === 'work');
     if (b.hop < 0 && canHop) { b.hopEvery -= dt; if (b.hopEvery <= 0) { b.hop = 0; b.hopEvery = rand(1.2, 3); if (dayPct(b) > 0.015) burst(b.group.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 10); } }
     var hopY = 0, squash = 1;
     if (b.hop >= 0) { b.hop += dt * 2.2; if (b.hop >= 1) b.hop = -1; else { hopY = Math.sin(Math.PI * b.hop) * 0.8; squash = 1 + Math.sin(Math.PI * b.hop) * 0.12; } }
@@ -549,6 +670,8 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     b.eyes.forEach(function (e) { e.scale.y = sleeping ? 0.15 : 1; });
     var worried = mood === 'inquiet' && !sleeping;
     b.mouth.rotation.z = worried ? 0 : Math.PI; b.mouth.position.y = worried ? 0.68 : 0.76; b.mouth.scale.setScalar(mood === 'calme' || sleeping ? 0.7 : 1);
+    if (b.talk > 0) { b.talk -= dt; b.mouth.scale.set(1.1, 0.5 + Math.abs(Math.sin(t * 19 + b.i)) * 1.4, 1); } // la bouche bouge quand il parle
+    if (b.sayTimer > 0) b.sayTimer -= dt;
     b.sweat.visible = worried; if (worried) b.sweat.position.y = 1.35 - ((t * 0.6 + b.i) % 1) * 0.35;
     b.zzz.visible = sleeping; if (sleeping) b.zzz.position.y = 2.0 + Math.sin(t * 1.5 + b.i) * 0.12;
     if (b.coin.visible) b.coin.rotation.z += dt * 5;
@@ -558,9 +681,13 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   function updateLabels() {
     bots.forEach(function (b) {
       labelVec.copy(b.group.position); labelVec.y += 2.25 * b.sy + 0.15; labelVec.project(camera);
-      if (labelVec.z > 1) { b.label.style.display = 'none'; return; }
+      if (labelVec.z > 1) { b.label.style.display = 'none'; b.speech.hidden = true; return; }
       b.label.style.display = '';
-      b.label.style.transform = 'translate(' + ((labelVec.x * 0.5 + 0.5) * W).toFixed(1) + 'px,' + ((-labelVec.y * 0.5 + 0.5) * H).toFixed(1) + 'px) translate(-50%,-100%)';
+      var pos = 'translate(' + ((labelVec.x * 0.5 + 0.5) * W).toFixed(1) + 'px,' + ((-labelVec.y * 0.5 + 0.5) * H).toFixed(1) + 'px) ';
+      b.label.style.transform = pos + 'translate(-50%,-100%)';
+      var talking = b.sayTimer > 0;
+      if (b.speech.hidden === talking) b.speech.hidden = !talking;
+      if (talking) { if (b.speech.textContent !== b.sayText) b.speech.textContent = b.sayText; b.speech.style.transform = pos + 'translate(-12px, calc(-100% - 30px))'; }
     });
   }
   function refreshLabels() {
@@ -578,7 +705,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   function frame() {
     var dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
     if (data && data.days.length) {
-      if (playing && !atEnd()) {
+      if (playing && !liveMode && !atEnd()) {
         tDay += dt * speed / DAY_SECONDS;
         dayEvents.forEach(function (x) { if (!x.done && tDay >= x.at) { x.done = true; fire(x.e); } });
         if (tDay >= 1) {
@@ -589,12 +716,14 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       var ph = phaseOf(Math.min(tDay, 0.999));
       if (ph !== lastPhase) { lastPhase = ph; onPhase(ph); }
       bots.forEach(function (b) { updateBot(b, dt, t); });
+      talkTick(dt);
       var n = nightAmount(); scene.background.copy(DAY_SKY).lerp(NIGHT_SKY, n); scene.fog.color.copy(scene.background);
       hemi.intensity = 0.85 - 0.45 * n; sun.intensity = 0.85 - 0.6 * n;
       uiTimer -= dt;
       if (uiTimer <= 0) {
         uiTimer = 0.3; updateRanks(); refreshLabels(); updateCard(); drawBoard();
-        if (!atEnd()) $('#status').textContent = fast() ? 'Saison en accéléré' : { morning: 'Avant l’ouverture', open: 'Bourse ouverte', ceremony: 'Remise des médailles', evening: 'Bourse fermée' }[ph];
+        if (liveMode) $('#status').textContent = (live.open ? 'En direct · ' : 'Bourse fermée · ') + live.as_of;
+        else if (!atEnd()) $('#status').textContent = fast() ? 'Saison en accéléré' : { morning: 'Avant l’ouverture', open: 'Bourse ouverte', ceremony: 'Remise des médailles', evening: 'Bourse fermée' }[ph];
       }
     }
     sparks.forEach(function (s) { if (s.life <= 0) return; s.v.y -= 7 * dt; s.m.position.addScaledVector(s.v, dt); s.m.rotation.y += dt * 6; s.life -= dt * 1.1; s.m.scale.setScalar(Math.max(s.life, 0.01)); if (s.life <= 0) s.m.visible = false; });
@@ -620,6 +749,9 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     buildBots();
     $('#scrub').max = d.days.length - 1;
     startDay(d.days.length - 1); // on rejoue la dernière séance
+    // Pendant la bourse, l'île s'ouvre directement sur la vraie séance.
+    fetch('/api/live').then(function (r) { return r.ok ? r.json() : null; }).then(function (lv) { applyLive(lv); if (lv && lv.ok && lv.open) setLive(true); }).catch(function () {});
+    setInterval(pollLive, 60000);
   }).catch(function () { message('Impossible de charger l’arène. Le serveur « chubby web » tourne-t-il toujours ?'); });
 })();
 </script>

@@ -87,6 +87,8 @@ def yahoo_prices(cache_dir: str | Path | None = None):
     import yfinance as yf
 
     warnings.filterwarnings("ignore", module=r"yfinance(\..*)?")
+    # yfinance écrit une erreur pour chaque bourse essayée sans succès (BAD.TO, BAD.V…) : on la fait taire.
+    logging.getLogger("yfinance").setLevel(logging.CRITICAL)
     path = Path(cache_dir) / f"prix-du-jour-{date.today()}.json" if cache_dir else None
     cache = json.loads(path.read_text()) if path and path.exists() else {}
 
@@ -274,9 +276,45 @@ def advise(store: Store, cfg: ArenaConfig, profile: dict, holdings: list[dict]) 
     bot_weights = {t: v / snap["equity"] for t, v in bot_values.items()} if snap and snap["equity"] else {}
     for t in sorted(set(mine) | set(bot_weights), key=lambda t: -max(mine.get(t, 0), bot_weights.get(t, 0))):
         gap = (bot_weights.get(t, 0.0) - mine.get(t, 0.0)) * total
+        if t not in bot_weights:
+            action = "hors de son style"  # pas forcément à vendre : il ne le choisirait juste pas
+        else:
+            action = "ajouter" if gap > 50 else "réduire" if gap < -50 else "garder"
         result["rows"].append({"symbol": t, "mine": round(mine.get(t, 0.0), 4), "bot": round(bot_weights.get(t, 0.0), 4),
-                               "gap_cad": round(gap, 2),
-                               "action": "ajouter" if gap > 50 else "réduire" if gap < -50 else "garder"})
+                               "gap_cad": round(gap, 2), "action": action})
     cash = 1 - sum(bot_weights.values())
     result["bot_cash"] = round(cash, 4)
+    result["style"] = style_comparison(mine, bot_weights)
+    outside = [r for r in result["rows"] if r["action"] == "hors de son style"]
+    if outside and bot_weights:
+        share = sum(r["mine"] for r in outside)
+        result["notes"].append(f"{share:.0%} de ton portefeuille est hors du style de {best['name']} "
+                               f"({len(outside)} titres). Ce n'est pas un signal de vente : compare surtout les "
+                               "grandes lignes (concentration, part américaine, FNB larges) dans le tableau des styles.")
     return result
+
+
+def _style(weights: dict[str, float]) -> dict[str, float]:
+    """Grandes lignes d'un portefeuille (poids en part du total, cash compris)."""
+    stocks = {t: w for t, w in weights.items() if w > 0}
+    ranked = sorted(stocks.values(), reverse=True)
+    underlying = lambda t: t.split(":")[1] if t.startswith("OPT:") else t  # noqa: E731
+    return {
+        "positions": len(stocks),
+        "largest": ranked[0] if ranked else 0.0,
+        "top5": sum(ranked[:5]),
+        "us": sum(w for t, w in stocks.items() if currency_of(t) == "USD"),
+        "broad": sum(w for t, w in stocks.items() if underlying(t) in BROAD_FUNDS),
+        "options": sum(w for t, w in weights.items() if t.startswith("OPT:")),
+    }
+
+
+STYLE_ROWS = [("positions", "Nombre de titres", "n"), ("largest", "Plus grosse position", "%"),
+              ("top5", "Les 5 plus grosses positions", "%"), ("us", "Part américaine", "%"),
+              ("broad", "FNB indiciels larges", "%"), ("options", "Options", "%")]
+
+
+def style_comparison(mine: dict[str, float], bot: dict[str, float]) -> list[dict]:
+    a, b = _style(mine), _style(bot)
+    return [{"key": k, "label": label, "kind": kind, "mine": round(a[k], 4), "bot": round(b[k], 4)}
+            for k, label, kind in STYLE_ROWS if k != "options" or a[k] or b[k]]

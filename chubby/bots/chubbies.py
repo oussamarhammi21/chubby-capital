@@ -240,10 +240,8 @@ class Jalapeno(Bot):
             return Decision(None)
         under = max(trend, key=trend.get)
         kind = "C" if bull else "P"
-        spot = ctx.price(under)
-        expiry = opt.pick_expiry(ctx.day, self.p(ctx, "dte"))
-        strike = opt.pick_strike(spot, self.p(ctx, "otm"), kind)
-        sym = opt.symbol(under, kind, strike, expiry)
+        sym = ctx.data.contract(under, kind, ctx.day, self.p(ctx, "otm"), self.p(ctx, "dte"))
+        _, _, strike, expiry = opt.parse(sym)
         budget = self.p(ctx, "budget") * (1 if bull else 0.5)
         weight = min(0.6, budget * ctx.aggressiveness)
         premium = ctx.data.price(sym, ctx.day)
@@ -317,8 +315,8 @@ class JalapenoV2(Bot):
             pos = ctx.account.positions[under]
             spot = ctx.price(under)
             cost = pos.avg_cost_cad / ctx.broker.fx(under, ctx.day)
-            strike = opt.pick_strike(max(spot, cost), self.p(ctx, "otm"), "C")
-            sym = opt.symbol(under, "C", strike, opt.pick_expiry(ctx.day, self.p(ctx, "dte")))
+            sym = ctx.data.contract(under, "C", ctx.day, self.p(ctx, "otm"), self.p(ctx, "dte"), ref=max(spot, cost))
+            strike = opt.parse(sym)[2]
             n = pos.qty // opt.MULTIPLIER
             return Decision(None, [f"J'ai {pos.qty} actions {under} : je vends {n} call(s) couvert(s) à {strike:g}."],
                             trades=[(sym, -n)])
@@ -332,11 +330,11 @@ class JalapenoV2(Bot):
             spot = ctx.price(under)
             if not spot:
                 continue
-            strike = opt.pick_strike(spot, self.p(ctx, "otm"), "P")
+            sym = ctx.data.contract(under, "P", ctx.day, self.p(ctx, "otm"), self.p(ctx, "dte"))
+            strike = opt.parse(sym)[2]
             n = int(free // (strike * opt.MULTIPLIER * ctx.broker.fx(under, ctx.day)))
             if n < 1:
                 continue
-            sym = opt.symbol(under, "P", strike, opt.pick_expiry(ctx.day, self.p(ctx, "dte")))
             income = (ctx.data.price(sym, ctx.day) or 0) * n
             if best is None or income > best[0]:
                 best = (income, sym, n, under, strike)

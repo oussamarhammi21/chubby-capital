@@ -19,7 +19,8 @@ TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf
 log = logging.getLogger(__name__)
 
 
-def make_handler(db_path: str, cfg: ArenaConfig):
+def make_handler(db_path: str, cfg: ArenaConfig, live=None):
+    """`live` : fonction (store) -> séance en direct, rafraîchie au besoin (voir live.Refresher)."""
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
             path = self.path.split("?", 1)[0].rstrip("/") or "/"
@@ -33,6 +34,10 @@ def make_handler(db_path: str, cfg: ArenaConfig):
                     return self._json(api.overview(store, cfg))
                 if path == "/api/equity":
                     return self._json(api.equity_curves(store))
+                if path == "/api/live":
+                    from ..live import latest
+                    payload = live(store) if live else latest(store)
+                    return self._json(payload or {"ok": False, "error": "Pas encore de séance en direct."})
                 if path == "/api/replay":
                     return self._json(api.replay(store, cfg))
                 if path.startswith("/api/bots/"):
@@ -88,8 +93,13 @@ def make_handler(db_path: str, cfg: ArenaConfig):
     return Handler
 
 
-def serve(db_path: str, cfg: ArenaConfig, host: str = "0.0.0.0", port: int = 8000):
-    server = ThreadingHTTPServer((host, port), make_handler(db_path, cfg))
+def serve(db_path: str, cfg: ArenaConfig, host: str = "0.0.0.0", port: int = 8000, live=None, block: bool = True):
+    server = ThreadingHTTPServer((host, port), make_handler(db_path, cfg, live))
+    if not block:  # dans un fil à côté de l'arène (chubby serve --web)
+        import threading
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        print(f"Tableau de bord : http://localhost:{port}  (base : {db_path})")
+        return server
     print(f"Tableau de bord : http://localhost:{port}  (base : {db_path})")
     try:
         server.serve_forever()

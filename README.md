@@ -25,7 +25,12 @@ Jalapeño **achète** des options, Jalapeño v2 en **vend** : les deux tradent c
 Un put vendu doit être entièrement garanti par du cash libre, et un call vendu doit être couvert par 100 actions détenues.
 À l'échéance, une option vendue expire sans valeur (la prime est gardée) ou est exercée (achat ou livraison des actions au prix d'exercice).
 
-Il n'existe pas d'historique gratuit des prix d'options. Elles sont donc **évaluées avec Black-Scholes** à partir du prix du sous-jacent, avec une volatilité implicite estimée sur la volatilité des 21 dernières séances ([`chubby/options.py`](chubby/options.py)). Contrats de 100 actions, échéances mensuelles (3e vendredi), 2 % d'écart achat-vente et 0,75 $ par contrat (à ajuster selon ton courtier). À l'échéance, l'option est réglée à sa valeur intrinsèque.
+**En direct**, les options suivent les **vraies chaînes d'options de Yahoo Finance** ([`chubby/chains.py`](chubby/chains.py)) :
+les Chubbies choisissent parmi les échéances et prix d'exercice qui existent vraiment, et chaque option est évaluée au
+milieu de l'offre et de la demande (ou au dernier prix échangé). Ces vrais prix sont gardés dans la base, et la fiche
+du Chubby les marque « prix réel ». Un contrat introuvable dans la chaîne retombe sur le modèle. `--options-modele` désactive les chaînes.
+
+Pour les backtests, il n'existe pas d'historique gratuit des prix d'options. Elles y sont donc **évaluées avec Black-Scholes** à partir du prix du sous-jacent, avec une volatilité implicite estimée sur la volatilité des 21 dernières séances ([`chubby/options.py`](chubby/options.py)). Contrats de 100 actions, échéances mensuelles (3e vendredi), 2 % d'écart achat-vente et 0,75 $ par contrat (à ajuster selon ton courtier). À l'échéance, l'option est réglée à sa valeur intrinsèque.
 
 ### Les versions IA et le coach Claude
 
@@ -39,6 +44,31 @@ En direct, chaque Chubby a une **version IA** (avec une petite antenne) : même 
 ```bash
 chubby coach-ia        # lancer la revue tout de suite au lieu d'attendre vendredi
 chubby --sans-ia tick  # arène sans versions IA
+```
+
+## L'arène en direct
+
+Les Chubbies sont des stratégies quotidiennes : ils **décident le soir**, avec les clôtures, et leurs ordres partent à
+l'ouverture suivante. Mais **pendant la bourse** (9 h 30 à 16 h, heure de Toronto), on les suit en direct
+([`chubby/live.py`](chubby/live.py)) :
+
+- leur capital est recalculé sur les vrais cours, par barres de 5 minutes ;
+- on voit le titre qui les fait le plus bouger ;
+- chacun **réagit selon sa personnalité** : Tortue ne bouge pas, Muffin flaire une aubaine, Jalapeño panique, Matcha prend des notes pour son prochain entraînement.
+
+Sur le tableau de bord, la section **En direct** montre la courbe de la journée, les indices et ce que dit chaque Chubby.
+Pendant la bourse, l'île 3D s'ouvre directement sur la vraie séance (bouton « ● En direct ») :
+
+- les Chubbies sautent de joie quand leur journée s'améliore, et vont vérifier le tableau des cotes quand elle se gâte ;
+- ils **parlent** : leur bulle s'affiche et leur bouche bouge. Avec le bouton « 🔊 Son », chacun a sa petite voix en « blabla » (plus aiguë et robotique pour les versions IA) ;
+- quelques bruitages accompagnent la partie : pièces des dividendes, sauts, fanfare du podium.
+
+Les sons sont créés dans le navigateur, sans aucun fichier audio.
+
+Le direct se rafraîchit tout seul, toutes les 4 minutes au plus, dès qu'une page est ouverte : `chubby web` suffit.
+
+```bash
+chubby direct      # la même chose dans le terminal
 ```
 
 ## Les règles de l'arène
@@ -97,8 +127,11 @@ chubby --db data/backtest.db backtest --start 2024-01-01 --end 2025-12-31
 # Jouer la séance du jour (à lancer après 16 h, heure de Toronto)
 chubby tick
 
-# Tourner en continu : une séance chaque jour de semaine à 16 h 20, revue IA le vendredi
-chubby serve
+# Tourner en continu : une séance chaque jour de semaine à 16 h 20, revue IA le vendredi,
+# et le tableau de bord (avec le direct) dans le même programme
+chubby serve --web
+
+chubby direct                   # où en sont les Chubbies en ce moment
 
 chubby classement
 chubby journal matcha
@@ -115,7 +148,8 @@ chubby web                                  # arène en direct : http://localhos
 chubby --db data/backtest.db web            # ou n'importe quel backtest
 ```
 
-Podium, classement, courbes de capital, derniers événements, et la fiche de chaque Chubby
+Direct pendant la bourse, podium, classement, courbes de capital, duels **original contre version IA**
+(les deux courbes depuis le premier jour de la version IA, avec l'écart), derniers événements, et la fiche de chaque Chubby
 (réglages, positions, journal, trades) en cliquant dessus. La page se met à jour toute seule chaque minute.
 Elle n'a besoin d'aucune connexion Internet à part les polices.
 
@@ -135,8 +169,11 @@ pièces, leur humeur suit leur journée, et le podium suit le classement réel.
 http://localhost:8000/conseiller (ou `chubby conseil`). Tu décris l'investisseur que tu veux être (goût du
 risque, revenus ou croissance, horizon, compte en USD ou non) et tu ajoutes l'**export CSV de tes positions
 Wealthsimple**. L'arène te propose les Chubbies qui te ressemblent, classés par affinité et par score, puis
-compare ton portefeuille à celui du meilleur : quoi ajouter, quoi réduire, et des remarques (concentration,
-part américaine et forfait USD).
+compare ton portefeuille à celui du meilleur :
+
+- les **grandes lignes** côte à côte : nombre de titres, plus grosse position, poids des 5 plus grosses, part américaine, FNB indiciels larges ;
+- puis **titre par titre**. Un titre que le Chubby ne détient pas est marqué « hors de son style », ce qui n'est pas un signal de vente ;
+- des remarques sur la concentration, la part américaine et le forfait USD.
 
 - **Lecture seule** : le fichier n'est jamais enregistré, seul ton profil l'est. C'est toi qui passes les ordres.
 - Un Chubby est **« certifié »** après 120 séances d'arène (environ six mois) ; avant, ses idées sont des pistes.
@@ -169,5 +206,7 @@ Les données restent dans `./data` sur le PC.
 - [x] Matcha, bot de machine learning réentraîné chaque mois
 - [x] Jalapeño aux options (évaluées avec Black-Scholes)
 - [x] Profil investisseur et mode conseiller (export CSV Wealthsimple, lecture seule)
-- [ ] Prix d'options réels en direct (chaînes d'options de Yahoo) au lieu du modèle
-- [ ] Courbes « original contre version IA » côte à côte dans le tableau de bord
+- [x] Prix d'options réels en direct (chaînes d'options de Yahoo) au lieu du modèle
+- [x] Courbes « original contre version IA » côte à côte dans le tableau de bord
+- [x] Arène en direct pendant la bourse : capital toutes les 5 minutes et réactions des Chubbies
+- [x] Voix et bruitages sur l'île 3D

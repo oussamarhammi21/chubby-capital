@@ -21,9 +21,10 @@ PODIUM_XP = {0: 30, 1: 20, 2: 10}
 
 
 class Arena:
-    def __init__(self, store: Store, data, bots: list[Bot], cfg: ArenaConfig | None = None):
+    def __init__(self, store: Store, data, bots: list[Bot], cfg: ArenaConfig | None = None, chains=None):
+        """`chains` : vraies chaînes d'options (arène en direct) ; sans elles, les options suivent le modèle."""
         self.store, self.bots = store, bots
-        self.data = OptionData(data) if data is not None and not isinstance(data, OptionData) else data
+        self.data = OptionData(data, chains) if data is not None and not isinstance(data, OptionData) else data
         self.cfg = cfg or ArenaConfig()
         self.broker = PaperBroker(self.cfg, self.data)
         # Chaque personnalité a son type de compte : USD avec forfait, ou CAD sans forfait.
@@ -56,6 +57,9 @@ class Arena:
         for bot in self.bots:
             self._play(bot, day, day_index)
         self._rank(day)
+        chains = getattr(self.data, "chains", None)
+        if chains is not None and chains.is_live(day):
+            self.store.save_option_quotes(day, chains.used)
         self.store.set_meta("usdcad", str(self.data.usdcad(day)))  # sert au mode conseiller
         self.store.set_meta("last_day", str(day.date()))
         self.store.set_meta("day_index", str(day_index + 1))

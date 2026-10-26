@@ -68,8 +68,9 @@ def bot_detail(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
         return None
     last = db.execute("SELECT * FROM snapshots WHERE bot_id = ? ORDER BY day DESC LIMIT 1", (bot_id,)).fetchone()
     values = json.loads(last["holdings"] or "{}") if last else {}
+    real = store.real_option_quotes(last["day"]) if last else {}
     positions = [{"ticker": r["ticker"], "qty": r["qty"], "cost_cad": round(r["qty"] * r["avg_cost_cad"], 2),
-                  "value_cad": values.get(r["ticker"]), "opened_on": r["opened_on"]}
+                  "value_cad": values.get(r["ticker"]), "opened_on": r["opened_on"], "real_price": r["ticker"] in real}
                  for r in db.execute("SELECT * FROM positions WHERE bot_id = ? ORDER BY ticker", (bot_id,))]
     eq = store.equity_series(bot_id)
     cls = bot_class(bot_id)

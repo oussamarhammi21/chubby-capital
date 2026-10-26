@@ -162,12 +162,18 @@ th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spa
     var adv = $('#advice'); adv.innerHTML = '';
     if (d.advisor && d.holdings.length) {
       var rows = d.rows.filter(function (r) { return r.mine > 0 || r.bot > 0; });
-      adv.innerHTML = '<h2 style="margin-bottom:8px">Ton portefeuille (' + money(d.total_cad) + ') comparé à ' + esc(d.advisor.name) + '</h2>' +
-        '<p class="muted" style="margin-bottom:10px">Pour lui ressembler. ' + esc(d.advisor.name) + ' garde aussi ' + share(Math.max(0, d.bot_cash || 0)) + ' en cash.</p>' +
+      var style = (d.style || []).map(function (s) {
+        var f = function (v) { return s.kind === 'n' ? String(v) : share(v); };
+        return '<tr><td>' + esc(s.label) + '</td><td class="r">' + f(s.mine) + '</td><td class="r">' + f(s.bot) + '</td></tr>';
+      }).join('');
+      adv.innerHTML = '<h2 style="margin-bottom:8px">Ton style comparé à ' + esc(d.advisor.name) + '</h2>' +
+        '<div class="tbl" style="margin-bottom:20px"><table><thead><tr><th>Grandes lignes</th><th class="r">Toi</th><th class="r">' + esc(d.advisor.name) + '</th></tr></thead><tbody>' + style + '</tbody></table></div>' +
+        '<h2 style="margin-bottom:8px">Titre par titre (' + money(d.total_cad) + ')</h2>' +
+        '<p class="muted" style="margin-bottom:10px">« Hors de son style » veut dire que ' + esc(d.advisor.name) + ' ne choisirait pas ce titre, pas qu’il faut le vendre. ' + esc(d.advisor.name) + ' garde aussi ' + share(Math.max(0, d.bot_cash || 0)) + ' en cash.</p>' +
         '<div class="tbl"><table><thead><tr><th>Titre</th><th class="r">Toi</th><th class="r">' + esc(d.advisor.name) + '</th><th class="r">Écart</th><th>Idée</th></tr></thead><tbody>' +
         rows.map(function (r) {
           return '<tr><td>' + esc(pretty(r.symbol)) + '</td><td class="r">' + share(r.mine) + '</td><td class="r">' + share(r.bot) + '</td><td class="r ' + (r.gap_cad >= 0 ? 'up' : 'down') + '">' +
-            (r.gap_cad >= 0 ? '+' : '−') + money(Math.abs(r.gap_cad)) + '</td><td>' + esc(r.action[0].toUpperCase() + r.action.slice(1)) + '</td></tr>';
+            (r.gap_cad >= 0 ? '+' : '−') + money(Math.abs(r.gap_cad)) + '</td><td' + (r.action === 'hors de son style' ? ' class="muted"' : '') + '>' + esc(r.action[0].toUpperCase() + r.action.slice(1)) + '</td></tr>';
         }).join('') + '</tbody></table></div>';
     } else if (d.advisor) {
       adv.innerHTML = '<p class="muted">Ajoute l’export de tes positions pour voir la comparaison avec ' + esc(d.advisor.name) + '.</p>';

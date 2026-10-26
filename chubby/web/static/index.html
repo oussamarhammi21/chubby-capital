@@ -92,10 +92,34 @@ td.r, th.r { text-align: right; }
 .note { color: var(--muted); font-size: 13px; }
 .err { background: #3A1F28; color: #FFD0C8; border-radius: 16px; padding: 14px; font-weight: 700; }
 
+.live-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+.live-head h2 { margin: 0; display: flex; align-items: center; gap: 8px; }
+.live-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.live-dot.on { background: #FF6B6B; box-shadow: 0 0 0 0 rgba(255,107,107,0.6); }
+.idx { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; font-weight: 800; }
+.idx span { background: var(--surface-2); border-radius: 999px; padding: 6px 10px; }
+.live-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.live-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; max-height: 420px; overflow: auto; }
+.live-list li { display: flex; gap: 10px; align-items: flex-start; }
+.live-list .txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.live-list .top { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.live-list .top b { font: 700 17px var(--display); }
+.live-list .top span { font: 600 15px var(--display); font-variant-numeric: tabular-nums; }
+.say { background: var(--surface-2); border-radius: 4px 14px 14px 14px; padding: 7px 10px; font-size: 14px; font-weight: 700; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chips span { font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.06); font-variant-numeric: tabular-nums; }
+.duels { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.duel { background: var(--surface-2); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.duel svg { width: 100%; height: 110px; display: block; }
+.duel .vs { display: flex; justify-content: space-between; gap: 8px; font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; }
+.duel .verdict { font-size: 13px; color: var(--muted); font-weight: 700; }
+@media (prefers-reduced-motion: no-preference) { .live-dot.on { animation: pulse 1.6s infinite; } }
+@keyframes pulse { 70% { box-shadow: 0 0 0 10px rgba(255,107,107,0); } 100% { box-shadow: 0 0 0 0 rgba(255,107,107,0); } }
+
 @media (max-width: 860px) {
   .step svg { width: 84px; height: 84px; }
   .block .n { font-size: 26px; }
-  .grid2 { grid-template-columns: minmax(0, 1fr); }
+  .grid2, .live-grid { grid-template-columns: minmax(0, 1fr); }
   .nums { grid-template-columns: repeat(3, minmax(70px, auto)); }
   .hero-text h1 { font-size: 30px; }
 }
@@ -114,6 +138,21 @@ td.r, th.r { text-align: right; }
     </div>
   </header>
   <div id="error" class="err" hidden></div>
+
+  <section class="card" id="live" hidden aria-labelledby="live-title">
+    <div class="live-head">
+      <h2 id="live-title"><span class="live-dot" id="live-dot"></span>En direct</h2>
+      <span class="pill" id="live-state">—</span>
+      <div class="idx" id="live-idx"></div>
+    </div>
+    <div class="live-grid">
+      <div>
+        <div class="chart-box" id="live-chart" style="height:300px"></div>
+        <p class="note">Variation de chaque Chubby depuis la clôture d’hier, toutes les 5 minutes. Ils décident ce soir, après la clôture : pendant la journée, ils regardent et réagissent.</p>
+      </div>
+      <ul class="live-list" id="live-list" aria-live="polite"></ul>
+    </div>
+  </section>
 
   <section class="card hero" aria-label="Podium">
     <div class="hero-text">
@@ -140,6 +179,11 @@ td.r, th.r { text-align: right; }
       <ul class="feed" id="feed"></ul>
     </section>
   </div>
+  <section class="card" id="duel-card" hidden>
+    <h2>Original contre version IA</h2>
+    <p class="note" style="margin:0 0 14px">Même personnalité, mêmes règles ; la version IA (antenne) est coachée par Claude chaque vendredi. Les deux sont comparées depuis le premier jour de la version IA.</p>
+    <div class="duels" id="duels"></div>
+  </section>
 </div>
 
 <dialog id="dlg" aria-labelledby="d-name"><div class="dlg" id="dlg-body"></div></dialog>
@@ -154,6 +198,7 @@ td.r, th.r { text-align: right; }
     mochi:    { base: '#DCC8E6', light: '#F4EAFA', dark: '#A98CC4', shape: 'star' },
     muffin:   { base: '#F7C9AE', light: '#FFEDE2', dark: '#DE9A74', shape: 'tuft' },
     jalapeno: { base: '#F2A39A', light: '#FFDCD6', dark: '#D9736A', shape: 'arms' },
+    'jalapeno-v2': { base: '#F6B98C', light: '#FFE6D2', dark: '#DB8B56', shape: 'arms' },
     matcha:   { base: '#C8E6A8', light: '#EEF8E2', dark: '#93C26E', shape: 'round' }
   };
   var DEFAULT_LOOK = { base: '#C9C6D9', light: '#EEEDF5', dark: '#9C99B0', shape: 'round' };
@@ -333,7 +378,72 @@ td.r, th.r { text-align: right; }
     });
     el.addEventListener('mouseleave', function () { tip.hidden = true; cur.setAttribute('visibility', 'hidden'); });
   }
-  window.addEventListener('resize', function () { if (state.eq) renderChart(state.eq, state.ov); });
+  window.addEventListener('resize', function () { if (state.eq) renderChart(state.eq, state.ov); if (state.live) renderLive(state.live); });
+
+  // ---------- En direct ----------
+  function renderLive(lv) {
+    var sec = $('#live');
+    if (!lv || !lv.ok || !lv.bots || !lv.bots.length) { sec.hidden = true; return; }
+    sec.hidden = false;
+    $('#live-dot').className = 'live-dot' + (lv.open ? ' on' : '');
+    $('#live-state').textContent = (lv.open ? 'Bourse ouverte · ' : 'Bourse fermée · ') + 'séance du ' + lv.day + ' à ' + lv.as_of;
+    $('#live-idx').innerHTML = lv.indexes.map(function (i) { return '<span>' + esc(i.name) + ' <b class="' + cls(i.change) + '">' + pct(i.change, 2) + '</b></span>'; }).join('');
+    $('#live-list').innerHTML = lv.bots.map(function (e) {
+      var chips = e.movers.map(function (m) { return '<span>' + esc(pretty(m.ticker)) + ' <b class="' + cls(m.change) + '">' + pct(m.change) + '</b></span>'; }).join('');
+      return '<li>' + avatar(e.id, e.mood, 52) + '<div class="txt"><div class="top"><b>' + esc(e.name) + '</b><span class="' + cls(e.change) + '">' + pct(e.change, 2) + '</span>' +
+        '<span class="' + cls(e.change_cad) + '">' + (e.change_cad >= 0 ? '+' : '−') + money(Math.abs(e.change_cad)) + '</span>' + (e.settled ? '<span class="tag">séance jouée</span>' : '') + '</div>' +
+        '<div class="say">« ' + esc(e.reaction) + ' »</div>' + (chips ? '<div class="chips">' + chips + '</div>' : '') + '</div></li>';
+    }).join('');
+    var box = $('#live-chart'), W = box.clientWidth || 500, H = box.clientHeight || 300, n = lv.times.length;
+    if (n < 2) { box.innerHTML = '<p class="empty">La courbe apparaît après quelques minutes de bourse.</p>'; return; }
+    var padL = 50, padR = 10, padT = 10, padB = 26, lo = 0, hi = 0;
+    lv.bots.forEach(function (e) { e.curve.forEach(function (v) { lo = Math.min(lo, v); hi = Math.max(hi, v); }); });
+    var span = (hi - lo) || 0.002; lo -= span * 0.08; hi += span * 0.08;
+    function X(i) { return padL + i * (W - padL - padR) / (n - 1); }
+    function Y(v) { return padT + (hi - v) * (H - padT - padB) / (hi - lo); }
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Variation de chaque Chubby pendant la séance">';
+    for (var k = 0; k <= 4; k++) {
+      var v = lo + (hi - lo) * k / 4, y = Y(v).toFixed(1);
+      svg += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y + '" y2="' + y + '" stroke="rgba(255,255,255,0.06)"/><text x="' + (padL - 8) + '" y="' + y + '" fill="#A9A8C0" font-size="11" text-anchor="end" dominant-baseline="middle">' + pct(v) + '</text>';
+    }
+    [0, Math.round((n - 1) / 2), n - 1].forEach(function (i, t) { svg += '<text x="' + X(i).toFixed(1) + '" y="' + (H - 8) + '" fill="#A9A8C0" font-size="11" text-anchor="' + ['start', 'middle', 'end'][t] + '">' + esc(lv.times[i]) + '</text>'; });
+    svg += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + Y(0).toFixed(1) + '" y2="' + Y(0).toFixed(1) + '" stroke="#5A5C7A" stroke-dasharray="6 6"/>';
+    lv.bots.forEach(function (e) {
+      var d = e.curve.map(function (v, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1); }).join('');
+      svg += '<path d="' + d + '" fill="none" stroke="' + look(e.id).base + '" stroke-width="2"' + (isAI(e.id) ? ' stroke-dasharray="5 4"' : '') + '/>';
+    });
+    box.innerHTML = svg + '</svg>';
+  }
+  function loadLive() { api('/api/live').then(function (lv) { state.live = lv; renderLive(lv); }).catch(function () { $('#live').hidden = true; }); }
+
+  // ---------- Original contre version IA ----------
+  function renderDuels(eq, ov) {
+    var names = {}; ov.leaderboard.forEach(function (e) { names[e.id] = e.name; });
+    var cards = [];
+    Object.keys(eq.series).filter(function (id) { return !isAI(id) && eq.series[id + '-ia']; }).sort().forEach(function (id) {
+      var a = eq.series[id], b = eq.series[id + '-ia'];
+      var start = b.findIndex(function (v) { return v != null; });
+      if (start < 0 || a[start] == null) return;
+      var idx = []; for (var i = start; i < eq.days.length; i++) if (a[i] != null && b[i] != null) idx.push(i);
+      if (!idx.length) return;
+      var ra = idx.map(function (i) { return a[i] / a[start] - 1; }), rb = idx.map(function (i) { return b[i] / b[start] - 1; });
+      var lo = Math.min(0, Math.min.apply(null, ra), Math.min.apply(null, rb)), hi = Math.max(0, Math.max.apply(null, ra), Math.max.apply(null, rb));
+      var span = (hi - lo) || 0.01, W = 300, H = 110, n = idx.length;
+      function X(i) { return n < 2 ? W / 2 : 4 + i * (W - 8) / (n - 1); }
+      function Y(v) { return 6 + (hi - v) * (H - 12) / span; }
+      function line(r, color, dash) { return '<path d="' + r.map(function (v, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1); }).join('') + '" fill="none" stroke="' + color + '" stroke-width="2.5"' + (dash ? ' stroke-dasharray="6 4"' : '') + '/>'; }
+      var ea = ra[ra.length - 1], eb = rb[rb.length - 1], gap = eb - ea;
+      var verdict = n < 5 ? 'Trop tôt pour juger : ' + n + ' séance(s) en duel.' : Math.abs(gap) < 0.002 ? 'Égalité pour l’instant.' :
+        (gap > 0 ? 'Le coaching de Claude aide : ' : 'Le coaching de Claude n’aide pas encore : ') + pct(gap).replace(' %', ' pt') + ' d’écart en ' + n + ' séances.';
+      cards.push('<div class="duel"><div style="display:flex;gap:8px;align-items:center">' + avatar(id, 'calme', 40) + avatar(id + '-ia', 'calme', 40) + '<b style="font:700 18px var(--display)">' + esc(names[id] || id) + '</b></div>' +
+        '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + esc(names[id] || id) + ' original contre version IA">' +
+        '<line x1="0" x2="' + W + '" y1="' + Y(0).toFixed(1) + '" y2="' + Y(0).toFixed(1) + '" stroke="#5A5C7A" stroke-dasharray="4 4"/>' + line(ra, look(id).base) + line(rb, '#B8A9FF', true) + '</svg>' +
+        '<div class="vs"><span>Original <span class="' + cls(ea) + '">' + pct(ea) + '</span></span><span style="color:#B8A9FF">IA <span class="' + cls(eb) + '">' + pct(eb) + '</span></span></div>' +
+        '<div class="verdict">Depuis le ' + esc(eq.days[start]) + '. ' + verdict + '</div></div>');
+    });
+    $('#duel-card').hidden = !cards.length;
+    $('#duels').innerHTML = cards.join('');
+  }
 
   function openBot(id) {
     api('/api/bots/' + encodeURIComponent(id)).then(function (d) {
@@ -341,7 +451,7 @@ td.r, th.r { text-align: right; }
       var pos = d.positions.length ? '<div class="tbl"><table><thead><tr><th>Titre</th><th class="r">Qté</th><th class="r">Coût</th><th class="r">Valeur</th><th class="r">Gain</th><th>Depuis</th></tr></thead><tbody>' +
         d.positions.map(function (p) {
           var gain = p.value_cad != null ? p.value_cad / p.cost_cad - 1 : null;
-          return '<tr><td>' + esc(pretty(p.ticker)) + '</td><td class="r">' + p.qty + '</td><td class="r">' + money(p.cost_cad) + '</td><td class="r">' + (p.value_cad != null ? money(p.value_cad) : '—') +
+          return '<tr><td>' + esc(pretty(p.ticker)) + (p.real_price ? ' <span class="tag" title="Évaluée au vrai prix de la chaîne d’options">prix réel</span>' : '') + '</td><td class="r">' + p.qty + '</td><td class="r">' + money(p.cost_cad) + '</td><td class="r">' + (p.value_cad != null ? money(p.value_cad) : '—') +
             '</td><td class="r ' + (gain != null ? cls(gain) : '') + '">' + (gain != null ? pct(gain) : '—') + '</td><td>' + esc(p.opened_on) + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<p class="empty">Tout en cash.</p>';
       var trades = d.trades.length ? '<div class="tbl"><table><thead><tr><th>Jour</th><th>Ordre</th><th>Titre</th><th class="r">Qté</th><th class="r">Prix</th><th class="r">Montant</th><th class="r">Frais</th></tr></thead><tbody>' +
@@ -379,13 +489,14 @@ td.r, th.r { text-align: right; }
     Promise.all([api('/api/overview'), api('/api/equity')]).then(function (res) {
       $('#error').hidden = true;
       var ov = res[0]; state.overview = ov;
-      renderHeader(ov); renderPodium(ov.leaderboard); renderRows(ov.leaderboard); renderFeed(ov); renderChart(res[1], ov);
+      renderHeader(ov); renderPodium(ov.leaderboard); renderRows(ov.leaderboard); renderFeed(ov); renderChart(res[1], ov); renderDuels(res[1], ov);
     }).catch(showError);
   }
   $('#logo').innerHTML = avatar('flan', 'content', 46);
-  $('#refresh').addEventListener('click', load);
-  load();
+  $('#refresh').addEventListener('click', function () { load(); loadLive(); });
+  load(); loadLive();
   setInterval(load, 60000);
+  setInterval(loadLive, 60000);
 })();
 </script>
 </body>

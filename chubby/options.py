@@ -2,6 +2,7 @@
 
 Il n'existe pas d'historique gratuit des prix d'options : on les calcule à partir du sous-jacent,
 avec une volatilité implicite estimée sur la volatilité réalisée des 21 dernières séances.
+Dans l'arène en direct, les vraies chaînes d'options remplacent le modèle (voir chains.py).
 Symbole : OPT:<sous-jacent>:<C|P>:<prix d'exercice>:<échéance AAAA-MM-JJ>.
 """
 
@@ -75,10 +76,15 @@ def pick_strike(spot: float, otm: float, kind: str) -> float:
 
 
 class OptionData:
-    """Enveloppe les données de marché : les symboles d'options ont un prix calculé, le reste est inchangé."""
+    """Enveloppe les données de marché : les symboles d'options ont un prix, le reste est inchangé.
 
-    def __init__(self, data):
+    Avec des chaînes réelles (`chains`), le prix du jour en direct est le vrai prix coté ; sinon,
+    et pour les jours passés, c'est le modèle.
+    """
+
+    def __init__(self, data, chains=None):
         self.inner = data
+        self.chains = chains
 
     def __getattr__(self, name):
         return getattr(self.inner, name)
@@ -90,10 +96,30 @@ class OptionData:
         vol = float(np.log(closes).diff().dropna().std() * math.sqrt(252)) * IV_PREMIUM
         return min(1.5, max(0.12, vol))
 
+    def contract(self, underlying: str, kind: str, day, otm: float, days_out: float, ref: float | None = None) -> str:
+        """Symbole de l'option voulue : échéance et prix d'exercice visés, ramenés au contrat coté le plus
+        proche quand on a la vraie chaîne. `ref` remplace le cours comme base du prix d'exercice."""
+        spot = ref or self.inner.price(underlying, day)
+        expiry, strike = pick_expiry(day, days_out), pick_strike(spot, otm, kind)
+        if self.chains is not None and self.chains.is_live(day):
+            found = self.chains.listed(underlying, kind, strike, expiry)
+            if found:
+                strike, expiry = found
+        return symbol(underlying, kind, strike, expiry)
+
+    def source(self, ticker: str, day) -> str:
+        """« réel » si le prix de cette option vient de la vraie chaîne, sinon « modèle »."""
+        live = self.chains is not None and self.chains.is_live(day)
+        return "réel" if live and self.chains.quote(ticker) is not None else "modèle"
+
     def price(self, ticker: str, day, field: str = "Close") -> float | None:
         if not is_option(ticker):
             return self.inner.price(ticker, day, field)
         underlying, kind, strike, expiry = parse(ticker)
+        if self.chains is not None and self.chains.is_live(day) and pd.Timestamp(day).normalize() < expiry:
+            real = self.chains.quote(ticker)
+            if real is not None:
+                return real
         spot = self.inner.price(underlying, day, field)
         if not spot:
             return None

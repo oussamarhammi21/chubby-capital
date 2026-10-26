@@ -1,4 +1,4 @@
-"""Commandes : chubby backtest | tick | serve | classement | journal | coach | coach-ia | conseil | web."""
+"""Commandes : chubby backtest | tick | serve | direct | classement | journal | coach | coach-ia | conseil | web."""
 
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ def cmd_tick(args, cfg):
     today = datetime.now(TORONTO).date()
     store = Store(args.db)
     data = _load(today - timedelta(days=10), today, cfg, args.cache, refresh=True)
-    arena = Arena(store, data, all_bots(ia=not args.sans_ia), cfg)
+    arena = Arena(store, data, all_bots(ia=not args.sans_ia), cfg, chains=_chains(args, today))
     # Premier lancement : l'arène commence aujourd'hui, sans rejouer le passé.
     start = arena.last_day + pd.Timedelta(days=1) if arena.last_day is not None else today
     n = arena.run(start, today)
@@ -74,6 +74,42 @@ def cmd_tick(args, cfg):
     if n and not args.sans_ia and arena.last_day.weekday() == 4:  # le vendredi, revue de la semaine
         _weekly_review(arena)
     _print_board(arena)
+
+
+def _chains(args, today):
+    """Vraies chaînes d'options pour la séance du jour, sauf avec --options-modele."""
+    if args.options_modele:
+        return None
+    from .chains import YahooChains
+    return YahooChains(today)
+
+
+def _refresher(args):
+    if args.sans_direct:
+        return None
+    from .live import Refresher
+    return Refresher(args.db, chains_factory=None if args.options_modele else _chains_factory)
+
+
+def _chains_factory(today):
+    from .chains import YahooChains
+    return YahooChains(today)
+
+
+def cmd_direct(args, cfg):
+    """Affiche la séance en direct : où en est chaque Chubby en ce moment, et ce qu'il en dit."""
+    from .live import pulse
+    store = Store(args.db)
+    today = datetime.now(TORONTO).date()
+    live = pulse(store, chains=_chains(args, today))
+    if not live.get("ok"):
+        raise SystemExit(live.get("error"))
+    state = "bourse ouverte" if live["open"] else "bourse fermée"
+    print(f"\nSéance du {live['day']} à {live['as_of']} ({state})   "
+          + "   ".join(f"{i['name']} {i['change']:+.2%}" for i in live["indexes"]))
+    for e in live["bots"]:
+        print(f"  {e['name']:<16} {e['equity']:>10,.0f} $ {e['change']:>+7.2%} {e['change_cad']:>+8,.0f} $   « {e['reaction']} »")
+    print()
 
 
 def _weekly_review(arena: Arena):
@@ -97,7 +133,13 @@ def cmd_coach_ia(args, cfg):
 
 
 def cmd_serve(args, cfg):
-    """Tourne en continu : une séance chaque jour de semaine à 16 h 20, heure de Toronto."""
+    """Tourne en continu : une séance chaque jour de semaine à 16 h 20, heure de Toronto.
+
+    Avec --web, le tableau de bord (et le direct pendant la bourse) tourne dans le même programme.
+    """
+    if args.web:
+        from .web.server import serve
+        serve(args.db, cfg, host=args.host, port=args.port, live=_refresher(args), block=False)
     while True:
         now = datetime.now(TORONTO)
         run_at = now.replace(hour=16, minute=20, second=0, microsecond=0)
@@ -143,10 +185,16 @@ def cmd_conseil(args, cfg):
     for m in out["matches"]:
         status = "certifié" if m["certified"] else f"en observation ({m['sessions']} séances)"
         print(f"  {m['name']:<14} affinité {m['fit']:>3}  score {m['score']:>3}  saison {m['return']:+.1%}  {status}")
+    if "advisor" in out and out.get("style"):
+        name = out["advisor"]["name"]
+        print(f"\n{'Grandes lignes':<30} {'toi':>6} {name:>12}")
+        for row in out["style"]:
+            f = (lambda v: f"{v:.0f}") if row["kind"] == "n" else (lambda v: f"{v:.0%}")
+            print(f"  {row['label']:<28} {f(row['mine']):>6} {f(row['bot']):>12}")
     if "advisor" in out:
         print(f"\nPour ressembler à {out['advisor']['name']} :")
         for r in out["rows"]:
-            if r["action"] != "garder":
+            if r["action"] in ("ajouter", "réduire"):
                 print(f"  {r['action']:<8} {r['symbol']:<12} toi {r['mine']:>5.0%}  {out['advisor']['name']} {r['bot']:>5.0%}"
                       f"  ({r['gap_cad']:+,.0f} $)")
     for n in out["notes"]:
@@ -156,7 +204,7 @@ def cmd_conseil(args, cfg):
 
 def cmd_web(args, cfg):
     from .web.server import serve
-    serve(args.db, cfg, host=args.host, port=args.port)
+    serve(args.db, cfg, host=args.host, port=args.port, live=_refresher(args))
 
 
 def main(argv=None):
@@ -167,6 +215,9 @@ def main(argv=None):
     p.add_argument("--sans-compte-usd", action="store_true",
                    help="compte en CAD seulement : 1,5 %% de conversion sur chaque trade américain")
     p.add_argument("--sans-ia", action="store_true", help="pas de versions IA ni de coach Claude")
+    p.add_argument("--options-modele", action="store_true",
+                   help="évaluer les options avec le modèle même en direct (pas de chaînes Yahoo)")
+    p.add_argument("--sans-direct", action="store_true", help="pas de suivi en direct pendant la bourse")
     p.add_argument("--taux-cash", type=float, default=3.0, help="intérêt annuel sur le cash, en %% (défaut : 3)")
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -176,7 +227,12 @@ def main(argv=None):
     b.add_argument("--end", default=str(datetime.now(TORONTO).date()))
     b.set_defaults(fn=cmd_backtest)
     sub.add_parser("tick", help="jouer la ou les séances du jour").set_defaults(fn=cmd_tick)
-    sub.add_parser("serve", help="tourner en continu (une séance par jour)").set_defaults(fn=cmd_serve)
+    sv = sub.add_parser("serve", help="tourner en continu (une séance par jour)")
+    sv.add_argument("--web", action="store_true", help="lancer aussi le tableau de bord")
+    sv.add_argument("--port", type=int, default=8000)
+    sv.add_argument("--host", default="0.0.0.0")
+    sv.set_defaults(fn=cmd_serve)
+    sub.add_parser("direct", help="où en sont les Chubbies en ce moment").set_defaults(fn=cmd_direct)
     sub.add_parser("classement", help="afficher le classement").set_defaults(fn=cmd_board)
     j = sub.add_parser("journal", help="lire le journal d'un Chubby")
     j.add_argument("bot")

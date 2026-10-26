@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY, day TEXT, bot_id TEXT, kind TEXT, payload TEXT
 );
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS option_quotes (day TEXT, ticker TEXT, price REAL, PRIMARY KEY (day, ticker));
 """
 
 
@@ -141,6 +142,15 @@ class Store:
     def event(self, day, bot_id: str | None, kind: str, **payload):
         self.db.execute("INSERT INTO events (day, bot_id, kind, payload) VALUES (?, ?, ?, ?)",
                         (_d(day), bot_id, kind, json.dumps(payload, ensure_ascii=False)))
+
+    def save_option_quotes(self, day, quotes: dict[str, float]):
+        """Vrais prix d'options utilisés pendant la séance (les autres jours, c'est le modèle)."""
+        self.db.executemany("INSERT OR REPLACE INTO option_quotes VALUES (?, ?, ?)",
+                            [(_d(day), t, p) for t, p in quotes.items()])
+
+    def real_option_quotes(self, day) -> dict[str, float]:
+        return {r["ticker"]: r["price"] for r in
+                self.db.execute("SELECT ticker, price FROM option_quotes WHERE day = ?", (_d(day),))}
 
     def get_meta(self, key: str) -> str | None:
         row = self.db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()
