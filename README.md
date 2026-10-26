@@ -142,6 +142,30 @@ chubby conseil positions.csv --risque 2 --style revenu
 
 Tout est enregistré dans un fichier SQLite (`data/arena.db`) : comptes, réglages, trades, valeurs quotidiennes, journal de chaque bot et **événements** (`trade`, `dividend`, `rank_change`, `coach`, `ai_coach`…), que l'île 3D anime.
 
+## Au quotidien
+
+Une seule chose doit se faire chaque jour de bourse : **la séance du soir** (`chubby tick`, après 16 h 20, heure de Toronto).
+Les Chubbies y encaissent leurs ordres de la veille, comptent leur argent et décident pour le lendemain. Le vendredi, Claude coache aussi les versions IA.
+Rien n'a besoin de tourner toute la journée : le direct ne sert qu'à **regarder**.
+
+Si ton PC était éteint un soir, le `tick` suivant rattrape les séances manquées, chacune avec ses vrais cours de clôture.
+
+**Option 1 : automatique, PC allumé ou pas** (Windows). Le Planificateur de tâches lance la séance chaque soir de semaine.
+Dans PowerShell, remplace le chemin par celui de ton dossier :
+
+```powershell
+schtasks /Create /TN "Chubby Capital" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 16:30 /TR "C:\chemin\vers\chubby-capital\scripts\tick.bat"
+```
+
+Le compte rendu de chaque séance s'écrit dans `data\tick.log`.
+Pour regarder, double-clique sur `scripts\tableau.bat` : il ouvre le tableau de bord dans le navigateur, avec le direct si la bourse est ouverte.
+Ferme la fenêtre quand tu as fini.
+
+**Option 2 : tout en continu** (le PC serveur) : `chubby serve --web` joue la séance à 16 h 20 et garde le tableau de bord ouvert.
+Le PC ne doit pas se mettre en veille.
+
+La clé API (fichier `.env` à la racine du projet) est lue par toutes les commandes, avec ou sans Docker.
+
 ## Tableau de bord
 
 ```bash

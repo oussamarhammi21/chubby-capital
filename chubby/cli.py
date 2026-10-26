@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -207,7 +209,20 @@ def cmd_web(args, cfg):
     serve(args.db, cfg, host=args.host, port=args.port, live=_refresher(args))
 
 
+def load_env(path: str | Path = ".env"):
+    """Lit le fichier .env (ex. ANTHROPIC_API_KEY=...) sans écraser une variable déjà définie."""
+    path = Path(path)
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, value = line.split("=", 1)
+            os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
 def main(argv=None):
+    load_env()
     p = argparse.ArgumentParser(prog="chubby", description="Arène de bots en argent fictif.")
     p.add_argument("--db", default="data/arena.db", help="fichier SQLite de l'arène")
     p.add_argument("--cache", default="data/cache", help="dossier de cache des prix")
