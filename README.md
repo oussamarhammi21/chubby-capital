@@ -60,9 +60,9 @@ Sur le tableau de bord, la section **En direct** montre la courbe de la journée
 Pendant la bourse, l'île 3D s'ouvre directement sur la vraie séance (bouton « ● En direct ») :
 
 - les Chubbies sautent de joie quand leur journée s'améliore, et vont vérifier le tableau des cotes quand elle se gâte ;
-- ils **parlent** : leur bulle s'affiche et leur bouche bouge. Avec le bouton « 🔊 Son », chacun a sa petite voix en « blabla » (plus aiguë et robotique pour les versions IA) ;
+- ils **parlent** : leur bulle s'affiche et leur bouche bouge. Avec le bouton « 🔊 Son », chacun a sa petite voix de bébé qui babille, avec un petit rire quand il est content (un peu plus aiguë pour les versions IA) ;
 - quelques bruitages accompagnent la partie : pièces des dividendes, sauts, fanfare du podium.
-- avec le bouton « 🎵 Musique », une petite musique d'ascenseur jazzy tourne en fond. Elle est composée à la volée, donc jamais tout à fait la même, ralentit le soir et baisse quand un Chubby parle.
+- avec le bouton « 🎵 Musique », un trio jazz doux tourne en fond : piano Rhodes, contrebasse qui marche, balais et vibraphone qui improvise. Elle est composée à la volée, donc jamais tout à fait la même, ralentit le soir et baisse quand un Chubby parle.
 
 Les sons sont créés dans le navigateur, sans aucun fichier audio.
 

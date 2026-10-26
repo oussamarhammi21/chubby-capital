@@ -314,53 +314,180 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   var live = null, liveMode = false, liveById = {};
   function liveOf(b) { return liveMode ? liveById[b.id] : null; }
 
-  // ---------- Son : voix « blabla » et petits bruits, synthétisés dans le navigateur ----------
-  // Chaque personnalité a sa hauteur de voix ; la version IA parle un peu plus aigu, avec un timbre de robot.
-  var VOICE = { tortue: 170, dumpling: 250, matcha: 290, flan: 320, muffin: 370, mochi: 420, jalapeno: 470 };
+  // ---------- Son : petites voix de bébé, bruitages et musique, synthétisés dans le navigateur ----------
+  // Hauteur de voix de chaque personnalité (Hz) : des voix de tout-petits, Tortue la plus grave, Jalapeño la plus aiguë.
+  var VOICE = { tortue: 300, dumpling: 350, matcha: 390, flan: 410, muffin: 450, mochi: 490, jalapeno: 530 };
+  // Voyelles d'une voix d'enfant (deux formants, en Hz) : c'est ce qui fait « parler » le son.
+  var VOWELS = [[1030, 1600], [370, 3200], [430, 1170], [600, 1100], [560, 2700]];
   var audio = { ctx: null, on: false, last: 0 };
   try { audio.want = localStorage.getItem('chubby-son') === '1'; audio.wantMusic = localStorage.getItem('chubby-musique') === '1'; } catch (e) { audio.want = audio.wantMusic = false; }
+
+  function impulse(c, seconds) { // réverbération : un bruit qui s'éteint doucement
+    var n = Math.floor(c.sampleRate * seconds), buf = c.createBuffer(2, n, c.sampleRate);
+    for (var ch = 0; ch < 2; ch++) { var d = buf.getChannelData(ch); for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 2.6); }
+    return buf;
+  }
   function audioStart() {
-    if (!audio.ctx) {
-      var A = window.AudioContext || window.webkitAudioContext; if (!A) return false;
-      audio.ctx = new A(); audio.master = audio.ctx.createGain(); audio.master.gain.value = 0.5; audio.master.connect(audio.ctx.destination);
-      // La musique passe par son propre volume (baissé quand un Chubby parle) et un filtre qui l'adoucit.
-      audio.music = audio.ctx.createGain(); audio.music.gain.value = 0;
-      var soft = audio.ctx.createBiquadFilter(); soft.type = 'lowpass'; soft.frequency.value = 2200;
-      audio.music.connect(soft); soft.connect(audio.ctx.destination);
-    }
-    if (audio.ctx.state === 'suspended') audio.ctx.resume();
+    if (audio.ctx) { if (audio.ctx.state === 'suspended') audio.ctx.resume(); return true; }
+    var A = window.AudioContext || window.webkitAudioContext; if (!A) return false;
+    var c = audio.ctx = new A();
+    var out = c.createDynamicsCompressor(); out.connect(c.destination);
+    audio.reverb = c.createConvolver(); audio.reverb.buffer = impulse(c, 2.4);
+    var wet = c.createGain(); wet.gain.value = 0.5; audio.reverb.connect(wet); wet.connect(out);
+    audio.master = c.createGain(); audio.master.gain.value = 0.55; audio.master.connect(out);
+    var voiceSend = c.createGain(); voiceSend.gain.value = 0.18; audio.master.connect(voiceSend); voiceSend.connect(audio.reverb);
+    audio.music = c.createGain(); audio.music.gain.value = 0; // volume de la musique, baissé quand un Chubby parle
+    var musicBus = c.createGain(); musicBus.gain.value = 0.7; audio.music.connect(musicBus); musicBus.connect(out);
+    var musicSend = c.createGain(); musicSend.gain.value = 0.35; audio.music.connect(musicSend); musicSend.connect(audio.reverb);
+    audio.noise = c.createBuffer(1, c.sampleRate, c.sampleRate);
+    var nd = audio.noise.getChannelData(0); for (var i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
     return true;
   }
   function setSound(on) {
     audio.on = on && audioStart(); $('#sound').setAttribute('aria-pressed', String(audio.on)); $('#sound').textContent = (audio.on ? '🔊' : '🔇') + ' Son';
     try { localStorage.setItem('chubby-son', audio.on ? '1' : '0'); } catch (e) {}
   }
-  // ---------- Musique d'ascenseur : jazz doux composé à la volée ----------
-  // Accords de septième (notes MIDI) sur une grille ii-V-I tranquille ; le soir et en bourse fermée, tempo plus lent.
-  var CHORDS = [[50, 53, 57, 60, 64], [43, 53, 55, 59, 64], [48, 52, 55, 59, 62], [45, 52, 55, 60, 64],
-                [41, 52, 57, 60, 64], [40, 50, 55, 59, 62], [38, 53, 57, 60, 64], [43, 53, 57, 59, 62]];
-  var music = { on: false, timer: null, next: 0, step: 0 };
-  function hz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
-  function note(m, at, dur, type, vol, dest, vibrato) {
-    var c = audio.ctx, o = c.createOscillator(), g = c.createGain();
-    o.type = type; o.frequency.value = hz(m); o.detune.value = (Math.random() - 0.5) * 8;
-    if (vibrato) { var l = c.createOscillator(), lg = c.createGain(); l.frequency.value = 5.5; lg.gain.value = 4; l.connect(lg); lg.connect(o.detune); l.start(at); l.stop(at + dur + 0.1); }
-    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-    o.connect(g); g.connect(dest); o.start(at); o.stop(at + dur + 0.05);
+  function env(g, at, attack, peak, dur) {
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(peak, at + attack); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
   }
-  function musicTempo() { return (liveMode && live && !live.open) || lastPhase === 'evening' ? 66 : 80; }
+  function tone(freq, at, dur, vol, toFreq, dest) { // un son rond (sinus + un peu d'harmonique)
+    var c = audio.ctx, g = c.createGain(); env(g, at, 0.01, vol, dur); g.connect(dest || audio.master);
+    [[1, 1], [2, 0.25]].forEach(function (h) {
+      var o = c.createOscillator(), hg = c.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(freq * h[0], at);
+      if (toFreq) o.frequency.exponentialRampToValueAtTime(toFreq * h[0], at + dur);
+      hg.gain.value = h[1]; o.connect(hg); hg.connect(g); o.start(at); o.stop(at + dur + 0.05);
+    });
+  }
+
+  // Une syllabe de bébé : une voix (dent de scie douce) filtrée par les deux formants d'une voyelle,
+  // avec une petite montée puis descente de la hauteur, un léger vibrato et une attaque « b/m » toute douce.
+  function syllable(f0, at, dur, vol, rise) {
+    var c = audio.ctx, v = VOWELS[Math.floor(Math.random() * VOWELS.length)];
+    var o = c.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(f0 * 0.82, at); o.frequency.exponentialRampToValueAtTime(f0 * (1.12 + rise), at + dur * 0.35);
+    o.frequency.exponentialRampToValueAtTime(f0 * (0.96 + rise), at + dur);
+    var lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 7; lg.gain.value = 18; lfo.connect(lg); lg.connect(o.detune);
+    var g = c.createGain(); g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.035);
+    g.gain.setValueAtTime(vol, at + dur * 0.6); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    [[v[0] * 1.15, 1, 7], [v[1] * 1.15, 0.45, 9]].forEach(function (f) { // formants un peu plus hauts : voix de tout-petit
+      var bp = c.createBiquadFilter(), fg = c.createGain(); bp.type = 'bandpass'; bp.frequency.value = f[0]; bp.Q.value = f[2]; fg.gain.value = f[1] * 3;
+      o.connect(bp); bp.connect(fg); fg.connect(g);
+    });
+    var round = c.createOscillator(), rg = c.createGain(); round.type = 'sine'; round.frequency.setValueAtTime(f0 * 0.82, at);
+    round.frequency.exponentialRampToValueAtTime(f0 * (1.12 + rise), at + dur * 0.35); rg.gain.value = 0.35; round.connect(rg); rg.connect(g);
+    g.connect(audio.master);
+    [o, lfo, round].forEach(function (n) { n.start(at); n.stop(at + dur + 0.05); });
+  }
+  function babble(b, text) {
+    if (!audio.on) return 0;
+    var mood = moodOf(b), base = (VOICE[kindOf(b.id)] || 420) * (isAI(b.id) ? 1.06 : 1) * (mood === 'content' ? 1.06 : mood === 'inquiet' ? 0.93 : 1);
+    var n = Math.max(3, Math.min(12, Math.round(text.length / 9))), t = audio.ctx.currentTime + 0.03;
+    var question = /\?/.test(text), excited = /!/.test(text) || mood === 'content';
+    for (var i = 0; i < n; i++) {
+      var dur = (mood === 'inquiet' ? 0.17 : 0.13) * (0.8 + Math.random() * 0.45);
+      var shape = Math.sin(Math.PI * (i + 0.5) / n) * 0.18; // la phrase monte puis redescend
+      var last = i === n - 1, rise = last ? (question ? 0.35 : excited ? 0.15 : -0.15) : shape * 0.5;
+      syllable(base * (1 + shape) * (0.95 + Math.random() * 0.1), t, last ? dur * 1.5 : dur, 0.16, rise);
+      t += (last ? dur * 1.5 : dur) + (Math.random() < 0.15 ? 0.06 : 0.012);
+    }
+    if (mood === 'content' && Math.random() < 0.6) { // petit rire « hihi »
+      for (var k = 0; k < 3; k++) syllable(base * (1.45 - k * 0.08), t + 0.05 + k * 0.09, 0.08, 0.1, 0.1);
+      t += 0.35;
+    }
+    return t - audio.ctx.currentTime;
+  }
+  function sfx(kind) {
+    if (!audio.on) return; var t = audio.ctx.currentTime;
+    if (t - audio.last < 0.12) return; audio.last = t; // pas de vacarme en accéléré
+    if (kind === 'coin') { tone(1568, t, 0.25, 0.08); tone(2093, t + 0.08, 0.5, 0.07); }
+    else if (kind === 'hop') tone(330, t, 0.22, 0.12, 700);
+    else if (kind === 'oops') { tone(520, t, 0.18, 0.09, 420); tone(400, t + 0.16, 0.35, 0.09, 260); }
+    else if (kind === 'trade') { tone(880, t, 0.15, 0.06); tone(1175, t + 0.07, 0.25, 0.06); }
+    else if (kind === 'fanfare') [523, 659, 784, 1047].forEach(function (f, i) { tone(f, t + i * 0.12, i === 3 ? 0.9 : 0.3, 0.09); });
+  }
+
+  // ---------- Musique : trio jazz doux (piano Rhodes, contrebasse qui marche, batterie aux balais) ----------
+  // Grille de 8 mesures : voicings sans fondamentale, comme un pianiste de jazz, et la gamme pour improviser.
+  var CHORDS = [
+    { root: 38, v: [53, 57, 60, 64], scale: [2, 4, 5, 7, 9, 11, 0] },   // Dm9
+    { root: 43, v: [53, 57, 59, 64], scale: [7, 9, 11, 0, 2, 4, 5] },   // G13
+    { root: 36, v: [52, 55, 59, 62], scale: [0, 2, 4, 7, 9, 11] },      // Cmaj9
+    { root: 45, v: [55, 58, 61, 65], scale: [9, 10, 1, 2, 4, 5, 7] },   // A7(b9 b13)
+    { root: 41, v: [52, 55, 57, 60], scale: [5, 7, 9, 11, 0, 2, 4] },   // Fmaj9
+    { root: 46, v: [50, 56, 60, 64], scale: [10, 0, 2, 4, 5, 7, 8] },   // Bb13(#11)
+    { root: 40, v: [55, 59, 62, 66], scale: [4, 6, 7, 9, 11, 0, 2] },   // Em9
+    { root: 45, v: [55, 59, 61, 66], scale: [9, 11, 1, 2, 4, 6, 7] }    // A13
+  ];
+  var music = { on: false, timer: null, next: 0, beat: 0, bass: 38, mel: 74 };
+  function hz(m) { return 440 * Math.pow(2, (m - 69) / 12); }
+  function rhodes(m, at, dur, vol, pan) { // piano électrique : synthèse FM avec une « tine » qui tinte à l'attaque
+    var c = audio.ctx, f = hz(m), car = c.createOscillator(), mod = c.createOscillator(), mg = c.createGain();
+    var tine = c.createOscillator(), tg = c.createGain(), g = c.createGain(), p = c.createStereoPanner ? c.createStereoPanner() : null;
+    car.frequency.value = f; mod.frequency.value = f; tine.frequency.value = f * 14;
+    mg.gain.setValueAtTime(f * 2.2, at); mg.gain.exponentialRampToValueAtTime(f * 0.3, at + 0.5);
+    tg.gain.setValueAtTime(f * 1.5, at); tg.gain.exponentialRampToValueAtTime(1, at + 0.08);
+    mod.connect(mg); mg.connect(car.frequency); tine.connect(tg); tg.connect(car.frequency);
+    env(g, at, 0.006, vol, dur); car.connect(g);
+    if (p) { p.pan.value = pan || 0; g.connect(p); p.connect(audio.music); } else g.connect(audio.music);
+    [car, mod, tine].forEach(function (n) { n.start(at); n.stop(at + dur + 0.05); });
+  }
+  function vibes(m, at, dur, vol) { // vibraphone : son de lame avec trémolo
+    var c = audio.ctx, f = hz(m), g = c.createGain(), trem = c.createGain(), l = c.createOscillator(), lg = c.createGain();
+    env(g, at, 0.004, vol, dur); l.frequency.value = 5.2; lg.gain.value = 0.35; trem.gain.value = 0.7; l.connect(lg); lg.connect(trem.gain);
+    [[1, 1], [4, 0.12], [10, 0.03]].forEach(function (h) { var o = c.createOscillator(), hg = c.createGain(); o.frequency.value = f * h[0]; hg.gain.value = h[1]; o.connect(hg); hg.connect(g); o.start(at); o.stop(at + dur + 0.05); });
+    g.connect(trem); trem.connect(audio.music); l.start(at); l.stop(at + dur + 0.05);
+  }
+  function bass(m, at, dur) { // contrebasse pincée
+    var c = audio.ctx, o = c.createOscillator(), o2 = c.createOscillator(), lp = c.createBiquadFilter(), g = c.createGain();
+    o.type = 'triangle'; o.frequency.value = hz(m); o2.type = 'sine'; o2.frequency.value = hz(m);
+    lp.type = 'lowpass'; lp.frequency.setValueAtTime(900, at); lp.frequency.exponentialRampToValueAtTime(220, at + 0.25);
+    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.09, at + 0.012); g.gain.exponentialRampToValueAtTime(0.035, at + 0.15); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(lp); o2.connect(lp); lp.connect(g); g.connect(audio.music);
+    [o, o2].forEach(function (n) { n.start(at); n.stop(at + dur + 0.05); });
+  }
+  function brush(at, kind) { // ride (cymbale) ou balai sur la caisse claire
+    var c = audio.ctx, s = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = audio.noise; s.playbackRate.value = 1;
+    if (kind === 'ride') { f.type = 'highpass'; f.frequency.value = 7000; env(g, at, 0.002, 0.05, 0.35); }
+    else { f.type = 'bandpass'; f.frequency.value = 2500; f.Q.value = 0.6; g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.035, at + 0.06); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.3); }
+    s.connect(f); f.connect(g); g.connect(audio.music); s.start(at, Math.random() * 0.5, 0.5);
+  }
+  function near(target, pcs, from) { // la note de la gamme la plus proche
+    var best = from, d = 99;
+    for (var m = target - 6; m <= target + 6; m++) if (pcs.indexOf(((m % 12) + 12) % 12) >= 0 && Math.abs(m - target) < d) { d = Math.abs(m - target); best = m; }
+    return best;
+  }
+  function musicTempo() { return (liveMode && live && !live.open) || lastPhase === 'evening' ? 84 : 100; }
   function scheduleMusic() {
     var c = audio.ctx;
-    while (music.next < c.currentTime + 0.4) {
-      var beat = 60 / musicTempo(), eighth = beat / 2, at = music.next, i = music.step;
-      var bar = Math.floor(i / 8) % CHORDS.length, pos = i % 8, chord = CHORDS[bar];
-      if (pos === 0) chord.slice(1).forEach(function (m) { note(m, at, beat * 3.6, 'sine', 0.035, audio.music); note(m + 12, at + 0.02, beat * 2, 'triangle', 0.008, audio.music); });
-      if (pos === 4 && Math.random() < 0.6) chord.slice(1).forEach(function (m) { note(m, at, beat * 1.5, 'sine', 0.022, audio.music); });
-      if (pos === 0 || pos === 4) note(pos === 0 ? chord[0] : chord[0] + 7, at, beat * 1.6, 'triangle', 0.09, audio.music);
-      if (pos === 6 && Math.random() < 0.4) note(chord[0] + 12, at, beat * 0.8, 'triangle', 0.05, audio.music);
-      var swing = pos % 2 ? eighth * 0.18 : 0; // un petit swing jazz
-      if (pos > 0 && Math.random() < 0.32) note(chord[1 + Math.floor(Math.random() * 4)] + 24, at + swing, beat * 1.3, 'sine', 0.03, audio.music, true);
-      music.next += eighth; music.step++;
+    while (music.next < c.currentTime + 0.5) {
+      var q = 60 / musicTempo(), swing = q * 0.66, at = music.next, i = music.beat, b = i % 4;
+      var bar = Math.floor(i / 4) % CHORDS.length, ch = CHORDS[bar], nxt = CHORDS[(bar + 1) % CHORDS.length];
+      // Batterie : « ding, ding-da ding » sur la ride, balais sur 2 et 4
+      brush(at, 'ride'); if (b === 1 || b === 3) { brush(at, 'snare'); brush(at + swing, 'ride'); }
+      // Contrebasse qui marche : fondamentale, notes de l'accord, puis approche chromatique de l'accord suivant
+      var note;
+      if (b === 0) note = ch.root;
+      else if (b === 3) note = nxt.root + (Math.random() < 0.5 ? 1 : -1);
+      else note = near(music.bass + (Math.random() < 0.5 ? 2 : -2) + (b === 1 ? 3 : 0), ch.scale, ch.root + 7);
+      while (note > 50) note -= 12; while (note < 33) note += 12;
+      music.bass = note; bass(note, at, q * 0.95);
+      // Piano : accords plaqués en rythme syncopé (« Charleston »)
+      if (b === 0 || (b === 1 && Math.random() < 0.7) || (b === 2 && Math.random() < 0.25)) {
+        var t0 = b === 1 ? at + swing : at, len = b === 0 ? q * 1.4 : q * 0.9;
+        ch.v.forEach(function (m, k) { rhodes(m, t0 + k * 0.008, len + 0.6, 0.11, -0.3 + k * 0.2); });
+      }
+      // Vibraphone : de petites phrases improvisées, avec des silences
+      if (bar % 2 === 1 || Math.random() < 0.35) {
+        [0, swing].forEach(function (off, k) {
+          if (Math.random() < (k ? 0.45 : 0.6)) {
+            music.mel = near(music.mel + [-3, -2, -1, 1, 2, 3, 4][Math.floor(Math.random() * 7)], ch.scale, music.mel);
+            if (music.mel > 84) music.mel -= 7; if (music.mel < 67) music.mel += 7;
+            vibes(music.mel, at + off, q * (k ? 0.9 : 1.3), 0.13);
+          }
+        });
+      }
+      music.next += q; music.beat++;
     }
   }
   function setMusic(on) {
@@ -370,41 +497,12 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     if (!audio.ctx) return;
     var t = audio.ctx.currentTime;
     audio.music.gain.cancelScheduledValues(t); audio.music.gain.setTargetAtTime(music.on ? 1 : 0, t, 0.6);
-    if (music.on && !music.timer) { music.next = t + 0.1; music.timer = setInterval(scheduleMusic, 120); }
+    if (music.on && !music.timer) { music.next = t + 0.1; music.beat = 0; music.timer = setInterval(scheduleMusic, 120); }
     if (!music.on && music.timer) { var tm = music.timer; music.timer = null; setTimeout(function () { if (!music.on) clearInterval(tm); else music.timer = tm; }, 2500); }
   }
   function duck(seconds) { // baisse la musique pendant qu'un Chubby parle
     if (!music.on) return; var g = audio.music.gain, t = audio.ctx.currentTime;
     g.cancelScheduledValues(t); g.setTargetAtTime(0.35, t, 0.08); g.setTargetAtTime(1, t + seconds, 0.5);
-  }
-
-  function blip(freq, at, dur, type, vol, toFreq) {
-    var c = audio.ctx, o = c.createOscillator(), g = c.createGain();
-    o.type = type; o.frequency.setValueAtTime(freq, at);
-    if (toFreq) o.frequency.exponentialRampToValueAtTime(toFreq, at + dur);
-    g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(vol, at + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-    o.connect(g); g.connect(audio.master); o.start(at); o.stop(at + dur + 0.02);
-  }
-  function sfx(kind) {
-    if (!audio.on) return; var t = audio.ctx.currentTime;
-    if (t - audio.last < 0.12) return; audio.last = t; // pas de vacarme en accéléré
-    if (kind === 'coin') { blip(988, t, 0.07, 'square', 0.05); blip(1319, t + 0.07, 0.18, 'square', 0.05); }
-    else if (kind === 'hop') blip(260, t, 0.16, 'sine', 0.12, 620);
-    else if (kind === 'oops') blip(420, t, 0.25, 'triangle', 0.1, 180);
-    else if (kind === 'trade') { blip(660, t, 0.05, 'triangle', 0.08); blip(880, t + 0.05, 0.08, 'triangle', 0.08); }
-    else if (kind === 'fanfare') [523, 659, 784, 1047].forEach(function (f, i) { blip(f, t + i * 0.11, i === 3 ? 0.4 : 0.12, 'triangle', 0.1); });
-  }
-  // Une syllabe toutes les ~75 ms, à une hauteur qui varie autour de la voix du Chubby. Une question finit plus haut.
-  function babble(b, text) {
-    if (!audio.on) return 0;
-    var base = (VOICE[kindOf(b.id)] || 300) * (isAI(b.id) ? 1.12 : 1), t = audio.ctx.currentTime + 0.02;
-    var n = Math.max(3, Math.min(16, Math.round(text.length / 7))), mood = moodOf(b), step = 0.075;
-    for (var i = 0; i < n; i++) {
-      var f = base * (0.88 + Math.random() * 0.34) * (mood === 'content' ? 1.08 : mood === 'inquiet' ? 0.92 : 1);
-      if (i === n - 1 && /\?/.test(text)) f *= 1.35;
-      blip(f, t + i * step, step * 0.8, isAI(b.id) ? 'square' : 'triangle', isAI(b.id) ? 0.05 : 0.11, f * (0.9 + Math.random() * 0.25));
-    }
-    return n * step;
   }
   // Un seul Chubby parle à la fois : les autres attendent leur tour.
   var talkQueue = [], talkWait = 0;
