@@ -46,10 +46,18 @@ def _print_board(arena: Arena):
     print()
 
 
+def _progress(done: int, total: int, day):
+    if done == total or done % 20 == 0:
+        print(f"\r  séance {done}/{total} ({day.date()})", end="\n" if done == total else "", flush=True)
+
+
 def cmd_backtest(args, cfg):
+    print("Chargement des prix…", flush=True)
     data = _load(args.start, args.end, cfg, args.cache)
     arena = Arena(Store(args.db), data, all_bots(), cfg)
-    n = arena.run(args.start, args.end)
+    if arena.last_day is not None:
+        print(f"Reprise après le {arena.last_day.date()} (séances déjà jouées gardées).")
+    n = arena.run(args.start, args.end, progress=_progress)
     print(f"{n} nouvelle(s) séance(s) jouée(s) entre le {args.start} et le {args.end}.")
     _print_board(arena)
 

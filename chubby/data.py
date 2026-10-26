@@ -9,6 +9,7 @@ import logging
 import warnings
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 log = logging.getLogger(__name__)
@@ -20,12 +21,22 @@ def _day(d) -> pd.Timestamp:
 
 
 class FrameData:
-    """Données en mémoire : un DataFrame (Open, Close, Dividends) par ticker."""
+    """Données en mémoire : un DataFrame (Open, Close, Dividends) par ticker.
+
+    Les lectures passent par des tableaux numpy et une recherche binaire sur les dates :
+    un backtest en fait des centaines de milliers.
+    """
 
     def __init__(self, frames: dict[str, pd.DataFrame], usdcad: pd.Series, calendar_ticker: str):
         self.frames = {t: f.sort_index() for t, f in frames.items() if not f.empty}
         self.fx = usdcad.sort_index()
         self.calendar_ticker = calendar_ticker
+        self._index = {t: f.index for t, f in self.frames.items()}
+        self._close_series = {t: f["Close"].astype(float) for t, f in self.frames.items()}
+        self._close = {t: f["Close"].to_numpy(dtype=float) for t, f in self.frames.items()}
+        self._open = {t: f["Open"].to_numpy(dtype=float) for t, f in self.frames.items()}
+        self._div = {t: f["Dividends"].fillna(0).to_numpy(dtype=float) for t, f in self.frames.items()}
+        self._fx = self.fx.to_numpy(dtype=float)
 
     @property
     def tickers(self) -> list[str]:
@@ -42,42 +53,47 @@ class FrameData:
     def has(self, ticker: str) -> bool:
         return ticker in self.frames
 
+    def _known(self, ticker: str, day: pd.Timestamp) -> int:
+        """Nombre de séances connues à cette date (la dernière est day lui-même s'il y a eu bourse)."""
+        return int(self._index[ticker].searchsorted(day, side="right"))
+
     def price(self, ticker: str, day, field: str = "Close") -> float | None:
         """Dernier prix connu à cette date (le marché américain peut être fermé un jour où le TSX ouvre)."""
-        f = self.frames.get(ticker)
-        if f is None:
+        if ticker not in self.frames:
             return None
         day = _day(day)
-        if field == "Open" and day in f.index:
-            return float(f.at[day, "Open"])
-        past = f.loc[:day, "Close"]
-        return float(past.iloc[-1]) if len(past) else None
+        n = self._known(ticker, day)
+        if n == 0:
+            return None
+        if field == "Open" and self._index[ticker][n - 1] == day and not np.isnan(self._open[ticker][n - 1]):
+            return float(self._open[ticker][n - 1])
+        return float(self._close[ticker][n - 1])
 
     def closes(self, ticker: str, day, lookback: int) -> pd.Series:
-        f = self.frames.get(ticker)
-        if f is None:
+        if ticker not in self.frames:
             return pd.Series(dtype=float)
-        return f.loc[: _day(day), "Close"].tail(lookback)
+        n = self._known(ticker, _day(day))
+        return self._close_series[ticker].iloc[max(0, n - lookback):n]
 
     def dividend(self, ticker: str, day) -> float:
         """Dividende par action dont la date ex-dividende est ce jour-là."""
-        f = self.frames.get(ticker)
-        day = _day(day)
-        if f is None or day not in f.index:
+        if ticker not in self.frames:
             return 0.0
-        return float(f.at[day, "Dividends"])
+        day = _day(day)
+        n = self._known(ticker, day)
+        return float(self._div[ticker][n - 1]) if n and self._index[ticker][n - 1] == day else 0.0
 
     def dividends_ttm(self, ticker: str, day) -> float:
         """Somme des dividendes par action sur les 365 derniers jours."""
-        f = self.frames.get(ticker)
-        if f is None:
+        if ticker not in self.frames:
             return 0.0
         day = _day(day)
-        return float(f.loc[day - pd.Timedelta(days=365) : day, "Dividends"].sum())
+        lo = int(self._index[ticker].searchsorted(day - pd.Timedelta(days=365), side="left"))
+        return float(self._div[ticker][lo:self._known(ticker, day)].sum())
 
     def usdcad(self, day) -> float:
-        past = self.fx.loc[: _day(day)]
-        return float(past.iloc[-1]) if len(past) else float(self.fx.iloc[0])
+        n = int(self.fx.index.searchsorted(_day(day), side="right"))
+        return float(self._fx[n - 1] if n else self._fx[0])
 
 
 class YFinanceData(FrameData):

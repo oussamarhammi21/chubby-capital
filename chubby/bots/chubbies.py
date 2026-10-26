@@ -168,9 +168,10 @@ class Muffin(Bot):
         weights = dict(ctx.weights)
         notes, changed = [], False
         rsi_sell, stop, max_days = self.p(ctx, "rsi_sell"), self.p(ctx, "stop"), self.p(ctx, "max_days")
+        values = ctx.broker.value_of(ctx.account, ctx.day)
         for t, pos in ctx.account.positions.items():
             r = ind.rsi(ctx.closes(t, 30))
-            unit_value = ctx.broker.value_of(ctx.account, ctx.day).get(t, 0.0) / pos.qty
+            unit_value = values.get(t, 0.0) / pos.qty
             held_days = (ctx.day - pd.Timestamp(pos.opened_on)).days
             if (r is not None and r > rsi_sell) or held_days > max_days or unit_value < (1 - stop) * pos.avg_cost_cad:
                 weights.pop(t, None)

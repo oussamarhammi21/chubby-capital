@@ -37,13 +37,18 @@ class Arena:
         v = self.store.get_meta("last_day")
         return pd.Timestamp(v) if v else None
 
-    def run(self, start=None, end=None) -> int:
-        """Joue toutes les séances pas encore jouées entre start et end."""
+    def run(self, start=None, end=None, progress=None) -> int:
+        """Joue toutes les séances pas encore jouées entre start et end.
+
+        progress(fait, total, jour) est appelé après chaque séance, pour afficher l'avancement.
+        """
         days = self.data.trading_days(start, end)
         if self.last_day is not None:
             days = [d for d in days if d > self.last_day]
-        for day in days:
+        for i, day in enumerate(days, 1):
             self.tick(day)
+            if progress:
+                progress(i, len(days), day)
         return len(days)
 
     def tick(self, day: pd.Timestamp):
