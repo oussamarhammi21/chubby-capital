@@ -22,7 +22,10 @@ def fake_market(days: int = 500, seed: int = 7, extra: dict | None = None) -> Fr
         divs = np.zeros(days)
         if t in DIVIDEND_PAYERS:
             divs[60::63] = close[60::63] * 0.012  # environ 4,8 % par an, versé chaque trimestre
-        frames[t] = pd.DataFrame({"Open": open_, "Close": close, "Dividends": divs}, index=idx)
+        swing = np.abs(rng.normal(0, vol * 0.6, days))  # amplitude de la séance autour de l'ouverture et de la clôture
+        high = np.maximum(open_, close) * (1 + swing)
+        low = np.minimum(open_, close) * (1 - swing)
+        frames[t] = pd.DataFrame({"Open": open_, "High": high, "Low": low, "Close": close, "Dividends": divs}, index=idx)
     if extra:
         frames.update(extra)
     fx = pd.Series(1.35 + rng.normal(0, 0.005, days).cumsum() * 0.1, index=idx)

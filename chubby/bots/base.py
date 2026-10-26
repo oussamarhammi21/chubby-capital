@@ -94,8 +94,19 @@ class Bot(ABC):
 
     def p(self, ctx: BotContext, name: str) -> float:
         """Valeur actuelle d'un réglage, bornée."""
+        return self.param(ctx.params, name)
+
+    def param(self, params: dict[str, float], name: str) -> float:
         spec = self.params[name]
-        return spec.clamp(ctx.params.get(name, spec.default))
+        return spec.clamp(params.get(name, spec.default))
+
+    def stops(self, positions: dict, params: dict[str, float], fx) -> dict[str, tuple[float, str]]:
+        """Ordres stop laissés chez le courtier : {ticker: (prix de déclenchement, "below" ou "above")}.
+
+        Le prix est dans la devise du titre ; fx(ticker) donne le cours en CAD de cette devise.
+        Ils ne dépendent que du coût d'achat et des réglages : rien du futur.
+        """
+        return {}
 
     def defaults(self) -> dict[str, float]:
         return {k: v.default for k, v in self.params.items()}

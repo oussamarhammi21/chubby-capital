@@ -107,6 +107,8 @@ td.r, th.r { text-align: right; }
 .live-list .top span { font: 600 15px var(--display); font-variant-numeric: tabular-nums; }
 .say { background: var(--surface-2); border-radius: 4px 14px 14px 14px; padding: 7px 10px; font-size: 14px; font-weight: 700; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chips .stopchip { background: rgba(255,154,138,0.14); color: var(--down); }
+.chips .stopchip.hit { background: var(--down); color: #2A1210; }
 .chips span { font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(255,255,255,0.06); font-variant-numeric: tabular-nums; }
 .duels { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
 .duel { background: var(--surface-2); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
@@ -312,6 +314,7 @@ td.r, th.r { text-align: right; }
     dividend: function (e) { return 'reçoit ' + money(e.amount_cad) + ' de dividendes (' + e.ticker + ')'; },
     rank_change: function (e) { return (e.new < e.old ? 'monte' : 'descend') + ' de la ' + e.old + 'e à la ' + e.new + 'e place'; },
     fee: function (e) { return 'paie ' + money(e.amount_cad) + ' (' + e.reason + ')'; },
+    stop: function (e) { return 'voit son ordre stop se déclencher sur ' + pretty(e.ticker) + ' à ' + e.price.toFixed(2).replace('.', ',') + ' (' + money(e.value_cad) + ')'; },
     error: function () { return 'n’a pas pu décider aujourd’hui'; }
   };
   function renderFeed(ov) {
@@ -389,7 +392,10 @@ td.r, th.r { text-align: right; }
     $('#live-state').textContent = (lv.open ? 'Bourse ouverte · ' : 'Bourse fermée · ') + 'séance du ' + lv.day + ' à ' + lv.as_of;
     $('#live-idx').innerHTML = lv.indexes.map(function (i) { return '<span>' + esc(i.name) + ' <b class="' + cls(i.change) + '">' + pct(i.change, 2) + '</b></span>'; }).join('');
     $('#live-list').innerHTML = lv.bots.map(function (e) {
-      var chips = e.movers.map(function (m) { return '<span>' + esc(pretty(m.ticker)) + ' <b class="' + cls(m.change) + '">' + pct(m.change) + '</b></span>'; }).join('');
+      var chips = e.movers.map(function (m) { return '<span>' + esc(pretty(m.ticker)) + ' <b class="' + cls(m.change) + '">' + pct(m.change) + '</b></span>'; }).join('') +
+        (e.stops || []).filter(function (x) { return x.hit || Math.abs(x.distance) < 0.05; }).map(function (x) {
+          return '<span class="stopchip' + (x.hit ? ' hit' : '') + '">' + (x.hit ? 'Stop touché · ' : 'Stop · ') + esc(pretty(x.ticker)) + ' ' + x.level.toFixed(2).replace('.', ',') + (x.hit ? '' : ' (à ' + Math.abs(x.distance * 100).toFixed(1).replace('.', ',') + ' %)') + '</span>';
+        }).join('');
       return '<li>' + avatar(e.id, e.mood, 52) + '<div class="txt"><div class="top"><b>' + esc(e.name) + '</b><span class="' + cls(e.change) + '">' + pct(e.change, 2) + '</span>' +
         '<span class="' + cls(e.change_cad) + '">' + (e.change_cad >= 0 ? '+' : '−') + money(Math.abs(e.change_cad)) + '</span>' + (e.settled ? '<span class="tag">séance jouée</span>' : '') + '</div>' +
         '<div class="say">« ' + esc(e.reaction) + ' »</div>' + (chips ? '<div class="chips">' + chips + '</div>' : '') + '</div></li>';

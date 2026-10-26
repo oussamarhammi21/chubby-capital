@@ -111,7 +111,7 @@ def replay(store: Store, cfg: ArenaConfig) -> dict:
             rank[r["bot_id"]][i] = r["rank"]
             scores[r["bot_id"]][i] = r["score"]
     by_day: dict[str, list] = {}
-    for r in db.execute("SELECT * FROM events WHERE kind IN ('trade', 'dividend', 'rank_change', 'coach', 'ai_coach') ORDER BY id"):
+    for r in db.execute("SELECT * FROM events WHERE kind IN ('trade', 'dividend', 'rank_change', 'coach', 'ai_coach', 'stop') ORDER BY id"):
         by_day.setdefault(r["day"], []).append({"bot_id": r["bot_id"], "kind": r["kind"], **json.loads(r["payload"] or "{}")})
     journal: dict[str, dict] = {}
     for r in db.execute("SELECT day, bot_id, text FROM journal ORDER BY id"):

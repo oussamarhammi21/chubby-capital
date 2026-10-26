@@ -21,7 +21,7 @@ def _day(d) -> pd.Timestamp:
 
 
 class FrameData:
-    """Données en mémoire : un DataFrame (Open, Close, Dividends) par ticker.
+    """Données en mémoire : un DataFrame (Open, Close, Dividends, et si possible High et Low) par ticker.
 
     Les lectures passent par des tableaux numpy et une recherche binaire sur les dates :
     un backtest en fait des centaines de milliers.
@@ -36,6 +36,11 @@ class FrameData:
         self._close = {t: f["Close"].to_numpy(dtype=float) for t, f in self.frames.items()}
         self._open = {t: f["Open"].to_numpy(dtype=float) for t, f in self.frames.items()}
         self._div = {t: f["Dividends"].fillna(0).to_numpy(dtype=float) for t, f in self.frames.items()}
+        # Plus haut et plus bas du jour (servent aux ordres stop) ; à défaut, l'ouverture et la clôture.
+        self._low = {t: (f["Low"] if "Low" in f else f[["Open", "Close"]].min(axis=1)).to_numpy(dtype=float)
+                     for t, f in self.frames.items()}
+        self._high = {t: (f["High"] if "High" in f else f[["Open", "Close"]].max(axis=1)).to_numpy(dtype=float)
+                      for t, f in self.frames.items()}
         self._fx = self.fx.to_numpy(dtype=float)
 
     @property
@@ -68,6 +73,17 @@ class FrameData:
         if field == "Open" and self._index[ticker][n - 1] == day and not np.isnan(self._open[ticker][n - 1]):
             return float(self._open[ticker][n - 1])
         return float(self._close[ticker][n - 1])
+
+    def extreme(self, ticker: str, day, which: str) -> float | None:
+        """Plus bas (which="low") ou plus haut ("high") de la séance de ce jour-là, None s'il n'y a pas eu bourse."""
+        if ticker not in self.frames:
+            return None
+        day = _day(day)
+        n = self._known(ticker, day)
+        if n == 0 or self._index[ticker][n - 1] != day:
+            return None
+        v = (self._low if which == "low" else self._high)[ticker][n - 1]
+        return None if np.isnan(v) else float(v)
 
     def closes(self, ticker: str, day, lookback: int) -> pd.Series:
         if ticker not in self.frames:
@@ -115,15 +131,14 @@ class YFinanceData(FrameData):
         frames: dict[str, pd.DataFrame] = {}
         for t in wanted:
             path = cache / f"{t.replace('=', '_')}_{_day(start).date()}_{_day(end).date()}.csv" if cache else None
-            if path and path.exists() and not refresh:
-                df = pd.read_csv(path, index_col=0, parse_dates=True)
-            else:
+            df = pd.read_csv(path, index_col=0, parse_dates=True) if path and path.exists() and not refresh else None
+            if df is None or "Low" not in df:  # les anciens caches n'avaient pas le plus haut et le plus bas
                 hist = yf.Ticker(t).history(start=_day(start), end=_day(end) + pd.Timedelta(days=1),
                                             auto_adjust=False, actions=True)
                 if hist.empty:
                     log.warning("Aucune donnée pour %s, ticker ignoré.", t)
                     continue
-                df = hist[["Open", "Close", "Dividends"]].copy()
+                df = hist[["Open", "High", "Low", "Close", "Dividends"]].copy()
                 df.index = pd.DatetimeIndex([_day(i) for i in df.index])
                 if path:
                     df.to_csv(path)

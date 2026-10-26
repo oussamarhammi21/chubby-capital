@@ -586,6 +586,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     if (e.kind === 'dividend') return 'reçoit ' + money(e.amount_cad) + ' de dividendes (' + e.ticker + ')';
     if (e.kind === 'rank_change') return (e.new < e.old ? 'monte' : 'descend') + ' à la ' + e.new + (e.new === 1 ? 're' : 'e') + ' place';
     if (e.kind === 'coach') return 'reçoit ton conseil : « ' + e.advice + ' »';
+    if (e.kind === 'stop') return 'déclenche son ordre stop sur ' + pretty(e.ticker);
     return e.kind;
   }
   function fire(e) {
@@ -599,6 +600,9 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     } else if (e.kind === 'dividend') {
       rain(b.home, fast() ? 4 : 10); sfx('coin');
       if (!fast()) say(b, 'Des dividendes ! Merci ' + e.ticker + ' !');
+    } else if (e.kind === 'stop') {
+      sfx('oops'); if (!fast() && b.state === 'work') b.state = 'toBoard';
+      if (!fast()) say(b, 'Mon stop sur ' + pretty(e.ticker) + ' est touché ! Je vends !', true);
     } else if (e.kind === 'ai_coach' && !fast()) {
       say(b, e.lesson);
     } else if (e.kind === 'rank_change' && e.new === 1) {
@@ -781,7 +785,9 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       var moved = now.change - old.change;
       if (moved > 0.0015) { b.hop = 0; sfx('hop'); if (moved > 0.004) burst(b.group.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 10); }
       else if (moved < -0.0015 && b.state === 'work') { b.state = 'toBoard'; sfx('oops'); } // va vérifier les cotes
-      if (Math.abs(moved) > 0.0015 || now.reaction !== old.reaction) say(b, now.reaction);
+      var hitNow = (now.stops || []).some(function (x) { return x.hit; }), hitBefore = (old.stops || []).some(function (x) { return x.hit; });
+      if (hitNow && !hitBefore) { sfx('oops'); if (b.state === 'work') b.state = 'toBoard'; say(b, now.reaction, true); toast('Ordre stop !', b.name + ' vend pour limiter la perte'); }
+      else if (Math.abs(moved) > 0.0015 || now.reaction !== old.reaction) say(b, now.reaction);
     });
     liveFeed();
   }

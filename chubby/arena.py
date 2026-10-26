@@ -11,6 +11,7 @@ import pandas as pd
 from .bots import Bot, BotContext
 from .broker import PaperBroker
 from .config import ArenaConfig
+from . import options as opt
 from .options import OptionData
 from .scoring import metrics, score
 from .store import Store
@@ -83,6 +84,7 @@ class Arena:
         if targets is not None:
             self._record(bot, day, broker.rebalance(acct, targets, day))
         self._record(bot, day, [broker.trade(acct, t, int(q), day) for t, q in trades])
+        self._stops(bot, broker, acct, day)
         self._record(bot, day, broker.settle_expired(acct, day))
         for ticker, amount in broker.credit_dividends(acct, day):
             self.store.event(day, bot.id, "dividend", ticker=ticker, amount_cad=round(amount, 2))
@@ -109,6 +111,22 @@ class Arena:
             for note in decision.notes:
                 self.store.journal(bot.id, day, note)
         self.store.save_account(acct)
+
+    def _stops(self, bot: Bot, broker: PaperBroker, acct, day: pd.Timestamp):
+        """Ordres stop : déclenchés pendant la séance si le plus bas (ou le plus haut) du jour franchit le seuil."""
+        levels = bot.stops(acct.positions, self.store.get_params(bot.id), lambda t: broker.fx(t, day))
+        for ticker, (level, direction) in levels.items():
+            hit = broker.stop_out(acct, ticker, level, direction, day)
+            if hit is None:
+                continue
+            fill, px = hit
+            self._record(bot, day, [fill])
+            name = opt.describe(ticker) if opt.is_option(ticker) else ticker
+            gap = " (le titre a ouvert au-delà du seuil)" if abs(px - level) > 1e-9 else ""
+            self.store.event(day, bot.id, "stop", ticker=ticker, level=level, price=round(px, 2),
+                             direction=direction, value_cad=round(fill.value_cad, 2))
+            self.store.journal(bot.id, day, f"Mon ordre stop sur {name} s'est déclenché à {px:.2f}{gap}. "
+                                            + ("Je limite la perte." if direction == "below" else "Je rachète pour couper le risque."))
 
     def _first_day_of_month(self, day: pd.Timestamp) -> bool:
         previous = self.store.get_meta("last_day")

@@ -164,6 +164,10 @@ class Muffin(Bot):
     }
     slot = 0.15
 
+    def stops(self, positions, params, fx):
+        stop = self.param(params, "stop")
+        return {t: (round(p.avg_cost_cad * (1 - stop) / fx(t), 2), "below") for t, p in positions.items() if p.qty > 0}
+
     def decide(self, ctx: BotContext) -> Decision:
         weights = dict(ctx.weights)
         notes, changed = [], False
@@ -216,6 +220,11 @@ class Jalapeno(Bot):
         "stop": Param(0.5, 0.3, 0.7, "perte qui déclenche la vente (0,5 = -50 %)"),
         "dte": Param(40, 21, 75, "jours avant l'échéance au moment de l'achat", integer=True),
     }
+
+    def stops(self, positions, params, fx):
+        stop = self.param(params, "stop")
+        return {t: (max(0.01, round(p.avg_cost_cad * (1 - stop) / (opt.MULTIPLIER * fx(t)), 2)), "below")
+                for t, p in positions.items() if opt.is_option(t) and p.qty > 0}
 
     def decide(self, ctx: BotContext) -> Decision:
         held = [t for t in ctx.account.positions if opt.is_option(t)]
@@ -293,6 +302,12 @@ class JalapenoV2(Bot):
         "stop": Param(3.0, 2.0, 5.0, "rachat si l'option vaut ce multiple de la prime reçue"),
         "budget": Param(0.9, 0.3, 1.0, "part du cash libre engagée en garantie de puts"),
     }
+
+    def stops(self, positions, params, fx):
+        # racheter l'option vendue si elle vaut `stop` fois la prime encaissée
+        stop = self.param(params, "stop")
+        return {t: (round(p.avg_cost_cad / (opt.MULTIPLIER * fx(t)) * stop, 2), "above")
+                for t, p in positions.items() if opt.is_option(t) and p.qty < 0}
 
     def decide(self, ctx: BotContext) -> Decision:
         shorts = {t: p for t, p in ctx.account.positions.items() if opt.is_option(t) and p.qty < 0}

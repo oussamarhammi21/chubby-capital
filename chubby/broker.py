@@ -96,9 +96,10 @@ class PaperBroker:
         return Fill(ticker, "buy", qty, px * (1 + self.slippage(ticker)), currency_of(ticker), self.fx(ticker, day),
                     unit_fee * qty + self.cfg.commission, cost)
 
-    def sell(self, acct: Account, ticker: str, qty: int, day) -> Fill | None:
+    def sell(self, acct: Account, ticker: str, qty: int, day, px: float | None = None) -> Fill | None:
+        """Vente à l'ouverture, ou au prix `px` (ordre stop déclenché pendant la séance)."""
         pos = acct.positions.get(ticker)
-        px = self.data.price(ticker, day, "Open")
+        px = px or self.data.price(ticker, day, "Open")
         if not pos or not px or qty <= 0:
             return None
         qty = min(qty, pos.qty)
@@ -205,8 +206,8 @@ class PaperBroker:
             acct.positions[ticker] = Position(ticker, -qty, proceeds / qty, str(pd.Timestamp(day).date()))
         return Fill(ticker, "sell", qty, px * (1 - self.slippage(ticker)), currency_of(ticker), fx, fee, proceeds)
 
-    def _buy_to_close(self, acct: Account, ticker: str, qty: int, day) -> Fill | None:
-        px = self.data.price(ticker, day, "Open")
+    def _buy_to_close(self, acct: Account, ticker: str, qty: int, day, px: float | None = None) -> Fill | None:
+        px = px or self.data.price(ticker, day, "Open")
         if not px or qty <= 0:
             return None
         unit, unit_fee = self._unit_cost(ticker, px, day)
@@ -218,6 +219,38 @@ class PaperBroker:
             del acct.positions[ticker]
         return Fill(ticker, "buy", qty, px * (1 + self.slippage(ticker)), currency_of(ticker), self.fx(ticker, day),
                     unit_fee * qty, cost)
+
+    def stop_out(self, acct: Account, ticker: str, level: float, direction: str, day) -> tuple[Fill, float] | None:
+        """Ordre stop posé chez le courtier : il se déclenche pendant la séance si le prix franchit `level`.
+
+        direction "below" : vendre une position si le prix tombe à `level` ou plus bas.
+        direction "above" : racheter une option vendue si son prix monte à `level` ou plus haut.
+        Exécuté au prix du stop, ou à l'ouverture si le titre a déjà ouvert au-delà (un trou à l'ouverture).
+        Renvoie l'exécution et le prix de déclenchement, ou None si le stop n'a pas été touché.
+        """
+        pos = acct.positions.get(ticker)
+        opening = self.data.price(ticker, day, "Open")
+        if not pos or not opening:
+            return None
+        if direction == "below":
+            low = self.data.extreme(ticker, day, "low")
+            if opening <= level:
+                px = opening
+            elif low is not None and low <= level:
+                px = level
+            else:
+                return None
+            fill = self.sell(acct, ticker, pos.qty, day, px=px) if pos.qty > 0 else None
+        else:
+            high = self.data.extreme(ticker, day, "high")
+            if opening >= level:
+                px = opening
+            elif high is not None and high >= level:
+                px = level
+            else:
+                return None
+            fill = self._buy_to_close(acct, ticker, -pos.qty, day, px=px) if pos.qty < 0 else None
+        return (fill, px) if fill else None
 
     def settle_expired(self, acct: Account, day) -> list[Fill]:
         """Options arrivées à échéance : réglées à leur valeur intrinsèque, ou exercées pour les options vendues."""

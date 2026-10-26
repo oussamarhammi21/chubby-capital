@@ -19,6 +19,8 @@ from . import options as opt
 from .config import currency_of
 from .store import Store
 
+STOP_WATCH = 0.03  # on montre un stop quand le prix en est à moins de 3 %
+
 log = logging.getLogger(__name__)
 TORONTO = ZoneInfo("America/Toronto")
 INDEXES = {"XIC.TO": "TSX", "SPY": "S&P 500", "QQQ": "Nasdaq"}
@@ -196,6 +198,7 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
                 movers.append({"ticker": t, "name": opt.describe(t) if opt.is_option(t) else t,
                                "change": round(change, 4), "impact_cad": round(impact, 2)})
         movers.sort(key=lambda m: -abs(m["impact_cad"]))
+        stops = _watch_stops(b["id"], acct, store.get_params(b["id"]), session, float(fx.iloc[-1]), chains)
         base = base_row["equity"]
         equity = float(today_row["equity"]) if today_row else float(curve.iloc[-1])
         change = equity / base - 1 if base else 0.0
@@ -204,7 +207,8 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
             "id": b["id"], "name": b["name"], "personality": b["personality"],
             "equity": round(equity, 2), "base": round(base, 2), "change": round(change, 5),
             "change_cad": round(equity - base, 2), "mood": mood_of(change),
-            "reaction": react(b["id"], change, top, now), "movers": movers[:3],
+            "reaction": _stop_reaction(stops) or react(b["id"], change, top, now), "movers": movers[:3],
+            "stops": stops,
             "curve": [round(float(v) / base - 1, 5) if base else 0.0 for v in curve],
             "settled": today_row is not None,
         })
@@ -222,6 +226,43 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
     store.set_meta("live", json.dumps(payload, ensure_ascii=False))
     store.commit()
     return payload
+
+
+def _watch_stops(bot_id: str, acct, params: dict, session: pd.DataFrame, usdcad: float, chains) -> list[dict]:
+    """Ordres stop du Chubby et distance au prix actuel. Un stop touché pendant la séance est exécuté au prix du
+    stop par la séance du soir, exactement comme le ferait le courtier : ici, on le montre en direct."""
+    from .bots import bot_class
+
+    cls = bot_class(bot_id)
+    if cls is None:
+        return []
+    levels = cls().stops(acct.positions, params, lambda t: usdcad if currency_of(t) == "USD" else 1.0)
+    out = []
+    for t, (level, direction) in levels.items():
+        if t in session and session[t].notna().any():
+            prices = session[t].dropna()
+            last, extreme = float(prices.iloc[-1]), float(prices.min() if direction == "below" else prices.max())
+        else:
+            quote = chains.quote(t) if chains is not None and opt.is_option(t) else None
+            if quote is None:
+                continue
+            last = extreme = quote
+        hit = extreme <= level if direction == "below" else extreme >= level
+        out.append({"ticker": t, "name": opt.describe(t) if opt.is_option(t) else t, "level": level,
+                    "last": round(last, 2), "direction": direction, "hit": bool(hit),
+                    "distance": round(level / last - 1, 4) if last else None})
+    return sorted(out, key=lambda x: (not x["hit"], abs(x["distance"] or 1)))
+
+
+def _stop_reaction(stops: list[dict]) -> str | None:
+    hit = next((x for x in stops if x["hit"]), None)
+    if hit:
+        verb = "je vends" if hit["direction"] == "below" else "je rachète"
+        return f"Mon ordre stop sur {hit['name']} est touché ! {verb.capitalize()} à {hit['level']:.2f}."
+    near = next((x for x in stops if x["distance"] is not None and abs(x["distance"]) < STOP_WATCH), None)
+    if near:
+        return f"{near['name']} n'est plus qu'à {abs(near['distance']) * 100:.1f} % de mon stop… je croise les doigts."
+    return None
 
 
 def latest(store: Store) -> dict | None:

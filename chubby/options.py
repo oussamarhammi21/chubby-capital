@@ -126,6 +126,25 @@ class OptionData:
         years = max((expiry - pd.Timestamp(day)).days, 0) / 365
         return max(0.01, round(black_scholes(spot, strike, years, self.volatility(underlying, day), kind), 2))
 
+    def extreme(self, ticker: str, day, which: str) -> float | None:
+        """Plus bas ou plus haut du jour. Pour une option : le modèle au plus bas ou au plus haut du sous-jacent
+        (un call touche son plus bas quand le sous-jacent touche le sien, un put l'inverse), recalé sur le prix du jour."""
+        if not is_option(ticker):
+            return self.inner.extreme(ticker, day, which)
+        underlying, kind, strike, expiry = parse(ticker)
+        side = which if kind == "C" else ("high" if which == "low" else "low")
+        spot, close = self.inner.extreme(underlying, day, side), self.inner.price(underlying, day)
+        if not spot or not close:
+            return None
+        years = max((expiry - pd.Timestamp(day)).days, 0) / 365
+        vol = self.volatility(underlying, day)
+        model_close = black_scholes(close, strike, years, vol, kind)
+        model_ext = black_scholes(spot, strike, years, vol, kind)
+        price = self.price(ticker, day)
+        if not price:
+            return None
+        return max(0.01, round(price * model_ext / model_close, 2)) if model_close > 0.005 else max(0.01, round(model_ext, 2))
+
     def closes(self, ticker: str, day, lookback: int) -> pd.Series:
         return pd.Series(dtype=float) if is_option(ticker) else self.inner.closes(ticker, day, lookback)
 

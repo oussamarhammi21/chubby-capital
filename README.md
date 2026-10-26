@@ -77,6 +77,10 @@ chubby direct      # la même chose dans le terminal
 Le but est d'être réaliste, pour que les résultats veuillent dire quelque chose :
 
 - **Pas de triche sur le futur** : un bot décide le soir avec les clôtures du jour, et ses ordres sont exécutés **à l'ouverture du lendemain**. Matcha n'apprend que sur des exemples dont le résultat était déjà connu.
+- **Ordres stop pendant la séance** : Muffin (stop à -8 %), Jalapeño (-50 % sur ses options) et Jalapeño v2 (rachat si l'option vendue vaut 3 fois la prime) laissent un ordre stop, comme chez un vrai courtier.
+  - **Quand il s'exécute.** Il se déclenche dès que le plus bas, ou le plus haut, de la journée franchit le seuil. Il est exécuté au prix du stop, ou à l'ouverture si le titre a ouvert au-delà (un trou à l'ouverture).
+  - **Dans les backtests.** On utilise le plus haut et le plus bas de chaque jour.
+  - **En direct.** Le tableau de bord montre les stops proches (« Stop · UPS 61,05 (à 5,1 %) »), et le Chubby crie quand le sien est touché. La vente est comptabilisée à la séance du soir, au prix du stop.
 - **Frais réels** : 0 $ de commission et 0,05 % de glissement à chaque exécution (2 % sur les options).
 - **Un compte adapté à chaque personnalité** :
   - Mochi, Muffin, Matcha et les deux Jalapeño ont le **compte en USD** (forfait Wealthsimple de **10 $ par mois**) : pas de conversion sur leurs trades américains.
@@ -237,3 +241,4 @@ Les données restent dans `./data` sur le PC.
 - [x] Courbes « original contre version IA » côte à côte dans le tableau de bord
 - [x] Arène en direct pendant la bourse : capital toutes les 5 minutes et réactions des Chubbies
 - [x] Voix, bruitages et musique d'ascenseur sur l'île 3D
+- [x] Ordres stop déclenchés pendant la séance
