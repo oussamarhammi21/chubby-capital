@@ -159,8 +159,12 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
     bots = store.db.execute("SELECT id, name, personality FROM bots ORDER BY id").fetchall()
     accounts = {b["id"]: store.load_account(b["id"]) for b in bots}
     stocks = {t for a in accounts.values() for t in a.positions if not opt.is_option(t)}
+    from .report import pending_orders
+    pending = {b["id"]: pending_orders(store, b["id"]) for b in bots}
     watched = {b["id"]: [i["ticker"] for i in (store.get_watchlist(b["id"]) or {}).get("items", [])
                          if not opt.is_option(i["ticker"])] for b in bots}
+    for bot_id, p in pending.items():  # les titres de ses ordres de demain : il les regarde aussi
+        watched[bot_id] += [o["ticker"] for o in (p or {}).get("orders", []) if not opt.is_option(o["ticker"])]
     bars = fetch(sorted(stocks | {t for w in watched.values() for t in w} | set(INDEXES) | {FX}))
     if bars is None or bars.empty:
         payload = {"time": now.isoformat(timespec="minutes"), "open": market_open(now), "ok": False,
@@ -213,15 +217,23 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
         stops = _watch_stops(b["id"], acct, store.get_params(b["id"]), session, float(fx.iloc[-1]), chains)
         base = base_row["equity"] if base_row else (float(today_row["equity"]) if not acct.positions else acct.cash)
         equity = float(today_row["equity"]) if today_row else float(curve.iloc[-1])
-        radar = _radar(store.get_watchlist(b["id"]), session)
+        watch = store.get_watchlist(b["id"])
+        radar = _radar(watch, session)
+        quotes = _quotes(watched.get(b["id"], []), session, prev)
+        plans = _plan_lines(pending.get(b["id"]), quotes)
+        musings = _watch_lines(watch, quotes)
         change = equity / base - 1 if base else 0.0
         top = movers[0] if movers else ({"name": "Mon portefeuille", "change": 0.0} if acct.positions else None)
         out_bots.append({
             "id": b["id"], "name": b["name"], "personality": b["personality"],
             "equity": round(equity, 2), "base": round(base, 2), "change": round(change, 5),
             "change_cad": round(equity - base, 2), "mood": mood_of(change),
-            "reaction": _stop_reaction(stops) or _radar_reaction(radar) or react(b["id"], change, top, now), "movers": movers[:3],
-            "stops": stops, "radar": radar, "thoughts": _thoughts(stops, radar), "holdings": holdings_live, "watch": _quotes(watched.get(b["id"], []), session, prev),
+            "reaction": (_stop_reaction(stops) or _radar_reaction(radar)
+                         or (None if acct.positions else (plans + musings)[0] if plans + musings else None)
+                         or react(b["id"], change, top, now)),
+            "movers": movers[:3],
+            "stops": stops, "radar": radar, "thoughts": (_thoughts(stops, radar) + plans[:2] + musings[:2])[:6],
+            "holdings": holdings_live, "watch": quotes,
             "curve": [round(float(v) / base - 1, 5) if base else 0.0 for v in curve],
             "settled": today_row is not None,
         })
@@ -263,6 +275,45 @@ def _radar(watch: dict | None, session: pd.DataFrame) -> list[dict]:
         out.append({"ticker": t, "last": round(last, 2), "distance": round(trig["level"] / last - 1, 4),
                     "crossed": bool(crossed), "touched": bool(touched), **trig})
     return sorted(out, key=lambda x: (not x["crossed"], abs(x["distance"])))
+
+
+def _signed(v: float) -> str:
+    return french(f"{v * 100:+.1f} %").replace("-", "−")
+
+
+def _plan_lines(pending: dict | None, quotes: dict) -> list[str]:
+    """Ce qu'il pense de ses ordres de demain en voyant le marché d'aujourd'hui (les plus gros mouvements d'abord)."""
+    out = []
+    for o in (pending or {}).get("orders", []):
+        q = quotes.get(o["ticker"])
+        if not q or q["change"] is None:
+            continue
+        ch, t = q["change"], o["ticker"]
+        if o["action"].startswith("acheter"):
+            mood = ("ça me coûtera un peu plus cher" if ch > 0.005 else "il sera un peu moins cher, tant mieux" if ch < -0.005
+                    else "rien ne bouge, parfait")
+            line = f"Demain à l'ouverture, j'achète {t}. Il fait {_signed(ch)} aujourd'hui : {mood}."
+        else:
+            mood = "je vendrai un peu plus haut" if ch > 0.005 else "je vendrai un peu plus bas" if ch < -0.005 else "pas de surprise"
+            line = f"Demain à l'ouverture, je vends {t}. Il fait {_signed(ch)} aujourd'hui : {mood}."
+        out.append((abs(ch), line))
+    return [line for _, line in sorted(out, reverse=True)]
+
+
+def _watch_lines(watch: dict | None, quotes: dict) -> list[str]:
+    """Les titres de sa watchlist qui bougent le plus aujourd'hui."""
+    moves = []
+    for item in (watch or {}).get("items", []):
+        q = quotes.get(item["ticker"])
+        if q and q["change"] is not None and abs(q["change"]) >= 0.01 and not item.get("held"):
+            why = item["why"].split(" : ")[-1]
+            moves.append((abs(q["change"]), f"{item['ticker']} fait {_signed(q['change'])} aujourd'hui. Je le garde à l'œil ({why})."))
+    seen, out = set(), []
+    for _, line in sorted(moves, reverse=True):
+        if line not in seen:
+            seen.add(line)
+            out.append(line)
+    return out
 
 
 def _pct(v: float) -> str:

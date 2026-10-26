@@ -78,11 +78,22 @@ class Flan(Bot):
             px, sma200 = ctx.price(t), ind.sma(ctx.closes(t, 220), 200)
             if not px or sma200 is None:
                 continue
-            yld = ctx.data.dividends_ttm(t, ctx.day) / px
-            why = ("rendement trop bas" if yld < lo else "rendement trop beau pour être vrai" if yld > hi
-                   else "sous sa moyenne 200 jours" if px <= 0.9 * sma200 else "éligible, pas dans son top")
-            out.append((yld, t, f"rendement {yld:.1%} : {why}"))
-        return [(t, why) for _, t, why in sorted(out, reverse=True)[:8]]
+            ttm = ctx.data.dividends_ttm(t, ctx.day)
+            yld = ttm / px
+            # Le prix où il change d'avis : un rendement monte quand le prix baisse.
+            if yld < lo:
+                why, trig = "rendement trop bas", self.trigger(ttm / lo, "below", f"seuil de rendement ({lo:.1%})",
+                                                               "il pourra l'acheter au début du mois")
+            elif yld > hi:
+                why, trig = "rendement trop beau pour être vrai", self.trigger(ttm / hi, "above", f"rendement raisonnable ({hi:.1%})",
+                                                                              "il redevient éligible")
+            elif px <= 0.9 * sma200:
+                why, trig = "sous sa moyenne 200 jours", self.trigger(0.9 * sma200, "above", "seuil de 90 % de la moyenne 200 jours",
+                                                                     "il redevient éligible")
+            else:
+                why, trig = "éligible, pas dans son top", None
+            out.append((yld, t, f"rendement {yld:.1%} : {why}", trig))
+        return [(t, why, trig) for _, t, why, trig in sorted(out, key=lambda x: -x[0])[:8]]
 
     def decide(self, ctx: BotContext) -> Decision:
         invested = ctx.invest_fraction(0.97)
@@ -463,7 +474,15 @@ class JalapenoV2(Bot):
             strike = opt.parse(sym)[2]
             out.append((-premium / strike, under, f"{opt.describe(sym)} : prime ≈ {premium * 100:,.0f} $ US, "
                                                   f"garantie de {strike * 100:,.0f} $ US par contrat"))
-        return [(t, why) for _, t, why in sorted(out)]
+        nasdaq = ctx.closes("QQQ", 210)
+        sma200 = ind.sma(nasdaq, 200)
+        regime = []
+        if sma200:
+            bull = nasdaq.iloc[-1] > sma200
+            regime = [("QQQ", "le Nasdaq règle son budget : plein au-dessus de sa moyenne 200 jours, moitié en dessous",
+                       self.trigger(ind.cross_level(nasdaq, 200), "below" if bull else "above", "seuil de la moyenne 200 jours du Nasdaq",
+                                    "il réduit son budget de moitié" if bull else "il revient à son plein budget"))]
+        return regime + [(t, why) for _, t, why in sorted(out)]
 
     def decide(self, ctx: BotContext) -> Decision:
         shorts = {t: p for t, p in ctx.account.positions.items() if opt.is_option(t) and p.qty < 0}

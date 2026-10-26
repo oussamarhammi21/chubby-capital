@@ -167,3 +167,21 @@ def test_first_day_of_the_arena_is_live_too():
     live = pulse(store, fetch=lambda tickers: bars, now=datetime(today.year, today.month, today.day, 11, 0, tzinfo=TORONTO))
     assert len(live["bots"]) == len(arena.bots)  # avant, personne n'apparaissait le premier jour
     assert all(e["equity"] == pytest.approx(10_000, rel=0.01) for e in live["bots"])
+
+
+def test_on_the_first_day_they_talk_about_tomorrows_orders():
+    from chubby.arena import Arena
+    from chubby.bots import all_bots
+    data = fake_market(300)
+    store = Store(":memory:")
+    arena = Arena(store, data, all_bots())
+    arena.run(start=data.trading_days()[-1])
+    bars, today = fake_bars(arena)
+    for t in ("XIC.TO", "VFV.TO"):  # les achats prévus par Tortue
+        bars[t] = list(bars[t]) if t in bars else [50.0] * len(bars)
+    n = len(bars) // 2
+    bars.loc[bars.index[n:], "VFV.TO"] = bars["VFV.TO"].iloc[0] * 1.02
+    live = pulse(store, fetch=lambda tickers: bars, now=datetime(today.year, today.month, today.day, 11, 0, tzinfo=TORONTO))
+    tortue = next(e for e in live["bots"] if e["id"] == "tortue")
+    assert "Demain à l'ouverture, j'achète VFV.TO" in tortue["reaction"] and "plus cher" in tortue["reaction"]
+    assert not any("Je suis au cash" in e["reaction"] for e in live["bots"] if e["thoughts"])

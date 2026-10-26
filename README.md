@@ -79,6 +79,7 @@ Chaque soir, chaque Chubby traduit ses règles en **seuils de prix** pour la sé
 Pendant la bourse, ces seuils sont comparés aux vrais cours :
 
 - **sur l'île**, un bandeau fait défiler le marché, et le tableau des cotes alterne entre les Chubbies et les plus gros mouvements du marché ;
+- **le panneau « Ce qu'ils surveillent »**, en bas à gauche, montre pour chaque Chubby ce qui le rapproche le plus d'une décision : son seuil le plus proche avec une jauge, ou à défaut ses ordres de demain et les titres de sa watchlist qui bougent ;
 - **dans la carte d'un Chubby**, des jauges montrent à quelle distance il est d'agir (« à 1,2 % », « franchi ! ») ;
 - **les Chubbies parlent à tour de rôle** de ce qu'ils surveillent (« ORCL est à 2,9 % de mon seuil de rebond… »), et réagissent quand un seuil est franchi ;
 - **dans le tableau de bord et la fiche**, les seuils proches ou franchis s'affichent sous chaque Chubby et dans sa watchlist.

@@ -61,7 +61,13 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
 .rank .sc b { font: 700 16px var(--display); }
 .rank .sc small { font-size: 12px; font-weight: 800; }
 
-.feed { grid-column: 1; grid-row: 3; align-self: end; padding: 14px; max-height: 30vh; overflow: auto; }
+.feed { grid-column: 1; grid-row: 3; align-self: end; padding: 14px; max-height: 38vh; overflow: auto; }
+.tabs { display: flex; gap: 4px; margin-bottom: 8px; }
+.tabs button { min-height: 36px; padding: 0 10px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font: 800 13px var(--body); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--accent); color: #fff; }
+.spy { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.spy button { width: 100%; text-align: left; border: 0; background: rgba(42,40,56,0.05); border-radius: 12px; padding: 8px 10px; cursor: pointer; color: var(--ink); font: 700 12px/1.35 var(--body); }
+.spy b { font: 700 13px var(--display); }
 .feed ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; }
 .feed time { color: var(--muted); margin-right: 6px; font-variant-numeric: tabular-nums; }
 
@@ -140,7 +146,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       </dl>
       <p class="journal" id="c-last"></p>
       <div id="c-radar" hidden>
-        <h2 style="font-size:15px;margin:0 0 6px">Ce qu’il surveille en ce moment</h2>
+        <h2 style="font-size:15px;margin:0 0 6px" id="c-radar-title">Ce qu’il surveille en ce moment</h2>
         <ul class="radar" id="c-radar-list"></ul>
       </div>
       <div id="coach" class="coach" hidden>
@@ -159,6 +165,11 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
 
     <section class="feed panel" aria-labelledby="feed-title">
       <h2 id="feed-title">Ce jour-là</h2>
+      <div class="tabs" id="feed-tabs" role="tablist" hidden>
+        <button role="tab" id="tab-spy" aria-selected="true">Ce qu’ils surveillent</button>
+        <button role="tab" id="tab-say" aria-selected="false">Ce qu’ils disent</button>
+      </div>
+      <ul class="spy" id="spy" hidden></ul>
       <ul id="feed"></ul>
     </section>
 
@@ -630,6 +641,36 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       burst(b.group.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 14); sfx('fanfare');
     }
   }
+  // Onglet « Ce qu'ils surveillent » : pour chaque Chubby, ce qui le rapproche le plus d'une décision en ce moment.
+  var feedTab = 'spy';
+  function renderSpy() {
+    var ul = $('#spy'); if (!liveMode) return;
+    var rows = bots.map(function (b) { return { b: b, l: liveById[b.id] }; }).filter(function (x) { return x.l; });
+    ul.innerHTML = '';
+    rows.forEach(function (x) {
+      var l = x.l, r = (l.radar || [])[0], html;
+      if (r) {
+        var near = r.crossed ? 1 : clamp(1 - Math.abs(r.distance) / 0.05, 0.03, 1), color = r.crossed ? '#E5484D' : near > 0.7 ? '#F5A524' : '#5B47C2';
+        html = '<b>' + x.b.name + '</b> · ' + pretty(r.ticker) + ' ' + r.last.toFixed(2).replace('.', ',') + ' <span style="color:' + color + '">' +
+          (r.crossed ? 'a franchi' : 'à ' + (Math.abs(r.distance) * 100).toFixed(1).replace('.', ',') + ' % de') + '</span> son ' + r.label +
+          '<div class="radar"><div class="gauge"><i style="width:' + Math.round(near * 100) + '%;background:' + color + '"></i></div></div>';
+      } else {
+        html = '<b>' + x.b.name + '</b> · ' + ((l.thoughts && l.thoughts[0]) || l.reaction);
+      }
+      var li = document.createElement('li'), btn = document.createElement('button');
+      btn.innerHTML = html; btn.addEventListener('click', function () { select(x.b); });
+      li.appendChild(btn); ul.appendChild(li);
+    });
+  }
+  function setFeedTab(tab) {
+    feedTab = tab;
+    $('#tab-spy').setAttribute('aria-selected', String(tab === 'spy')); $('#tab-say').setAttribute('aria-selected', String(tab === 'say'));
+    $('#spy').hidden = tab !== 'spy'; $('#feed').hidden = tab === 'spy';
+    if (tab === 'spy') renderSpy();
+  }
+  $('#tab-spy').addEventListener('click', function () { setFeedTab('spy'); });
+  $('#tab-say').addEventListener('click', function () { setFeedTab('say'); });
+
   function renderFeed() {
     var ul = $('#feed'); ul.innerHTML = '';
     if (!feed.length) { var li = document.createElement('li'); li.textContent = 'Rien pour l’instant.'; li.style.color = 'var(--muted)'; ul.appendChild(li); return; }
@@ -705,7 +746,17 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   // Ses seuils de décision contre le vrai cours : plus la jauge est pleine, plus il est près d'agir ce soir.
   function renderRadar(l) {
     var box = $('#c-radar'), items = l ? (l.radar || []).slice(0, 5) : [];
-    box.hidden = !items.length; if (!items.length) return;
+    var watch = l && l.watch ? Object.keys(l.watch).map(function (t) { return { t: t, q: l.watch[t] }; })
+      .filter(function (x) { return x.q.change != null; }).sort(function (a, b) { return Math.abs(b.q.change) - Math.abs(a.q.change); }).slice(0, 5) : [];
+    box.hidden = !items.length && !watch.length; if (box.hidden) return;
+    if (!items.length) { // pas de seuil de prix : on montre au moins sa watchlist en direct
+      $('#c-radar-title').textContent = 'Sa watchlist en direct';
+      $('#c-radar-list').innerHTML = watch.map(function (x) {
+        return '<li><div class="row"><span>' + pretty(x.t) + ' · ' + x.q.last.toFixed(2).replace('.', ',') + '</span><span class="' + cls(x.q.change) + '">' + pct(x.q.change) + '</span></div></li>';
+      }).join('');
+      return;
+    }
+    $('#c-radar-title').textContent = 'Ce qu’il surveille en ce moment';
     $('#c-radar-list').innerHTML = items.map(function (x) {
       var near = x.crossed ? 1 : clamp(1 - Math.abs(x.distance) / 0.05, 0.03, 1);
       var color = x.crossed ? '#E5484D' : near > 0.7 ? '#F5A524' : '#5B47C2';
@@ -812,7 +863,9 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     if (on === liveMode) return;
     liveMode = on; $('#golive').setAttribute('aria-pressed', String(on));
     if (live) renderTape(live); if (!on) $('#tape').hidden = true;
-    $('#feed-title').textContent = on ? 'Ce qu’ils disent' : 'Ce jour-là';
+    $('#feed-title').textContent = on ? 'En direct' : 'Ce jour-là';
+    $('#feed-tabs').hidden = !on;
+    if (on) setFeedTab(feedTab); else { $('#spy').hidden = true; $('#feed').hidden = false; }
     lastPhase = null;
     if (on) {
       setPlaying(false); setSpeed(1); $('#date').textContent = live.day;
@@ -864,7 +917,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       if (hitNow && !hitBefore) { sfx('oops'); if (b.state === 'work') b.state = 'toBoard'; say(b, now.reaction, true); toast('Ordre stop !', b.name + ' vend pour limiter la perte'); }
       else if (Math.abs(moved) > 0.0015 || now.reaction !== old.reaction) say(b, now.reaction);
     });
-    liveFeed(); renderTape(lv);
+    liveFeed(); renderTape(lv); renderSpy();
   }
   function pollLive() { fetch('/api/live').then(function (r) { return r.ok ? r.json() : null; }).then(applyLive).catch(function () {}); }
 
