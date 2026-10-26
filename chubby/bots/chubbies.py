@@ -180,8 +180,12 @@ class Mochi(Bot):
 
     def watchlist(self, ctx):
         lookback = int(self.p(ctx, "lookback"))
-        return [(t, f"{i}e du classement : {r:+.0%} sur {lookback} séances, au-dessus de sa moyenne 50 jours")
-                for i, (r, t) in enumerate(self._ranking(ctx), 1) if t not in ctx.account.positions][:8]
+        held = [(t, "détenu : il le garde tant que la tendance tient",
+                 self.trigger(ind.cross_level(ctx.closes(t, 60), 50, 0.97), "below", "seuil de sortie (3 % sous la moyenne 50 jours)",
+                              "il le vend ce soir", held=True)) for t in ctx.account.positions]
+        watched = [(t, f"{i}e du classement : {r:+.0%} sur {lookback} séances, au-dessus de sa moyenne 50 jours")
+                   for i, (r, t) in enumerate(self._ranking(ctx), 1) if t not in ctx.account.positions][:8]
+        return held + watched
 
     def decide(self, ctx: BotContext) -> Decision:
         held = set(ctx.account.positions)
@@ -247,8 +251,20 @@ class Muffin(Bot):
             closes = ctx.closes(t, 220)
             r, sma200 = ind.rsi(closes), ind.sma(closes, 200)
             if r is not None and sma200 and closes.iloc[-1] > 0.95 * sma200:
-                out.append((r, t, f"RSI {r:.0f} : " + ("en solde, il achète" if r < rsi_buy else f"il attend qu'il passe sous {rsi_buy:.0f}")))
-        return [(t, why) for _, t, why in sorted(out)[:8]]
+                level = ind.rsi_level(closes, rsi_buy) if r >= rsi_buy else None
+                out.append((r, t, f"RSI {r:.0f} : " + ("en solde, il achète" if r < rsi_buy else f"il attend qu'il passe sous {rsi_buy:.0f}"),
+                            self.trigger(level, "below", f"seuil d'achat (RSI {rsi_buy:.0f})", "il l'achète ce soir")))
+        held = []
+        for t, pos in ctx.account.positions.items():
+            closes = ctx.closes(t, 30)
+            r = ind.rsi(closes)
+            stop_close = pos.avg_cost_cad * (1 - self.p(ctx, "stop")) / ctx.broker.fx(t, ctx.day)
+            rebound = ind.rsi_level(closes, self.p(ctx, "rsi_sell"))
+            held.append((t, f"détenu : RSI {r:.0f}, il revend au rebond ou à -{self.p(ctx, 'stop'):.0%} à la clôture" if r else "détenu",
+                         self.trigger(rebound, "above", f"seuil de rebond (RSI {self.p(ctx, 'rsi_sell'):.0f})", "il le revend ce soir", held=True)))
+            held.append((t, "détenu : sa perte maximale tolérée, vérifiée à la clôture",
+                         self.trigger(stop_close, "below", f"stop à la clôture (-{self.p(ctx, 'stop'):.0%})", "il le revend ce soir", held=True)))
+        return held + [(t, why, trig) for _, t, why, trig in sorted(out)[:8]]
 
     def stops(self, positions, params, fx):
         # Seulement le stop de secours : le -8 % se vérifie à la clôture, dans decide(). Testé sur 2022-2025, un stop
@@ -336,8 +352,13 @@ class Jalapeno(Bot):
             above = closes.iloc[-1] > sma20
             ready = (bull and above and r10 > 0) or (not bull and not above and r10 < 0)
             out.append((-abs(r10), t, f"{r10:+.1%} sur 10 jours, {'au-dessus de' if above else 'sous'} sa moyenne 20 jours : "
-                        + (f"prêt pour des {'calls' if bull else 'puts'}" if ready else "pas dans le bon sens")))
-        return [(t, why) for _, t, why in sorted(out)]
+                        + (f"prêt pour des {'calls' if bull else 'puts'}" if ready else "pas dans le bon sens"),
+                        self.trigger(ind.cross_level(closes, 20), "below" if above else "above",
+                                     "seuil de la moyenne 20 jours", "sa tendance courte se retourne")))
+        regime = [("QQQ", "le Nasdaq décide de son humeur : calls au-dessus de sa moyenne 200 jours, puts en dessous",
+                   self.trigger(ind.cross_level(nasdaq, 200), "below" if bull else "above", "seuil de la moyenne 200 jours du Nasdaq",
+                                "il passe aux puts" if bull else "il repasse aux calls"))] if sma200 else []
+        return regime + [(t, why, trig) for _, t, why, trig in sorted(out)]
 
     def decide(self, ctx: BotContext) -> Decision:
         held = [t for t in ctx.account.positions if opt.is_option(t)]
@@ -546,7 +567,14 @@ class JalapenoV3(Bot):
             cost = premium * opt.MULTIPLIER * ctx.broker.fx(sym, ctx.day)
             trend = "au-dessus de" if closes.iloc[-1] > sma200 else "sous"
             out.append((-r, t, f"{r:+.0%} sur 3 mois, {trend} sa moyenne 200 jours ; un {opt.describe(sym)} coûte ≈ {cost:,.0f} $"))
-        return [(t, why) for _, t, why in sorted(out)]
+        nasdaq = ctx.closes("QQQ", 210)
+        holding = any(opt.is_option(t) and p.qty > 0 for t, p in ctx.account.positions.items())
+        buffer = self.p(ctx, "exit_buffer")
+        gate = (self.trigger(ind.cross_level(nasdaq, 200, 1 - buffer), "below", f"seuil de sortie ({buffer:.0%} sous la moyenne 200 jours)",
+                             "il vend tout et attend au cash", held=True) if holding else
+                self.trigger(ind.cross_level(nasdaq, 200), "above", "seuil de la moyenne 200 jours du Nasdaq", "il achète ses calls"))
+        regime = [("QQQ", "le Nasdaq décide s'il joue ou s'il attend au cash", gate)]
+        return regime + [(t, why) for _, t, why in sorted(out)]
 
     def _new_call(self, ctx: BotContext, cash: float) -> tuple[str, int, list[str]] | None:
         """Le meilleur FNB en tendance dont au moins un contrat rentre dans le budget, et le nombre de contrats."""

@@ -328,8 +328,13 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
     if (!w || !w.items.length) { $('#watch-when').textContent = 'Sa watchlist apparaîtra après sa prochaine séance.'; $('#watch').innerHTML = ''; return; }
     $('#watch-when').textContent = 'Ce qu’il surveille et pourquoi (calculé le soir du ' + w.day + ').';
     $('#watch').innerHTML = w.items.map(function (i) {
-      var q = quotes[i.ticker], last = q ? q.last : i.price, ch = q ? q.change : i.change;
-      return '<li><div><b>' + esc(pretty(i.ticker)) + '</b><small>' + esc(i.why) + '</small></div><div class="px">' + (last != null ? num(last) : '—') +
+      var q = quotes[i.ticker], last = q ? q.last : i.price, ch = q ? q.change : i.change, t = i.trigger, seuil = '';
+      if (t) {
+        var x = lb && lb.radar ? lb.radar.filter(function (r) { return r.ticker === i.ticker && r.label === t.label; })[0] : null;
+        var dist = x ? (x.crossed ? ' — franchi en ce moment !' : ' — à ' + num(Math.abs(x.distance) * 100, 1) + ' %') : '';
+        seuil = '<small style="color:' + (x && x.crossed ? 'var(--down)' : '#F5C26B') + '">' + esc(t.label) + ' : ' + num(t.level) + ' → ' + esc(t.then) + dist + '</small>';
+      }
+      return '<li><div><b>' + esc(pretty(i.ticker)) + (i.held ? ' <span class="pill info">détenu</span>' : '') + '</b><small>' + esc(i.why) + '</small>' + seuil + '</div><div class="px">' + (last != null ? num(last) : '—') +
         '<br><span class="' + (ch != null ? cls(ch) : '') + '">' + (ch != null ? pct(ch, 2) : '') + '</span></div></li>';
     }).join('');
   }

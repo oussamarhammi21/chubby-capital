@@ -131,3 +131,39 @@ def test_advisor_compares_styles_without_calling_everything_a_sale(arena):
     actions = {r["symbol"]: r["action"] for r in out["rows"]}
     assert actions["GSBD"] == "hors de son style"
     assert "réduire" not in {actions[s] for s in ("GSBD", "LYB", "BKCL.TO")}
+
+
+def test_thresholds_turn_into_real_prices():
+    from chubby import indicators as ind
+    closes = np.cumsum(np.random.default_rng(1).normal(0, 1, 60)) + 100
+    level = ind.rsi_level(closes, 30)
+    assert ind.rsi(np.append(closes, level)) == pytest.approx(30, abs=1e-6)
+    exit_level = ind.cross_level(closes, 50, 0.97)
+    assert exit_level == pytest.approx(0.97 * ind.sma(np.append(closes, exit_level), 50))
+
+
+def test_live_shows_how_close_each_bot_is_to_acting(arena):
+    bars, today = fake_bars(arena, move=0.0)
+    w = arena.store.get_watchlist("mochi")
+    target = next(i for i in w["items"] if i.get("trigger"))
+    t, level = target["ticker"], target["trigger"]["level"]
+    n = len(bars) // 2
+    bars.loc[bars.index[n:], t] = level * 0.99  # passe sous son seuil de sortie pendant la séance
+    live = pulse(arena.store, fetch=lambda tickers: bars, now=datetime(today.year, today.month, today.day, 11, 0, tzinfo=TORONTO))
+    mochi = next(e for e in live["bots"] if e["id"] == "mochi")
+    hit = next(x for x in mochi["radar"] if x["ticker"] == t)
+    assert hit["crossed"] and t in mochi["reaction"] and "ce soir" in mochi["reaction"]
+    assert mochi["thoughts"] and live["market"]
+
+
+def test_first_day_of_the_arena_is_live_too():
+    from chubby.arena import Arena
+    from chubby.bots import all_bots
+    data = fake_market(300)
+    store = Store(":memory:")
+    arena = Arena(store, data, all_bots())
+    arena.run(start=data.trading_days()[-1])  # une seule séance : tout le monde au cash, ordres en attente
+    bars, today = fake_bars(arena)
+    live = pulse(store, fetch=lambda tickers: bars, now=datetime(today.year, today.month, today.day, 11, 0, tzinfo=TORONTO))
+    assert len(live["bots"]) == len(arena.bots)  # avant, personne n'apparaissait le premier jour
+    assert all(e["equity"] == pytest.approx(10_000, rel=0.01) for e in live["bots"])

@@ -122,12 +122,16 @@ class Arena:
             log.exception("Watchlist de %s impossible le %s", bot.name, day.date())
             return
         out = []
-        for ticker, why in items:
+        for ticker, why, *rest in items:
+            trig = dict(rest[0]) if rest and rest[0] else None
+            if trig:
+                trig.update(label=french(trig["label"]), then=french(trig["then"]))
             closes = self.data.closes(ticker, day, 2)
             price = self.data.price(ticker, day)
             change = float(closes.iloc[-1] / closes.iloc[-2] - 1) if len(closes) == 2 and closes.iloc[-2] else None
             out.append({"ticker": ticker, "why": french(why), "price": round(price, 2) if price else None,
-                        "change": round(change, 4) if change is not None else None})
+                        "change": round(change, 4) if change is not None else None,
+                        "trigger": trig, "held": bool(trig and trig.get("held")) or why.startswith("détenu")})
         self.store.set_watchlist(bot.id, day, out)
 
     def _stops(self, bot: Bot, broker: PaperBroker, acct, day: pd.Timestamp):

@@ -17,6 +17,7 @@ import pandas as pd
 
 from . import options as opt
 from .config import currency_of
+from .fmt import french
 from .store import Store
 
 STOP_WATCH = 0.03  # on montre un stop quand le prix en est à moins de 3 %
@@ -179,12 +180,13 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
     for b in bots:
         base_row = store.db.execute("SELECT day, equity, holdings FROM snapshots WHERE bot_id = ? AND day < ?"
                                     " ORDER BY day DESC LIMIT 1", (b["id"], str(day))).fetchone()
-        if base_row is None:
-            continue
         today_row = store.db.execute("SELECT equity FROM snapshots WHERE bot_id = ? AND day = ?",
                                      (b["id"], str(day))).fetchone()
         acct = accounts[b["id"]]
-        held = json.loads(base_row["holdings"] or "{}")
+        if base_row is None and today_row is None:
+            continue  # pas encore inscrit dans l'arène
+        # Premier jour de l'arène : pas de veille, il part de son capital de départ (tout en cash).
+        held = json.loads(base_row["holdings"] or "{}") if base_row else {}
         curve = pd.Series(acct.cash, index=session.index, dtype=float)
         movers = []
         for t, pos in acct.positions.items():
@@ -209,16 +211,17 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
         holdings_live = {m["ticker"]: m["change"] for m in movers}
         movers.sort(key=lambda m: -abs(m["impact_cad"]))
         stops = _watch_stops(b["id"], acct, store.get_params(b["id"]), session, float(fx.iloc[-1]), chains)
-        base = base_row["equity"]
+        base = base_row["equity"] if base_row else (float(today_row["equity"]) if not acct.positions else acct.cash)
         equity = float(today_row["equity"]) if today_row else float(curve.iloc[-1])
+        radar = _radar(store.get_watchlist(b["id"]), session)
         change = equity / base - 1 if base else 0.0
         top = movers[0] if movers else ({"name": "Mon portefeuille", "change": 0.0} if acct.positions else None)
         out_bots.append({
             "id": b["id"], "name": b["name"], "personality": b["personality"],
             "equity": round(equity, 2), "base": round(base, 2), "change": round(change, 5),
             "change_cad": round(equity - base, 2), "mood": mood_of(change),
-            "reaction": _stop_reaction(stops) or react(b["id"], change, top, now), "movers": movers[:3],
-            "stops": stops, "holdings": holdings_live, "watch": _quotes(watched.get(b["id"], []), session, prev),
+            "reaction": _stop_reaction(stops) or _radar_reaction(radar) or react(b["id"], change, top, now), "movers": movers[:3],
+            "stops": stops, "radar": radar, "thoughts": _thoughts(stops, radar), "holdings": holdings_live, "watch": _quotes(watched.get(b["id"], []), session, prev),
             "curve": [round(float(v) / base - 1, 5) if base else 0.0 for v in curve],
             "settled": today_row is not None,
         })
@@ -227,8 +230,15 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
     for t, label in INDEXES.items():
         if t in session and session[t].notna().any() and prev.get(t):
             indexes.append({"ticker": t, "name": label, "change": round(float(session[t].ffill().iloc[-1] / prev[t] - 1), 5)})
+    market = []
+    for t in session.columns:
+        if t == FX or not session[t].notna().any() or not prev.get(t) or pd.isna(prev.get(t)):
+            continue
+        last = float(session[t].dropna().iloc[-1])
+        market.append({"ticker": t, "last": round(last, 2), "change": round(last / prev[t] - 1, 4)})
+    market.sort(key=lambda m: -abs(m["change"]))
     payload = {
-        "ok": True, "time": now.isoformat(timespec="minutes"), "day": str(day),
+        "ok": True, "time": now.isoformat(timespec="minutes"), "day": str(day), "market": market[:60],
         "as_of": session.index[-1].strftime("%H:%M"), "open": market_open(now) and day == now.date(),
         "usdcad": round(float(fx.iloc[-1]), 4), "times": [t.strftime("%H:%M") for t in session.index],
         "indexes": indexes, "bots": out_bots,
@@ -236,6 +246,47 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
     store.set_meta("live", json.dumps(payload, ensure_ascii=False))
     store.commit()
     return payload
+
+
+def _radar(watch: dict | None, session: pd.DataFrame) -> list[dict]:
+    """Ses seuils de décision contre le vrai cours : à quelle distance il est d'agir ce soir."""
+    out = []
+    for item in (watch or {}).get("items", []):
+        trig, t = item.get("trigger"), item["ticker"]
+        if not trig or t not in session or not session[t].notna().any():
+            continue
+        prices = session[t].dropna()
+        last = float(prices.iloc[-1])
+        below = trig["direction"] == "below"
+        crossed = last <= trig["level"] if below else last >= trig["level"]
+        touched = float(prices.min()) <= trig["level"] if below else float(prices.max()) >= trig["level"]
+        out.append({"ticker": t, "last": round(last, 2), "distance": round(trig["level"] / last - 1, 4),
+                    "crossed": bool(crossed), "touched": bool(touched), **trig})
+    return sorted(out, key=lambda x: (not x["crossed"], abs(x["distance"])))
+
+
+def _pct(v: float) -> str:
+    return f"{abs(v) * 100:.1f} %".replace(".", ",")
+
+
+def _radar_line(x: dict) -> str:
+    if x["crossed"]:
+        return french(f"{x['ticker']} a franchi mon {x['label']} ({x['level']:.2f}) : si ça tient à la clôture, {x['then']}.")
+    return french(f"{x['ticker']} est à {_pct(x['distance'])} de mon {x['label']} ({x['level']:.2f}). "
+                  f"S'il y arrive à la clôture, {x['then']}.")
+
+
+def _radar_reaction(radar: list[dict]) -> str | None:
+    hot = next((x for x in radar if x["crossed"] or abs(x["distance"]) < 0.015), None)
+    return _radar_line(hot) if hot else None
+
+
+def _thoughts(stops: list[dict], radar: list[dict]) -> list[str]:
+    """Ce qu'il a en tête en ce moment : ses stops proches et ses seuils les plus proches, du plus urgent au moins urgent."""
+    lines = [_stop_reaction([x]) for x in stops if x["hit"] or abs(x["distance"] or 1) < STOP_WATCH]
+    close = [x for x in radar if x["crossed"] or abs(x["distance"]) < 0.05] or radar[:1]  # les plus proches d'agir
+    lines += [_radar_line(x) for x in close[:3]]
+    return [line for line in lines if line][:4]
 
 
 def _quotes(tickers: list[str], session: pd.DataFrame, prev: pd.Series) -> dict[str, dict]:
@@ -279,10 +330,10 @@ def _stop_reaction(stops: list[dict]) -> str | None:
     hit = next((x for x in stops if x["hit"]), None)
     if hit:
         verb = "je vends" if hit["direction"] == "below" else "je rachète"
-        return f"Mon ordre stop sur {hit['name']} est touché ! {verb.capitalize()} à {hit['level']:.2f}."
+        return french(f"Mon ordre stop sur {hit['name']} est touché ! {verb.capitalize()} à {hit['level']:.2f}.")
     near = next((x for x in stops if x["distance"] is not None and abs(x["distance"]) < STOP_WATCH), None)
     if near:
-        return f"{near['name']} n'est plus qu'à {abs(near['distance']) * 100:.1f} % de mon stop… je croise les doigts."
+        return french(f"{near['name']} n'est plus qu'à {abs(near['distance']) * 100:.1f} % de mon stop… je croise les doigts.")
     return None
 
 

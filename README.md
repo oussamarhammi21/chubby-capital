@@ -67,6 +67,24 @@ Pendant la bourse, l'île 3D s'ouvre directement sur la vraie séance (bouton «
 
 Les sons sont créés dans le navigateur, sans aucun fichier audio.
 
+### Voir comment ils pensent, en direct
+
+Chaque soir, chaque Chubby traduit ses règles en **seuils de prix** pour la séance suivante. Par exemple :
+
+- Muffin : « HD devient une aubaine sous 61,20 $ », le prix où son RSI passe sous 30 ;
+- Mochi : « je vends LIN s'il clôture sous 412 $ », 3 % sous sa moyenne 50 jours ;
+- Jalapeño : « le Nasdaq passe en mode baissier sous 478 $ » ;
+- Jalapeño v3 : « je vends tout si le Nasdaq clôture sous… ».
+
+Pendant la bourse, ces seuils sont comparés aux vrais cours :
+
+- **sur l'île**, un bandeau fait défiler le marché, et le tableau des cotes alterne entre les Chubbies et les plus gros mouvements du marché ;
+- **dans la carte d'un Chubby**, des jauges montrent à quelle distance il est d'agir (« à 1,2 % », « franchi ! ») ;
+- **les Chubbies parlent à tour de rôle** de ce qu'ils surveillent (« ORCL est à 2,9 % de mon seuil de rebond… »), et réagissent quand un seuil est franchi ;
+- **dans le tableau de bord et la fiche**, les seuils proches ou franchis s'affichent sous chaque Chubby et dans sa watchlist.
+
+Ils agissent toujours à la clôture : un seuil franchi à 11 h ne compte que s'il tient jusqu'à 16 h. C'est ce qui permet de repérer un comportement à corriger, par exemple un seuil trop serré qui se fait franchir tous les jours.
+
 Le direct se rafraîchit tout seul, toutes les 4 minutes au plus, dès qu'une page est ouverte : `chubby web` suffit.
 
 ```bash

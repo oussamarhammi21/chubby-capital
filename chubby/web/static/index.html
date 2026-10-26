@@ -336,6 +336,10 @@ td.r, th.r { text-align: right; }
     $('#live-idx').innerHTML = lv.indexes.map(function (i) { return '<span>' + esc(i.name) + ' <b class="' + cls(i.change) + '">' + pct(i.change, 2) + '</b></span>'; }).join('');
     $('#live-list').innerHTML = lv.bots.map(function (e) {
       var chips = e.movers.map(function (m) { return '<span>' + esc(pretty(m.ticker)) + ' <b class="' + cls(m.change) + '">' + pct(m.change) + '</b></span>'; }).join('') +
+        (e.radar || []).filter(function (x) { return x.crossed || Math.abs(x.distance) < 0.02; }).slice(0, 2).map(function (x) {
+          return '<span class="stopchip' + (x.crossed ? ' hit' : '') + '" style="' + (x.crossed ? '' : 'background:rgba(245,165,36,0.15);color:#F5C26B') + '">' +
+            esc(x.ticker) + (x.crossed ? ' a franchi ' : ' à ' + Math.abs(x.distance * 100).toFixed(1).replace('.', ',') + ' % de ') + esc(x.label) + '</span>';
+        }).join('') +
         (e.stops || []).filter(function (x) { return x.hit || Math.abs(x.distance) < 0.05; }).map(function (x) {
           return '<span class="stopchip' + (x.hit ? ' hit' : '') + '">' + (x.hit ? 'Stop touché · ' : 'Stop · ') + esc(pretty(x.ticker)) + ' ' + x.level.toFixed(2).replace('.', ',') + (x.hit ? '' : ' (à ' + Math.abs(x.distance * 100).toFixed(1).replace('.', ',') + ' %)') + '</span>';
         }).join('');

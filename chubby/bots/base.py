@@ -102,10 +102,21 @@ class Bot(ABC):
         spec = self.params[name]
         return spec.clamp(params.get(name, spec.default))
 
-    def watchlist(self, ctx: BotContext) -> list[tuple[str, str]]:
-        """Les titres qu'il surveille sans les détenir (ou qu'il pourrait ajuster), avec la raison, du plus proche
-        d'un achat au moins proche : [(ticker, "pourquoi")]. Calculée le soir, montrée dans sa fiche."""
+    def watchlist(self, ctx: BotContext) -> list[tuple]:
+        """Les titres qu'il surveille, avec la raison : [(ticker, "pourquoi")] ou [(ticker, "pourquoi", seuil)].
+
+        Le seuil (voir trigger()) est le prix de clôture qui le ferait agir le soir même : pendant la bourse,
+        le direct compare le vrai cours à ce prix, ce qui rend sa façon de penser visible.
+        Calculée le soir, montrée dans sa fiche et suivie en direct.
+        """
         return []
+
+    @staticmethod
+    def trigger(level: float | None, direction: str, label: str, then: str, held: bool = False) -> dict | None:
+        """Un seuil de décision : s'il clôture sous (« below ») ou au-dessus (« above ») de `level`, il fera `then`."""
+        if level is None or level <= 0:
+            return None
+        return {"level": round(level, 2), "direction": direction, "label": label, "then": then, "held": held}
 
     def stops(self, positions: dict, params: dict[str, float], fx) -> dict[str, tuple[float, str]]:
         """Ordres stop laissés chez le courtier : {ticker: (prix de déclenchement, "below" ou "above")}.

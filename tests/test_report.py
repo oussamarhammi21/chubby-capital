@@ -98,7 +98,10 @@ def test_every_bot_explains_its_watchlist_on_the_last_evening():
         assert w and w["day"] == str(arena.last_day.date()), bot.id
         assert w["items"] and all(i["why"] and i["price"] for i in w["items"]), bot.id
     held = set(arena.store.load_account("mochi").positions)
-    assert not held & {i["ticker"] for i in arena.store.get_watchlist("mochi")["items"]}  # des titres qu'il n'a pas
+    items = arena.store.get_watchlist("mochi")["items"]
+    assert {i["ticker"] for i in items if i["held"]} == held  # ses positions, avec leur seuil de sortie
+    assert all(i["trigger"]["level"] > 0 for i in items if i["held"])
+    assert not held & {i["ticker"] for i in items if not i["held"]}  # et des titres qu'il n'a pas
 
 
 def test_activity_reads_like_a_broker_statement():

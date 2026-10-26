@@ -83,9 +83,24 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
 .toast { position: absolute; left: 50%; top: 34%; transform: translate(-50%, -50%); padding: 16px 24px; text-align: center; pointer-events: none; }
 .toast b { display: block; font: 700 26px var(--display); }
 .toast span { font-weight: 700; color: var(--muted); }
+.tape { position: absolute; top: calc(78px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); width: clamp(240px, calc(100vw - 740px), 600px);
+  display: flex; align-items: center; gap: 10px; padding: 6px 12px; overflow: hidden; pointer-events: auto; }
+.tape b { font: 700 13px var(--display); white-space: nowrap; color: #E5484D; }
+.tape-window { overflow: hidden; flex: 1; mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent); }
+.tape-track { display: inline-flex; gap: 18px; white-space: nowrap; font: 800 13px var(--body); font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: no-preference) { .tape-track { animation: tape var(--tape-s, 40s) linear infinite; } }
+@media (prefers-reduced-motion: reduce) { .tape-window { overflow-x: auto; } }
+@keyframes tape { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.radar { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.radar li { background: rgba(42,40,56,0.05); border-radius: 12px; padding: 8px 10px; font-size: 13px; font-weight: 700; }
+.radar .row { display: flex; justify-content: space-between; gap: 8px; }
+.radar .gauge { height: 6px; border-radius: 3px; background: rgba(42,40,56,0.1); margin-top: 6px; overflow: hidden; }
+.radar .gauge i { display: block; height: 100%; border-radius: 3px; }
+.radar small { display: block; color: var(--muted); font-size: 12px; margin-top: 4px; }
 .msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 20px 24px; max-width: min(420px, 90vw); text-align: center; font-weight: 700; }
 
 @media (max-width: 760px) {
+  .tape { top: auto; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); width: calc(100vw - 32px); }
   .hud { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr auto auto; gap: 8px; }
   .card { grid-row: 3; align-self: end; max-height: 46vh; }
   .timeline { grid-column: 1; grid-row: 4; }
@@ -124,6 +139,10 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
         <div><dt>Agressivité</dt><dd id="c-aggr"></dd></div>
       </dl>
       <p class="journal" id="c-last"></p>
+      <div id="c-radar" hidden>
+        <h2 style="font-size:15px;margin:0 0 6px">Ce qu’il surveille en ce moment</h2>
+        <ul class="radar" id="c-radar-list"></ul>
+      </div>
       <div id="coach" class="coach" hidden>
         <p class="bubble" id="coach-q"></p>
         <div class="opts" id="coach-opts"></div>
@@ -154,6 +173,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       <button class="btn ghost" id="restart">Rejouer la saison</button>
     </div>
   </div>
+  <div class="tape panel" id="tape" hidden aria-label="Marché en direct"><b>● Marché</b><div class="tape-window"><div class="tape-track" id="tape-track"></div></div></div>
   <div class="toast panel" id="toast" hidden><b id="toast-t"></b><span id="toast-s"></span></div>
   <div class="msg panel" id="msg" hidden></div>
 </div>
@@ -678,9 +698,24 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     $('#c-aggr').textContent = b.aggressiveness.toFixed(2).replace('.', ',');
     var l = liveOf(b);
     $('#c-day-label').textContent = l ? 'Aujourd’hui' : 'Ce jour-là';
+    renderRadar(l);
     if (l) { $('#c-last').textContent = 'En direct · « ' + l.reaction + ' »'; return; }
     var j = lastJournal(b); $('#c-last').textContent = j ? j.day + ' · « ' + j.text + ' »' : 'Journal vide pour l’instant.';
   }
+  // Ses seuils de décision contre le vrai cours : plus la jauge est pleine, plus il est près d'agir ce soir.
+  function renderRadar(l) {
+    var box = $('#c-radar'), items = l ? (l.radar || []).slice(0, 5) : [];
+    box.hidden = !items.length; if (!items.length) return;
+    $('#c-radar-list').innerHTML = items.map(function (x) {
+      var near = x.crossed ? 1 : clamp(1 - Math.abs(x.distance) / 0.05, 0.03, 1);
+      var color = x.crossed ? '#E5484D' : near > 0.7 ? '#F5A524' : '#5B47C2';
+      var dist = x.crossed ? 'franchi !' : 'à ' + (Math.abs(x.distance) * 100).toFixed(1).replace('.', ',') + ' %';
+      return '<li><div class="row"><span>' + pretty(x.ticker) + ' · ' + x.last.toFixed(2).replace('.', ',') + '</span><span style="color:' + color + '">' + dist + '</span></div>' +
+        '<div class="gauge"><i style="width:' + Math.round(near * 100) + '%;background:' + color + '"></i></div>' +
+        '<small>' + x.label + ' : ' + x.level.toFixed(2).replace('.', ',') + ' → ' + x.then + '</small></li>';
+    }).join('');
+  }
+
   $('#c-coach').addEventListener('click', function () {
     if (!selected) return; var b = selected, d = dayPct(b), mood = moodOf(b);
     $('#coach-q').textContent = mood === 'inquiet' ? 'J’ai perdu ' + pct(d).replace('−', '') + ' ce jour-là… Je fais quoi, coach ?'
@@ -729,7 +764,17 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     });
   }
   function drawBoard() {
-    var c = bctx; c.fillStyle = '#2A2838'; c.fillRect(0, 0, 512, 256);
+    var c = bctx;
+    if (liveMode && live && live.market && live.market.length && Math.floor(clock.elapsedTime / 8) % 2) {
+      c.fillStyle = '#2A2838'; c.fillRect(0, 0, 512, 256);
+      c.fillStyle = '#FFD45A'; c.font = '700 28px Fredoka, sans-serif'; c.textAlign = 'left'; c.fillText('MARCHÉ EN DIRECT', 24, 42);
+      c.fillStyle = '#B9B6C6'; c.font = '700 18px Nunito, sans-serif'; c.textAlign = 'right'; c.fillText(live.as_of, 488, 42);
+      live.market.slice(0, 7).forEach(function (m, i) {
+        var y = 84 + i * 26; c.textAlign = 'left'; c.fillStyle = '#FFFFFF'; c.font = '700 22px Nunito, sans-serif'; c.fillText(m.ticker, 32, y);
+        c.textAlign = 'right'; c.fillStyle = m.change >= 0 ? '#7BE0A8' : '#FF9A8A'; c.fillText(pct(m.change), 488, y);
+      });
+      boardTex.needsUpdate = true; return;
+    } c.fillStyle = '#2A2838'; c.fillRect(0, 0, 512, 256);
     c.fillStyle = '#FFD45A'; c.font = '700 28px Fredoka, sans-serif'; c.textAlign = 'left'; c.fillText('COTES DU JOUR', 24, 42);
     c.fillStyle = '#B9B6C6'; c.font = '700 18px Nunito, sans-serif'; c.textAlign = 'right'; c.fillText(liveMode ? live.day + ' · ' + live.as_of : (data.days[dayIdx] || ''), 488, 42);
     var rowH = 26;
@@ -759,13 +804,14 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   function liveFeed() {
     feed = bots.map(function (b) { return liveById[b.id]; }).filter(Boolean)
       .sort(function (a, b) { return Math.abs(b.change) - Math.abs(a.change); })
-      .map(function (l) { return l.name + ' (' + pct(l.change) + ') : « ' + l.reaction + ' »'; });
+      .map(function (l) { return l.name + ' (' + pct(l.change) + ') : « ' + l.reaction + ' »' + (l.thoughts && l.thoughts[0] && l.thoughts[0] !== l.reaction ? ' — ' + l.thoughts[0] : ''); });
     renderFeed();
   }
   function setLive(on) {
     on = !!(on && live && live.ok);
     if (on === liveMode) return;
     liveMode = on; $('#golive').setAttribute('aria-pressed', String(on));
+    if (live) renderTape(live); if (!on) $('#tape').hidden = true;
     $('#feed-title').textContent = on ? 'Ce qu’ils disent' : 'Ce jour-là';
     lastPhase = null;
     if (on) {
@@ -774,6 +820,29 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       liveFeed(); toast(live.open ? 'En direct' : 'Dernière séance', ranking()[0].name + ' mène la journée');
       ranking().slice(0, 3).forEach(function (b) { say(b, liveById[b.id].reaction); });
     } else { startDay(dayIdx); }
+  }
+  function renderTape(lv) {
+    var items = (lv.indexes || []).map(function (i) { return { t: i.name, c: i.change }; })
+      .concat((lv.market || []).filter(function (m) { return ['XIC.TO', 'SPY', 'QQQ'].indexOf(m.ticker) < 0; })
+        .map(function (m) { return { t: m.ticker, p: m.last, c: m.change }; }));
+    if (!items.length) { $('#tape').hidden = true; return; }
+    var html = items.map(function (i) {
+      return '<span>' + i.t + (i.p != null ? ' ' + i.p.toFixed(2).replace('.', ',') : '') + ' <span class="' + cls(i.c) + '">' + pct(i.c) + '</span></span>';
+    }).join('');
+    $('#tape-track').innerHTML = html + html; // deux fois : le défilement boucle sans saut
+    $('#tape-track').style.setProperty('--tape-s', Math.max(25, items.length * 3.5) + 's');
+    $('#tape').hidden = !liveMode;
+  }
+  // À tour de rôle, un Chubby dit ce qu'il a en tête (ses seuils, ses stops, sa journée).
+  var chatterWait = 6, chatterIdx = 0;
+  function chatter(dt) {
+    if (!liveMode || !live) return;
+    chatterWait -= dt; if (chatterWait > 0 || talkQueue.length) return;
+    chatterWait = 9;
+    var order = bots.filter(function (b) { return liveById[b.id]; }); if (!order.length) return;
+    var b = order[chatterIdx++ % order.length], l = liveById[b.id];
+    var lines = (l.thoughts && l.thoughts.length ? l.thoughts : []).concat([l.reaction]);
+    say(b, lines[Math.floor(Math.random() * lines.length)]);
   }
   function applyLive(lv) {
     if (!lv || !lv.ok || !lv.bots) return;
@@ -788,10 +857,14 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       if (moved > 0.0015) { b.hop = 0; sfx('hop'); if (moved > 0.004) burst(b.group.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 10); }
       else if (moved < -0.0015 && b.state === 'work') { b.state = 'toBoard'; sfx('oops'); } // va vérifier les cotes
       var hitNow = (now.stops || []).some(function (x) { return x.hit; }), hitBefore = (old.stops || []).some(function (x) { return x.hit; });
+      var crossed = (now.radar || []).filter(function (x) { return x.crossed; }).map(function (x) { return x.ticker + x.label; });
+      var crossedBefore = (old.radar || []).filter(function (x) { return x.crossed; }).map(function (x) { return x.ticker + x.label; });
+      var fresh = crossed.filter(function (k) { return crossedBefore.indexOf(k) < 0; });
+      if (fresh.length && !hitNow) { sfx('trade'); b.hop = 0; say(b, now.reaction, true); toast('Seuil franchi', b.name + ' : ' + now.reaction); }
       if (hitNow && !hitBefore) { sfx('oops'); if (b.state === 'work') b.state = 'toBoard'; say(b, now.reaction, true); toast('Ordre stop !', b.name + ' vend pour limiter la perte'); }
       else if (Math.abs(moved) > 0.0015 || now.reaction !== old.reaction) say(b, now.reaction);
     });
-    liveFeed();
+    liveFeed(); renderTape(lv);
   }
   function pollLive() { fetch('/api/live').then(function (r) { return r.ok ? r.json() : null; }).then(applyLive).catch(function () {}); }
 
@@ -879,7 +952,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       var ph = phaseOf(Math.min(tDay, 0.999));
       if (ph !== lastPhase) { lastPhase = ph; onPhase(ph); }
       bots.forEach(function (b) { updateBot(b, dt, t); });
-      talkTick(dt);
+      talkTick(dt); chatter(dt);
       var n = nightAmount(); scene.background.copy(DAY_SKY).lerp(NIGHT_SKY, n); scene.fog.color.copy(scene.background);
       hemi.intensity = 0.85 - 0.45 * n; sun.intensity = 0.85 - 0.6 * n;
       uiTimer -= dt;
