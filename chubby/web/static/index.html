@@ -335,13 +335,13 @@ td.r, th.r { text-align: right; }
     $('#live-state').textContent = (lv.open ? 'Bourse ouverte · ' : 'Bourse fermée · ') + 'séance du ' + lv.day + ' à ' + lv.as_of;
     $('#live-idx').innerHTML = lv.indexes.map(function (i) { return '<span>' + esc(i.name) + ' <b class="' + cls(i.change) + '">' + pct(i.change, 2) + '</b></span>'; }).join('');
     $('#live-list').innerHTML = lv.bots.map(function (e) {
-      var chips = e.movers.map(function (m) { return '<span>' + esc(pretty(m.ticker)) + ' <b class="' + cls(m.change) + '">' + pct(m.change) + '</b></span>'; }).join('') +
+      var chips = e.movers.map(function (m) { return '<span>' + Chubby.link(m.ticker) + ' <b class="' + cls(m.change) + '">' + pct(m.change) + '</b></span>'; }).join('') +
         (e.radar || []).filter(function (x) { return x.crossed || Math.abs(x.distance) < 0.02; }).slice(0, 2).map(function (x) {
           return '<span class="stopchip' + (x.crossed ? ' hit' : '') + '" style="' + (x.crossed ? '' : 'background:rgba(245,165,36,0.15);color:#F5C26B') + '">' +
             esc(x.ticker) + (x.crossed ? ' a franchi ' : ' à ' + Math.abs(x.distance * 100).toFixed(1).replace('.', ',') + ' % de ') + esc(x.label) + '</span>';
         }).join('') +
         (e.stops || []).filter(function (x) { return x.hit || Math.abs(x.distance) < 0.05; }).map(function (x) {
-          return '<span class="stopchip' + (x.hit ? ' hit' : '') + '">' + (x.hit ? 'Stop touché · ' : 'Stop · ') + esc(pretty(x.ticker)) + ' ' + x.level.toFixed(2).replace('.', ',') + (x.hit ? '' : ' (à ' + Math.abs(x.distance * 100).toFixed(1).replace('.', ',') + ' %)') + '</span>';
+          return '<span class="stopchip' + (x.hit ? ' hit' : '') + '">' + (x.hit ? 'Stop touché · ' : 'Stop · ') + Chubby.link(x.ticker) + ' ' + x.level.toFixed(2).replace('.', ',') + (x.hit ? '' : ' (à ' + Math.abs(x.distance * 100).toFixed(1).replace('.', ',') + ' %)') + '</span>';
         }).join('');
       return '<li>' + avatar(e.id, e.mood, 52) + '<div class="txt"><div class="top"><b>' + esc(e.name) + '</b><span class="' + cls(e.change) + '">' + pct(e.change, 2) + '</span>' +
         '<span class="' + cls(e.change_cad) + '">' + (e.change_cad >= 0 ? '+' : '−') + money(Math.abs(e.change_cad)) + '</span>' + (e.settled ? '<span class="tag">séance jouée</span>' : '') + '</div>' +
@@ -404,12 +404,12 @@ td.r, th.r { text-align: right; }
       var pos = d.positions.length ? '<div class="tbl"><table><thead><tr><th>Titre</th><th class="r">Qté</th><th class="r">Coût</th><th class="r">Valeur</th><th class="r">Gain</th><th>Depuis</th></tr></thead><tbody>' +
         d.positions.map(function (p) {
           var gain = p.value_cad != null && p.cost_cad ? (p.value_cad - p.cost_cad) / Math.abs(p.cost_cad) : null; // juste aussi pour une option vendue
-          return '<tr><td>' + esc(pretty(p.ticker)) + (p.real_price ? ' <span class="tag" title="Évaluée au vrai prix de la chaîne d’options">prix réel</span>' : '') + '</td><td class="r">' + p.qty + '</td><td class="r">' + money(p.cost_cad) + '</td><td class="r">' + (p.value_cad != null ? money(p.value_cad) : '—') +
+          return '<tr><td>' + Chubby.link(p.ticker) + (p.real_price ? ' <span class="tag" title="Évaluée au vrai prix de la chaîne d’options">prix réel</span>' : '') + '</td><td class="r">' + p.qty + '</td><td class="r">' + money(p.cost_cad) + '</td><td class="r">' + (p.value_cad != null ? money(p.value_cad) : '—') +
             '</td><td class="r ' + (gain != null ? cls(gain) : '') + '">' + (gain != null ? pct(gain) : '—') + '</td><td>' + esc(p.opened_on) + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<p class="empty">Tout en cash.</p>';
       var trades = d.trades.length ? '<div class="tbl"><table><thead><tr><th>Jour</th><th>Ordre</th><th>Titre</th><th class="r">Qté</th><th class="r">Prix</th><th class="r">Montant</th><th class="r">Frais</th></tr></thead><tbody>' +
         d.trades.map(function (t) {
-          return '<tr><td>' + esc(t.day) + '</td><td class="' + (t.side === 'buy' ? 'up' : 'down') + '">' + (t.side === 'buy' ? 'Achat' : t.side === 'expire' ? 'Échéance' : 'Vente') + '</td><td>' + esc(pretty(t.ticker)) + '</td><td class="r">' + t.qty +
+          return '<tr><td>' + esc(t.day) + '</td><td class="' + (t.side === 'buy' ? 'up' : 'down') + '">' + (t.side === 'buy' ? 'Achat' : t.side === 'expire' ? 'Échéance' : 'Vente') + '</td><td>' + Chubby.link(t.ticker) + '</td><td class="r">' + t.qty +
             '</td><td class="r">' + t.price.toFixed(2) + ' ' + esc(t.currency) + '</td><td class="r">' + money(t.value_cad) + '</td><td class="r">' + money(t.fees_cad) + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<p class="empty">Aucun trade.</p>';
       var journal = d.journal.length ? '<ul class="journal">' + d.journal.map(function (j) { return '<li><time>' + esc(j.day) + '</time>« ' + esc(j.text) + ' »</li>'; }).join('') + '</ul>' : '<p class="empty">Journal vide.</p>';

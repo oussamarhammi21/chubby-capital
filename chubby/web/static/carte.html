@@ -565,15 +565,15 @@ body.relief .hint { display: block; } body.relief.nopanels .hint { display: none
     h += '<h3>Ce qu\'il surveille</h3>';
     if (gauges.length) h += gauges.slice(0, 5).map(function (g) {
       var fill = g.crossed ? 100 : Math.max(4, 100 * (1 - Math.min(1, Math.abs(g.d) / 0.15))), col = g.crossed || g.stop && fill > 70 ? 'var(--down)' : fill > 70 ? 'var(--warn)' : 'var(--accent)';
-      return '<div class="watch"><span class="tk">' + esc(C.pretty(g.t)) + '</span><div class="gauge"><i style="width:' + fill.toFixed(0) + '%;background:' + col + '"></i></div><small>' +
+      return '<div class="watch"><span class="tk">' + C.link(g.t) + '</span><div class="gauge"><i style="width:' + fill.toFixed(0) + '%;background:' + col + '"></i></div><small>' +
         esc(g.txt) + ' · ' + (g.crossed ? '<b style="color:var(--down)">franchi</b>' : 'à ' + pct(Math.abs(g.d)).replace('+', '')) + '</small></div>';
     }).join('');
-    else h += '<div class="note">' + (f && f.watchlist && f.watchlist.items.length ? f.watchlist.items.slice(0, 4).map(function (w) { return '<b>' + esc(C.pretty(w.ticker)) + '</b> : ' + esc(w.why); }).join('<br>') : 'Aucun seuil proche : rien à décider aujourd\'hui.') + '</div>';
+    else h += '<div class="note">' + (f && f.watchlist && f.watchlist.items.length ? f.watchlist.items.slice(0, 4).map(function (w) { return '<b>' + C.link(w.ticker) + '</b> : ' + esc(w.why); }).join('<br>') : 'Aucun seuil proche : rien à décider aujourd\'hui.') + '</div>';
     // Sa journée : ses ordres, ce qu'il a fait à l'ouverture, ce qu'il pense maintenant, ce qu'il fera ce soir.
     h += '<h3>Sa journée</h3><div class="day">';
     var t0 = f && f.timeline && f.timeline[0];
     if (t0) (t0.open || []).filter(function (e) { return e.kind === 'trade'; }).slice(0, 3).forEach(function (e) {
-      h += '<small>' + esc(t0.day.slice(5)) + ' 9 h 30</small><div><span class="tag ' + (e.side === 'buy' ? 't-buy">ACHAT' : 't-sell">VENTE') + '</span>' + esc(C.pretty(e.ticker)) + ' · ' + e.qty + ' × ' + frNum(e.price) + ' $</div>';
+      h += '<small>' + esc(t0.day.slice(5)) + ' 9 h 30</small><div><span class="tag ' + (e.side === 'buy' ? 't-buy">ACHAT' : 't-sell">VENTE') + '</span>' + C.link(e.ticker) + ' · ' + e.qty + ' × ' + frNum(e.price) + ' $</div>';
     });
     if (lb) (lb.thoughts || []).slice(0, 3).forEach(function (t) { var k = kindOf(t); h += '<small>' + esc(live.as_of.replace(':', ' h ')) + '</small><div><span class="tag ' + k[2] + '">' + k[1] + '</span>' + esc(t) + '</div>'; });
     if (f && f.pending && f.pending.orders && f.pending.orders.length) h += '<small>Demain</small><div>' + f.pending.orders.slice(0, 3).map(function (o) { return esc(o.action.replace(/^acheter/, 'achète').replace(/^vendre/, 'vend').replace(' (ordre direct)', '') + ' ' + C.pretty(o.ticker) + (o.amount_cad ? ' (~' + C.money(o.amount_cad) + ')' : '')); }).join(', ') + '</div>';

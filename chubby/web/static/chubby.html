@@ -314,7 +314,7 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
       r.positions.map(function (p) {
         var day = today ? today[p.ticker] : p.day_change;
         var stop = p.stop ? ' · stop ' + (p.stop.direction === 'below' ? 'sous ' : 'au-dessus de ') + num(p.stop.level) : '';
-        return '<tr><td><b>' + esc(pretty(p.ticker)) + '</b><br><span class="muted small">depuis le ' + esc(p.opened_on) + stop + '</span></td>' +
+        return '<tr><td><b>' + Chubby.link(p.ticker) + '</b><br><span class="muted small">depuis le ' + esc(p.opened_on) + stop + '</span></td>' +
           '<td class="r">' + (p.weight != null ? num(p.weight * 100, 1) + ' %' : '—') + '</td><td class="r">' + p.qty + '</td><td class="r">' + num(p.unit_cost) + ' <span class="muted small">' + p.currency + '</span></td>' +
           '<td class="r">' + (p.value_cad != null ? money(p.value_cad) : '—') + '</td>' +
           '<td class="r ' + (day != null ? cls(day) : '') + '">' + (day != null ? pct(day, 2) : '—') + '</td>' +
@@ -334,7 +334,7 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
         var dist = x ? (x.crossed ? ' — franchi en ce moment !' : ' — à ' + num(Math.abs(x.distance) * 100, 1) + ' %') : '';
         seuil = '<small style="color:' + (x && x.crossed ? 'var(--down)' : '#F5C26B') + '">' + esc(t.label) + ' : ' + num(t.level) + ' → ' + esc(t.then) + dist + '</small>';
       }
-      return '<li><div><b>' + esc(pretty(i.ticker)) + (i.held ? ' <span class="pill info">détenu</span>' : '') + '</b><small>' + esc(i.why) + '</small>' + seuil + '</div><div class="px">' + (last != null ? num(last) : '—') +
+      return '<li><div><b>' + Chubby.link(i.ticker) + (i.held ? ' <span class="pill info">détenu</span>' : '') + '</b><small>' + esc(i.why) + '</small>' + seuil + '</div><div class="px">' + (last != null ? num(last) : '—') +
         '<br><span class="' + (ch != null ? cls(ch) : '') + '">' + (ch != null ? pct(ch, 2) : '') + '</span></div></li>';
     }).join('');
   }
@@ -345,7 +345,7 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
     r.activity.slice(0, 20).forEach(function (a) {
       if (a.day !== last) { html += '<div class="act-day">' + esc(a.day) + '</div>'; last = a.day; }
       var buy = a.side === 'buy';
-      html += '<details class="act"><summary><div><b>' + esc(pretty(a.ticker)) + '</b><small>' + esc(a.kind) + '</small></div><span class="amt">' +
+      html += '<details class="act"><summary><div><b>' + Chubby.link(a.ticker) + '</b><small>' + esc(a.kind) + '</small></div><span class="amt">' +
         (buy ? '−' : '+') + money(a.value_cad) + '</span></summary><dl>' +
         '<dt>Statut</dt><dd>Exécuté</dd><dt>Décidé</dt><dd>' + esc(a.submitted) + '</dd><dt>Exécuté</dt><dd>' + esc(a.filled) + '</dd>' +
         '<dt>Quantité</dt><dd>' + a.qty + (String(a.ticker).indexOf('OPT:') === 0 ? ' contrat(s) de 100' : '') + '</dd>' +
@@ -366,7 +366,7 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
     $('#pending').innerHTML = '<ul class="pend">' + p.orders.map(function (o) {
       var buy = o.action.indexOf('acheter') === 0;
       var amount = o.qty != null ? o.qty + (String(o.ticker).indexOf('OPT:') === 0 ? ' contrat(s)' : ' part(s)') : '~' + money(o.amount_cad);
-      return '<li><div><b>' + esc(pretty(o.ticker)) + '</b><small>' + (o.weight_target != null ? 'poids ' + Math.round(o.weight_now * 100) + ' % → ' + Math.round(o.weight_target * 100) + ' %' : 'ordre direct') + '</small></div>' +
+      return '<li><div><b>' + Chubby.link(o.ticker) + '</b><small>' + (o.weight_target != null ? 'poids ' + Math.round(o.weight_now * 100) + ' % → ' + Math.round(o.weight_target * 100) + ' %' : 'ordre direct') + '</small></div>' +
         '<div class="px"><span class="pill ' + (buy ? 'buy' : 'sell') + '">' + esc(o.action.split(' ')[0]) + '</span><br>' + amount + '</div></li>';
     }).join('') + '</ul>';
   }
@@ -374,11 +374,11 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
   function renderTrips(r) {
     var s = r.stats;
     if (!r.round_trips.length) { $('#trips').innerHTML = '<p class="empty">Aucun aller-retour terminé pour l’instant' + (r.open_trips.length ? ' : ses positions sont toujours ouvertes.' : '.') + '</p>'; return; }
-    var head = s.best ? '<p style="margin-bottom:10px;font-size:14px">Meilleur : <b>' + esc(pretty(s.best.ticker)) + '</b> <span class="up">' + signedMoney(s.best.pnl_cad) + '</span> · pire : <b>' +
-      esc(pretty(s.worst.ticker)) + '</b> <span class="' + cls(s.worst.pnl_cad) + '">' + signedMoney(s.worst.pnl_cad) + '</span></p>' : '';
+    var head = s.best ? '<p style="margin-bottom:10px;font-size:14px">Meilleur : <b>' + Chubby.link(s.best.ticker) + '</b> <span class="up">' + signedMoney(s.best.pnl_cad) + '</span> · pire : <b>' +
+      Chubby.link(s.worst.ticker) + '</b> <span class="' + cls(s.worst.pnl_cad) + '">' + signedMoney(s.worst.pnl_cad) + '</span></p>' : '';
     $('#trips').innerHTML = head + '<div class="tbl" style="max-height:420px;overflow:auto"><table><thead><tr><th>Titre</th><th>Période</th><th class="r">Gain</th><th class="r">%</th></tr></thead><tbody>' +
       r.round_trips.map(function (t) {
-        return '<tr><td>' + esc(pretty(t.ticker)) + '</td><td>' + esc(t.start) + ' · ' + t.days + ' j</td><td class="r ' + cls(t.pnl_cad) + '">' +
+        return '<tr><td>' + Chubby.link(t.ticker) + '</td><td>' + esc(t.start) + ' · ' + t.days + ' j</td><td class="r ' + cls(t.pnl_cad) + '">' +
           signedMoney(t.pnl_cad) + '</td><td class="r ' + cls(t['return']) + '">' + pct(t['return']) + '</td></tr>';
       }).join('') + '</tbody></table></div>';
   }
@@ -402,9 +402,9 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
     switch (e.kind) {
       case 'trade':
         var verb = { buy: 'Achat', sell: 'Vente', expire: 'Échéance', assign: 'Exercée' }[e.side] || e.side, k = e.side === 'buy' ? 'buy' : 'sell';
-        return '<span class="pill ' + k + '">' + verb + '</span>' + e.qty + ' × ' + esc(pretty(e.ticker)) + ' à ' + num(e.price) + cur(e) + ' = ' + money(e.value_cad) + (e.fees_cad ? ' <span class="muted">(frais ' + money(e.fees_cad) + ')</span>' : '');
+        return '<span class="pill ' + k + '">' + verb + '</span>' + e.qty + ' × ' + Chubby.link(e.ticker) + ' à ' + num(e.price) + cur(e) + ' = ' + money(e.value_cad) + (e.fees_cad ? ' <span class="muted">(frais ' + money(e.fees_cad) + ')</span>' : '');
       case 'stop':
-        return '<span class="pill stop">Stop</span>' + esc(pretty(e.ticker)) + ' : ' + (e.direction === 'below' ? 'vendu' : 'racheté') + ' à ' + num(e.price) + ' (seuil ' + num(e.level) + ') = ' + money(e.value_cad);
+        return '<span class="pill stop">Stop</span>' + Chubby.link(e.ticker) + ' : ' + (e.direction === 'below' ? 'vendu' : 'racheté') + ' à ' + num(e.price) + ' (seuil ' + num(e.level) + ') = ' + money(e.value_cad);
       case 'dividend': return '<span class="pill div">Dividende</span>' + esc(e.ticker) + ' : +' + money(e.amount_cad);
       case 'fee': return '<span class="pill info">Frais</span>' + esc(e.reason) + ' : −' + money(e.amount_cad);
       case 'rank_change': return '<span class="pill info">Classement</span>' + (e.new < e.old ? 'monte' : 'descend') + ' de la ' + e.old + 'e à la ' + e.new + 'e place';

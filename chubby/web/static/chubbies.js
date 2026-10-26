@@ -62,5 +62,17 @@
       (isAI(id) ? '<path d="M60 17 L60 5" stroke="#8E7BEF" stroke-width="3" stroke-linecap="round"/><circle cx="60" cy="5" r="4.5" fill="#B8A9FF"/>' : '') +
       '<ellipse cx="42" cy="34" rx="12" ry="6.5" fill="#fff" opacity="0.55" transform="rotate(-25 42 34)"/>' + face + '</svg>';
   }
-  window.Chubby = { LOOK: LOOK, look: look, avatar: avatar, baseId: baseId, isAI: isAI, pretty: pretty, esc: esc, money: money, pct: pct, cls: cls };
+  // Un titre cliquable : ouvre sa page Yahoo Finance (cours et graphique) dans un nouvel onglet. Pour une option,
+  // c'est la page du sous-jacent.
+  function link(t, inner) {
+    var p = String(t).split(':'), sym = p[0] === 'OPT' ? p[1] : String(t);
+    return '<a class="tk-link" href="https://finance.yahoo.com/quote/' + encodeURIComponent(sym) + '" target="_blank" rel="noopener" title="Voir le graphique de ' +
+      esc(sym) + '" onclick="event.stopPropagation()">' + (inner == null ? esc(pretty(t)) : inner) + '</a>';
+  }
+  if (document.head && !document.getElementById('tk-link-style')) {
+    var st = document.createElement('style'); st.id = 'tk-link-style';
+    st.textContent = '.tk-link{color:inherit;text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}.tk-link:hover{color:#6C5CE7;text-decoration-style:solid}';
+    document.head.appendChild(st);
+  }
+  window.Chubby = { link: link, LOOK: LOOK, look: look, avatar: avatar, baseId: baseId, isAI: isAI, pretty: pretty, esc: esc, money: money, pct: pct, cls: cls };
 })();
