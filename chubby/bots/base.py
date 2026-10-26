@@ -16,6 +16,21 @@ class Decision:
     notes: list[str] = field(default_factory=list)  # ce que le bot écrit dans son journal
 
 
+@dataclass(frozen=True)
+class Param:
+    """Un réglage qu'on peut ajuster (coach IA ou humain) sans changer la personnalité du bot."""
+
+    default: float
+    low: float
+    high: float
+    help: str
+    integer: bool = False
+
+    def clamp(self, value: float) -> float:
+        v = max(self.low, min(self.high, float(value)))
+        return float(round(v)) if self.integer else v
+
+
 @dataclass
 class BotContext:
     day: pd.Timestamp
@@ -24,6 +39,7 @@ class BotContext:
     account: Account
     aggressiveness: float  # réglé par le coaching, 1.0 = neutre
     day_index: int  # nombre de séances depuis le début de l'arène
+    params: dict[str, float] = field(default_factory=dict)  # réglages actuels du bot
 
     @property
     def equity(self) -> float:
@@ -56,17 +72,40 @@ class BotContext:
         prev = self.data.trading_days(end=self.day)
         return len(prev) < 2 or prev[-2].month != self.day.month
 
+    def held_sessions(self, ticker: str) -> int:
+        """Nombre de séances depuis l'achat d'une position."""
+        return len(self.data.trading_days(self.account.positions[ticker].opened_on, self.day)) - 1
+
 
 class Bot(ABC):
     id: str
     name: str
     personality: str
     universe: list[str]
+    signals: list[str] = []  # tickers seulement observés (jamais achetés)
+    params: dict[str, Param] = {}
+    ai: bool = False  # vrai pour les versions coachées par Claude
 
     @abstractmethod
     def decide(self, ctx: BotContext) -> Decision:
         ...
 
+    def p(self, ctx: BotContext, name: str) -> float:
+        """Valeur actuelle d'un réglage, bornée."""
+        spec = self.params[name]
+        return spec.clamp(ctx.params.get(name, spec.default))
+
+    def defaults(self) -> dict[str, float]:
+        return {k: v.default for k, v in self.params.items()}
+
     @staticmethod
     def equal_weights(tickers: list[str], invested: float) -> dict[str, float]:
         return {t: invested / len(tickers) for t in tickers} if tickers else {}
+
+
+def ai_version(cls: type[Bot]) -> type[Bot]:
+    """Même personnalité et mêmes règles, mais Claude ajuste ses réglages chaque semaine."""
+    return type(cls.__name__ + "IA", (cls,), {
+        "id": cls.id + "-ia", "name": cls.name + " IA",
+        "personality": cls.personality + " · coaché par Claude", "ai": True, "__doc__": cls.__doc__,
+    })

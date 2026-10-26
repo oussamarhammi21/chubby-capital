@@ -13,7 +13,7 @@ from ..store import Store
 from . import api
 
 STATIC = Path(__file__).parent / "static"
-PAGES = {"/": "index.html", "/ile": "ile.html"}
+PAGES = {"/": "index.html", "/ile": "ile.html", "/conseiller": "conseiller.html"}
 TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8",
          ".png": "image/png", ".svg": "image/svg+xml"}
 log = logging.getLogger(__name__)
@@ -52,9 +52,13 @@ def make_handler(db_path: str, cfg: ArenaConfig):
                     body = json.loads(self.rfile.read(length) or b"{}")
                     result = coach(Store(db_path), parts[3], str(body.get("conseil", "")))
                     return self._json(result) if result else self._json({"erreur": "Chubby ou conseil inconnu"}, 400)
+                if path == "/api/conseil":
+                    length = min(int(self.headers.get("Content-Length") or 0), 2_000_000)
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                    return self._json(api.advice(Store(db_path), cfg, body.get("profil") or {}, str(body.get("csv") or "")))
                 return self._json({"erreur": "page introuvable"}, 404)
-            except (ValueError, json.JSONDecodeError):
-                return self._json({"erreur": "requête invalide"}, 400)
+            except ValueError as e:  # inclut un JSON ou un CSV illisible
+                return self._json({"erreur": str(e) or "requête invalide"}, 400)
             except Exception:
                 log.exception("Erreur sur %s", self.path)
                 return self._json({"erreur": "erreur du serveur"}, 500)

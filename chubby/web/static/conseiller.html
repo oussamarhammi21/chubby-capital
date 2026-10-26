@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chubby Capital · conseiller</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap">
+<style>
+:root {
+  --bg: #0D0E1A; --surface: #171829; --surface-2: #1F2038; --line: #2A2C44;
+  --ink: #F2F1FA; --muted: #A9A8C0; --up: #5BD69A; --down: #FF9A8A; --accent: #8E7BEF;
+  --display: 'Fredoka', 'Nunito', system-ui, sans-serif; --body: 'Nunito', system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; display: flex; flex-direction: column; gap: 24px; }
+header { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; }
+header b { font: 700 24px var(--display); display: block; }
+header span { color: var(--muted); font-weight: 700; font-size: 14px; }
+nav { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 800 14px var(--body); cursor: pointer; display: inline-flex; align-items: center; text-decoration: none; }
+.btn.primary { background: #5B47C2; border-color: #5B47C2; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid #C9B8FF; outline-offset: 2px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 28px; padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+h1 { margin: 0; font: 700 34px/1.1 var(--display); text-wrap: balance; }
+h2 { margin: 0; font: 600 22px var(--display); }
+p { margin: 0; line-height: 1.5; }
+.muted { color: var(--muted); }
+fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+legend { font-weight: 800; margin-bottom: 8px; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choices label { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 700; cursor: pointer; }
+.choices input { accent-color: var(--accent); }
+.choices label:has(input:checked) { border-color: var(--accent); background: rgba(142,123,239,0.18); }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+input[type=range] { width: 100%; accent-color: var(--accent); min-height: 44px; }
+textarea { width: 100%; min-height: 110px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: 13px/1.4 ui-monospace, monospace; padding: 10px; }
+input[type=file] { color: var(--muted); font-weight: 700; }
+.matches { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.match { background: var(--surface-2); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 6px; border: 2px solid transparent; }
+.match.best { border-color: var(--accent); }
+.match b { font: 700 19px var(--display); }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 6px; }
+.tag { font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,0.08); align-self: flex-start; }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.r { text-align: right; }
+.up { color: var(--up); } .down { color: var(--down); }
+.notes { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.err { background: #3A1F28; color: #FFD0C8; border-radius: 16px; padding: 14px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><b>Chubby Capital</b><span>Mode conseiller</span></div>
+    <nav><a class="btn" href="/">Tableau de bord</a><a class="btn" href="/ile">Île 3D</a></nav>
+  </header>
+
+  <form class="card" id="form">
+    <h1>Quel Chubby pour ton compte ?</h1>
+    <p class="muted">Décris l'investisseur que tu veux être, puis ajoute l'export de tes positions Wealthsimple
+      (fichier CSV). Le fichier est lu une seule fois pour la comparaison : il n'est pas enregistré.</p>
+    <div class="grid">
+      <fieldset>
+        <legend>Ton goût du risque : <span id="risk-label">équilibré</span></legend>
+        <input type="range" id="risk" min="1" max="5" value="3" aria-describedby="risk-label">
+        <span class="muted" style="display:flex;justify-content:space-between;font-size:13px;font-weight:700"><span>Très prudent</span><span>Très audacieux</span></span>
+      </fieldset>
+      <fieldset>
+        <legend>Ce que tu cherches</legend>
+        <div class="choices">
+          <label><input type="radio" name="style" value="revenu"> Des revenus (dividendes)</label>
+          <label><input type="radio" name="style" value="croissance"> De la croissance</label>
+          <label><input type="radio" name="style" value="equilibre" checked> Un peu des deux</label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Quand auras-tu besoin de cet argent ?</legend>
+        <div class="choices">
+          <label><input type="radio" name="horizon" value="court"> Moins de 2 ans</label>
+          <label><input type="radio" name="horizon" value="moyen"> 2 à 5 ans</label>
+          <label><input type="radio" name="horizon" value="long" checked> Plus de 5 ans</label>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>Ton compte</legend>
+        <div class="choices"><label><input type="checkbox" id="usd"> J'ai le forfait avec compte en USD</label></div>
+      </fieldset>
+    </div>
+    <fieldset>
+      <legend>Tes positions (facultatif)</legend>
+      <label for="file" class="muted">Export CSV de Wealthsimple (Activité ou Positions → Exporter)</label>
+      <input type="file" id="file" accept=".csv,text/csv">
+      <label for="csv" class="muted">… ou colle-le ici. Un simple « Symbol,Quantity,Market Value » fonctionne aussi.</label>
+      <textarea id="csv" placeholder="Symbol,Quantity,Market Value,Market Value Currency&#10;XEQT.TO,120,4200,CAD&#10;AAPL,5,1100,USD"></textarea>
+    </fieldset>
+    <button class="btn primary" type="submit" style="align-self:flex-start">Trouver mon Chubby</button>
+  </form>
+
+  <div id="error" class="err" hidden></div>
+
+  <section class="card" id="result" hidden aria-live="polite">
+    <h2>Les Chubbies qui te ressemblent</h2>
+    <div class="matches" id="matches"></div>
+    <div id="advice"></div>
+    <ul class="notes" id="notes"></ul>
+    <p class="muted" style="font-size:13px">Outil d'aide à la décision personnelle, pas un conseil financier réglementé.
+      Les Chubbies tradent de l'argent fictif ; c'est toi qui décides et qui passes les ordres dans Wealthsimple.</p>
+  </section>
+</div>
+<script>
+(function () {
+  'use strict';
+  var COLORS = { tortue: '#B5D6EE', flan: '#FBE29A', dumpling: '#B4E0DD', mochi: '#DCC8E6', muffin: '#F7C9AE', jalapeno: '#F2A39A', matcha: '#C8E6A8' };
+  var RISK = ['', 'très prudent', 'prudent', 'équilibré', 'audacieux', 'très audacieux'];
+  var $ = function (s) { return document.querySelector(s); };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function money(v) { return Math.round(v).toLocaleString('fr-CA') + ' $'; }
+  function pct(v) { return (v >= 0 ? '+' : '−') + Math.abs(v * 100).toFixed(1).replace('.', ',') + ' %'; }
+  function share(v) { return Math.round(v * 100) + ' %'; }
+  function color(id) { return COLORS[String(id).replace(/-ia$/, '')] || '#C9C6D9'; }
+  function pretty(t) { var p = String(t).split(':'); return p[0] === 'OPT' ? (p[2] === 'C' ? 'call ' : 'put ') + p[1] + ' ' + p[3] + ' (' + p[4] + ')' : t; }
+
+  $('#risk').addEventListener('input', function () { $('#risk-label').textContent = RISK[this.value]; });
+  $('#file').addEventListener('change', function () {
+    var f = this.files[0]; if (!f) return;
+    var reader = new FileReader();
+    reader.onload = function () { $('#csv').value = reader.result; };
+    reader.readAsText(f);
+  });
+
+  $('#form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var body = { profil: {
+      risk: +$('#risk').value, style: document.querySelector('input[name=style]:checked').value,
+      horizon: document.querySelector('input[name=horizon]:checked').value, usd_account: $('#usd').checked
+    }, csv: $('#csv').value };
+    fetch('/api/conseil', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) throw new Error(d.erreur || ('Le serveur a répondu ' + r.status)); return d; }); })
+      .then(render)
+      .catch(function (err) { var el = $('#error'); el.hidden = false; el.textContent = 'Analyse impossible : ' + err.message; });
+  });
+
+  function render(d) {
+    $('#error').hidden = true; $('#result').hidden = false;
+    var best = d.advisor ? d.advisor.id : null;
+    $('#matches').innerHTML = d.matches.length ? d.matches.map(function (m) {
+      return '<div class="match' + (m.id === best ? ' best' : '') + '"><b><span class="dot" style="background:' + color(m.id) + '"></span>' + esc(m.name) + '</b>' +
+        '<span class="muted">' + esc(m.personality) + '</span>' +
+        '<span>Affinité ' + m.fit + ' / 100 · score ' + m.score + '</span>' +
+        '<span>Saison <span class="' + (m['return'] >= 0 ? 'up' : 'down') + '">' + pct(m['return']) + '</span> · pire baisse ' + pct(m.max_drawdown) + '</span>' +
+        '<span class="tag">' + (m.certified ? 'Certifié' : 'En observation · ' + m.sessions + ' séances') + '</span></div>';
+    }).join('') : '<p class="muted">Aucun Chubby ne correspond encore à ce profil dans cette arène.</p>';
+
+    var adv = $('#advice'); adv.innerHTML = '';
+    if (d.advisor && d.holdings.length) {
+      var rows = d.rows.filter(function (r) { return r.mine > 0 || r.bot > 0; });
+      adv.innerHTML = '<h2 style="margin-bottom:8px">Ton portefeuille (' + money(d.total_cad) + ') comparé à ' + esc(d.advisor.name) + '</h2>' +
+        '<p class="muted" style="margin-bottom:10px">Pour lui ressembler. ' + esc(d.advisor.name) + ' garde aussi ' + share(Math.max(0, d.bot_cash || 0)) + ' en cash.</p>' +
+        '<div class="tbl"><table><thead><tr><th>Titre</th><th class="r">Toi</th><th class="r">' + esc(d.advisor.name) + '</th><th class="r">Écart</th><th>Idée</th></tr></thead><tbody>' +
+        rows.map(function (r) {
+          return '<tr><td>' + esc(pretty(r.symbol)) + '</td><td class="r">' + share(r.mine) + '</td><td class="r">' + share(r.bot) + '</td><td class="r ' + (r.gap_cad >= 0 ? 'up' : 'down') + '">' +
+            (r.gap_cad >= 0 ? '+' : '−') + money(Math.abs(r.gap_cad)) + '</td><td>' + esc(r.action[0].toUpperCase() + r.action.slice(1)) + '</td></tr>';
+        }).join('') + '</tbody></table></div>';
+    } else if (d.advisor) {
+      adv.innerHTML = '<p class="muted">Ajoute l’export de tes positions pour voir la comparaison avec ' + esc(d.advisor.name) + '.</p>';
+    }
+    var notes = d.notes.slice();
+    if (d.skipped && d.skipped.length) notes.push('Lignes ignorées faute de valeur : ' + d.skipped.join(', ') + '.');
+    $('#notes').innerHTML = notes.map(function (n) { return '<li>' + esc(n) + '</li>'; }).join('');
+  }
+})();
+</script>
+</body>
+</html>

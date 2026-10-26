@@ -10,6 +10,7 @@ import pandas as pd
 from .bots import Bot, BotContext
 from .broker import PaperBroker
 from .config import ArenaConfig
+from .options import OptionData
 from .scoring import metrics, score
 from .store import Store
 
@@ -20,11 +21,12 @@ PODIUM_XP = {0: 30, 1: 20, 2: 10}
 
 class Arena:
     def __init__(self, store: Store, data, bots: list[Bot], cfg: ArenaConfig | None = None):
-        self.store, self.data, self.bots = store, data, bots
+        self.store, self.bots = store, bots
+        self.data = OptionData(data) if data is not None and not isinstance(data, OptionData) else data
         self.cfg = cfg or ArenaConfig()
-        self.broker = PaperBroker(self.cfg, data)
+        self.broker = PaperBroker(self.cfg, self.data)
         for bot in bots:
-            store.ensure_bot(bot, self.cfg.starting_cash)
+            store.ensure_bot(bot, self.cfg.starting_cash, bot.defaults())
         store.commit()
 
     @property
@@ -46,6 +48,7 @@ class Arena:
         for bot in self.bots:
             self._play(bot, day, day_index)
         self._rank(day)
+        self.store.set_meta("usdcad", str(self.data.usdcad(day)))  # sert au mode conseiller
         self.store.set_meta("last_day", str(day.date()))
         self.store.set_meta("day_index", str(day_index + 1))
         self.store.commit()
@@ -58,6 +61,10 @@ class Arena:
                 self.store.add_trade(bot.id, day, f)
                 self.store.event(day, bot.id, "trade", side=f.side, ticker=f.ticker, qty=f.qty,
                                  value_cad=round(f.value_cad, 2))
+        for f in self.broker.settle_expired(acct, day):
+            self.store.add_trade(bot.id, day, f)
+            self.store.event(day, bot.id, "trade", side=f.side, ticker=f.ticker, qty=f.qty,
+                             value_cad=round(f.value_cad, 2))
         for ticker, amount in self.broker.credit_dividends(acct, day):
             self.store.event(day, bot.id, "dividend", ticker=ticker, amount_cad=round(amount, 2))
         if self.cfg.monthly_fee and self._first_day_of_month(day):
@@ -67,7 +74,8 @@ class Arena:
                                 self.broker.value_of(acct, day))
 
         row = self.store.bot_row(bot.id)
-        ctx = BotContext(day, self.data, self.broker, acct, row["aggressiveness"], day_index)
+        ctx = BotContext(day, self.data, self.broker, acct, row["aggressiveness"], day_index,
+                         self.store.get_params(bot.id))
         try:
             decision = bot.decide(ctx)
         except Exception:  # un bot qui plante ne doit pas arrêter l'arène

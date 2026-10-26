@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 
+from ..bots import bot_class
 from ..config import ArenaConfig
 from ..scoring import metrics, score
 from ..store import Store
@@ -71,7 +72,12 @@ def bot_detail(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
                   "value_cad": values.get(r["ticker"]), "opened_on": r["opened_on"]}
                  for r in db.execute("SELECT * FROM positions WHERE bot_id = ? ORDER BY ticker", (bot_id,))]
     eq = store.equity_series(bot_id)
+    cls = bot_class(bot_id)
+    current = store.get_params(bot_id)
+    params = [{"name": n, "value": current.get(n, spec.default), "help": spec.help, "low": spec.low, "high": spec.high}
+              for n, spec in (cls.params.items() if cls else [])]
     return {
+        "params": params, "ai": bool(cls and cls.ai),
         "id": bot_id, "name": bot["name"], "personality": bot["personality"],
         "xp": bot["xp"], "level": bot["xp"] // 200 + 1, "aggressiveness": bot["aggressiveness"],
         "cash": round(last["cash"], 2) if last else cfg.starting_cash,
@@ -89,8 +95,9 @@ def bot_detail(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
 def replay(store: Store, cfg: ArenaConfig) -> dict:
     """Toute la saison, jour par jour, pour que l'île 3D la rejoue."""
     db = store.db
+    playing = {r["bot_id"] for r in db.execute("SELECT DISTINCT bot_id FROM snapshots")}
     bots = [{"id": b["id"], "name": b["name"], "personality": b["personality"],
-             "aggressiveness": b["aggressiveness"], "xp": b["xp"]} for b in _bots(store)]
+             "aggressiveness": b["aggressiveness"], "xp": b["xp"]} for b in _bots(store) if b["id"] in playing]
     days = [r["day"] for r in db.execute("SELECT DISTINCT day FROM snapshots ORDER BY day")]
     index = {d: i for i, d in enumerate(days)}
     equity = {b["id"]: [None] * len(days) for b in bots}
@@ -103,13 +110,32 @@ def replay(store: Store, cfg: ArenaConfig) -> dict:
             rank[r["bot_id"]][i] = r["rank"]
             scores[r["bot_id"]][i] = r["score"]
     by_day: dict[str, list] = {}
-    for r in db.execute("SELECT * FROM events WHERE kind IN ('trade', 'dividend', 'rank_change', 'coach') ORDER BY id"):
+    for r in db.execute("SELECT * FROM events WHERE kind IN ('trade', 'dividend', 'rank_change', 'coach', 'ai_coach') ORDER BY id"):
         by_day.setdefault(r["day"], []).append({"bot_id": r["bot_id"], "kind": r["kind"], **json.loads(r["payload"] or "{}")})
     journal: dict[str, dict] = {}
     for r in db.execute("SELECT day, bot_id, text FROM journal ORDER BY id"):
         journal.setdefault(r["day"], {})[r["bot_id"]] = r["text"]
     return {"starting_cash": cfg.starting_cash, "bots": bots, "days": days, "equity": equity,
             "rank": rank, "score": scores, "events": by_day, "journal": journal}
+
+
+def advice(store: Store, cfg: ArenaConfig, profile: dict, csv_text: str) -> dict:
+    """Compare ton portefeuille au Chubby qui te ressemble. Le fichier n'est pas conservé, seul le profil l'est."""
+    from ..advisor import advise, parse_holdings
+
+    clean = {"risk": max(1, min(5, int(profile.get("risk", 3)))),
+             "style": profile.get("style") if profile.get("style") in ("revenu", "croissance", "equilibre") else "equilibre",
+             "horizon": profile.get("horizon") if profile.get("horizon") in ("court", "moyen", "long") else "long",
+             "usd_account": bool(profile.get("usd_account"))}
+    store.set_meta("profil", json.dumps(clean))
+    store.commit()
+    usdcad = float(store.get_meta("usdcad") or 1.37)
+    holdings, skipped = parse_holdings(csv_text, usdcad) if csv_text.strip() else ([], [])
+    out = advise(store, cfg, clean, holdings)
+    out["holdings"] = holdings
+    out["skipped"] = skipped
+    out["usdcad"] = usdcad
+    return out
 
 
 def events(store: Store, limit: int = 50) -> list[dict]:

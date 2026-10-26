@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from .config import ArenaConfig, currency_of
+from .options import MULTIPLIER, is_option, parse
 
 
 @dataclass
@@ -49,7 +50,7 @@ class PaperBroker:
         out = {}
         for t, pos in acct.positions.items():
             px = self.data.price(t, day, field)
-            out[t] = pos.qty * (px or 0.0) * self.fx(t, day)
+            out[t] = pos.qty * (px or 0.0) * self.multiplier(t) * self.fx(t, day)
         return out
 
     def equity(self, acct: Account, day, field: str = "Close") -> float:
@@ -61,11 +62,20 @@ class PaperBroker:
 
     # --- Exécution -------------------------------------------------------
 
+    @staticmethod
+    def multiplier(ticker: str) -> int:
+        return MULTIPLIER if is_option(ticker) else 1
+
+    def slippage(self, ticker: str) -> float:
+        return self.cfg.option_slippage if is_option(ticker) else self.cfg.slippage
+
     def _unit_cost(self, ticker: str, px: float, day) -> tuple[float, float]:
-        """Coût CAD d'une action à l'achat, et part de frais incluse."""
+        """Coût CAD d'une action (ou d'un contrat d'option) à l'achat, et part de frais incluse."""
         fx = self.fx(ticker, day)
-        gross = px * (1 + self.cfg.slippage) * fx
+        gross = px * (1 + self.slippage(ticker)) * self.multiplier(ticker) * fx
         fee = gross * self.cfg.trade_fx_fee if currency_of(ticker) == "USD" else 0.0
+        if is_option(ticker):
+            fee += self.cfg.option_fee_per_contract
         return gross + fee, fee
 
     def buy(self, acct: Account, ticker: str, qty: int, day) -> Fill | None:
@@ -83,7 +93,7 @@ class PaperBroker:
             pos.qty += qty
         else:
             acct.positions[ticker] = Position(ticker, qty, cost / qty, str(pd.Timestamp(day).date()))
-        return Fill(ticker, "buy", qty, px * (1 + self.cfg.slippage), currency_of(ticker), self.fx(ticker, day),
+        return Fill(ticker, "buy", qty, px * (1 + self.slippage(ticker)), currency_of(ticker), self.fx(ticker, day),
                     unit_fee * qty + self.cfg.commission, cost)
 
     def sell(self, acct: Account, ticker: str, qty: int, day) -> Fill | None:
@@ -93,14 +103,16 @@ class PaperBroker:
             return None
         qty = min(qty, pos.qty)
         fx = self.fx(ticker, day)
-        gross = qty * px * (1 - self.cfg.slippage) * fx
+        gross = qty * px * (1 - self.slippage(ticker)) * self.multiplier(ticker) * fx
         fee = gross * self.cfg.trade_fx_fee if currency_of(ticker) == "USD" else 0.0
+        if is_option(ticker):
+            fee += self.cfg.option_fee_per_contract * qty
         proceeds = gross - fee - self.cfg.commission
         acct.cash += proceeds
         pos.qty -= qty
         if pos.qty == 0:
             del acct.positions[ticker]
-        return Fill(ticker, "sell", qty, px * (1 - self.cfg.slippage), currency_of(ticker), fx,
+        return Fill(ticker, "sell", qty, px * (1 - self.slippage(ticker)), currency_of(ticker), fx,
                     fee + self.cfg.commission, proceeds)
 
     def rebalance(self, acct: Account, targets: dict[str, float], day) -> list[Fill]:
@@ -117,7 +129,7 @@ class PaperBroker:
                 qty = acct.positions[t].qty
             elif excess > self.cfg.min_trade_cad:
                 px = self.data.price(t, day, "Open") or 0.0
-                qty = math.floor(excess / (px * self.fx(t, day))) if px else 0
+                qty = math.floor(excess / (px * self.multiplier(t) * self.fx(t, day))) if px else 0
             else:
                 continue
             f = self.sell(acct, t, qty, day)
@@ -134,6 +146,25 @@ class PaperBroker:
             f = self.buy(acct, t, math.floor(gap / unit), day)
             if f:
                 fills.append(f)
+        return fills
+
+    def settle_expired(self, acct: Account, day) -> list[Fill]:
+        """Les options arrivées à échéance sont réglées à leur valeur intrinsèque (souvent zéro)."""
+        fills = []
+        for t, pos in list(acct.positions.items()):
+            if not is_option(t):
+                continue
+            underlying, kind, strike, expiry = parse(t)
+            if expiry > pd.Timestamp(day):
+                continue
+            spot = self.data.price(underlying, day) or 0.0
+            intrinsic = max(spot - strike, 0.0) if kind == "C" else max(strike - spot, 0.0)
+            fx = self.fx(t, day)
+            fee = self.cfg.trade_fx_fee if currency_of(t) == "USD" else 0.0
+            proceeds = pos.qty * intrinsic * MULTIPLIER * fx * (1 - fee)
+            acct.cash += proceeds
+            del acct.positions[t]
+            fills.append(Fill(t, "expire", pos.qty, intrinsic, currency_of(t), fx, 0.0, proceeds))
         return fills
 
     def credit_dividends(self, acct: Account, day) -> list[tuple[str, float]]:

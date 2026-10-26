@@ -15,7 +15,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+ia = ["anthropic"]
+dev = ["pytest>=8", "anthropic"]
 
 [project.scripts]
 chubby = "chubby.cli:main"

@@ -3,7 +3,7 @@ from functools import lru_cache
 import pandas as pd
 
 from chubby.arena import Arena
-from chubby.bots import all_bots
+from chubby.bots import ALL_BOTS, all_bots
 from chubby.scoring import Metrics, score
 from chubby.store import Store
 from tests.fakes import fake_market
@@ -22,7 +22,7 @@ def test_full_season_runs_for_every_bot():
     arena, played = run_arena()
     board = arena.leaderboard()
     assert played == 240
-    assert {e["id"] for e in board} == {"tortue", "flan", "dumpling", "mochi", "muffin", "jalapeno"}
+    assert {e["id"] for e in board} == {cls.id for cls in ALL_BOTS}
     for e in board:
         assert e["equity"] > 0
         assert 0 <= e["score"] <= 100
@@ -34,7 +34,7 @@ def test_bots_actually_trade_and_write_journal():
     arena, _ = run_arena()
     db = arena.store.db
     traders = {r["bot_id"] for r in db.execute("SELECT DISTINCT bot_id FROM trades")}
-    assert {"tortue", "flan", "dumpling", "mochi", "jalapeno"} <= traders  # Muffin peut ne trouver aucune aubaine
+    assert {"tortue", "flan", "dumpling", "mochi", "jalapeno", "matcha"} <= traders  # Muffin peut ne trouver aucune aubaine
     assert db.execute("SELECT COUNT(*) AS n FROM journal").fetchone()["n"] > 0
     kinds = {r["kind"] for r in db.execute("SELECT DISTINCT kind FROM events")}
     assert {"trade", "leader"} <= kinds
@@ -93,4 +93,5 @@ def test_mochi_and_jalapeno_do_not_churn():
     arena, _ = run_arena()
     counts = {r["bot_id"]: r["n"] for r in arena.store.db.execute(
         "SELECT bot_id, COUNT(DISTINCT day) AS n FROM trades GROUP BY bot_id")}
-    assert counts["jalapeno"] <= 240 / 7 + 5
+    assert counts["jalapeno"] <= 240 / 3  # un aller-retour sur options dure plusieurs séances
+    assert counts["matcha"] <= 240 / 21 * 2 + 4  # environ un rééquilibrage par mois

@@ -57,7 +57,7 @@ def test_server_serves_page_and_api(tmp_path):
         page = urllib.request.urlopen(base + "/").read().decode()
         assert "Chubby Capital" in page
         data = json.loads(urllib.request.urlopen(base + "/api/overview").read())
-        assert len(data["leaderboard"]) == 6
+        assert len(data["leaderboard"]) == 7
         detail = json.loads(urllib.request.urlopen(base + "/api/bots/flan").read())
         assert detail["name"] == "Flan"
         assert "Chubby Capital" in urllib.request.urlopen(base + "/ile").read().decode()
@@ -72,5 +72,16 @@ def test_server_serves_page_and_api(tmp_path):
         coached = json.loads(urllib.request.urlopen(req).read())
         assert coached["aggressiveness"] < coached["old"]
         assert Store(db).bot_row("jalapeno")["aggressiveness"] == coached["aggressiveness"]
+        body = json.dumps({"profil": {"risk": 2, "style": "revenu"}, "csv": "Symbol,Quantity,Market Value\nXEQT.TO,10,400"}).encode()
+        req = urllib.request.Request(base + "/api/conseil", data=body, headers={"Content-Type": "application/json"}, method="POST")
+        advice = json.loads(urllib.request.urlopen(req).read())
+        assert advice["total_cad"] == 400 and advice["matches"]
+        assert json.loads(Store(db).get_meta("profil"))["style"] == "revenu"  # le profil est gardé, pas le fichier
+        bad = urllib.request.Request(base + "/api/conseil", data=b'{"csv": "rien,ici"}', method="POST")
+        try:
+            urllib.request.urlopen(bad)
+            assert False, "un CSV sans colonne Symbol doit être refusé"
+        except urllib.error.HTTPError as e:
+            assert e.code == 400 and "Symbol" in json.loads(e.read())["erreur"]
     finally:
         server.shutdown()

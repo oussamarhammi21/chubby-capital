@@ -107,6 +107,7 @@ td.r, th.r { text-align: right; }
   <header>
     <div class="brand"><span id="logo"></span><div><b>Chubby Capital</b><span id="season">Chargement…</span></div></div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <a class="btn" href="/conseiller" style="display:inline-flex;align-items:center;text-decoration:none">Conseiller</a>
       <a class="btn" href="/ile" style="display:inline-flex;align-items:center;text-decoration:none;background:#5B47C2;border-color:#5B47C2">Voir l'île 3D</a>
       <span class="pill" id="updated">—</span>
       <button class="btn" id="refresh">Actualiser</button>
@@ -152,7 +153,8 @@ td.r, th.r { text-align: right; }
     dumpling: { base: '#B4E0DD', light: '#E6F8F6', dark: '#6FB9B3', shape: 'bell' },
     mochi:    { base: '#DCC8E6', light: '#F4EAFA', dark: '#A98CC4', shape: 'star' },
     muffin:   { base: '#F7C9AE', light: '#FFEDE2', dark: '#DE9A74', shape: 'tuft' },
-    jalapeno: { base: '#F2A39A', light: '#FFDCD6', dark: '#D9736A', shape: 'arms' }
+    jalapeno: { base: '#F2A39A', light: '#FFDCD6', dark: '#D9736A', shape: 'arms' },
+    matcha:   { base: '#C8E6A8', light: '#EEF8E2', dark: '#93C26E', shape: 'round' }
   };
   var DEFAULT_LOOK = { base: '#C9C6D9', light: '#EEEDF5', dark: '#9C99B0', shape: 'round' };
   var SHAPES = {
@@ -165,7 +167,10 @@ td.r, th.r { text-align: right; }
   };
   var uid = 0;
   var $ = function (s) { return document.querySelector(s); };
-  function look(id) { return LOOK[id] || DEFAULT_LOOK; }
+  function baseId(id) { return String(id).replace(/-ia$/, ''); }
+  function isAI(id) { return /-ia$/.test(String(id)); }
+  function look(id) { return LOOK[baseId(id)] || DEFAULT_LOOK; }
+  function pretty(t) { var p = String(t).split(':'); return p[0] === 'OPT' ? (p[2] === 'C' ? 'call ' : 'put ') + p[1] + ' ' + p[3] + ' (' + p[4] + ')' : t; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function money(v) { return Math.round(v).toLocaleString('fr-CA') + ' $'; }
   function pct(v, digits) { var p = v * 100; return (p >= 0 ? '+' : '−') + Math.abs(p).toFixed(digits == null ? 1 : digits).replace('.', ',') + ' %'; }
@@ -199,7 +204,9 @@ td.r, th.r { text-align: right; }
       '<radialGradient id="' + s + '"><stop offset="0" stop-color="#000" stop-opacity="0.5"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>' +
       '<ellipse cx="60" cy="106" rx="40" ry="7" fill="url(#' + s + ')"/>' + extra +
       '<path d="' + SHAPES[L.shape] + '" fill="url(#' + g + ')"/>' +
-      (id === 'flan' ? '<path d="M24 40 C34 18 86 18 96 40 C80 33 40 33 24 40 Z" fill="#C88A3E"/>' : '') +
+      (baseId(id) === 'flan' ? '<path d="M24 40 C34 18 86 18 96 40 C80 33 40 33 24 40 Z" fill="#C88A3E"/>' : '') +
+      (baseId(id) === 'matcha' ? '<path d="M60 17 C58 6 67 1 74 3 C72 12 65 17 60 17 Z" fill="#5FA35A"/>' : '') +
+      (isAI(id) ? '<path d="M60 17 L60 5" stroke="#8E7BEF" stroke-width="3" stroke-linecap="round"/><circle cx="60" cy="5" r="4.5" fill="#B8A9FF"/>' : '') +
       '<ellipse cx="42" cy="34" rx="12" ry="6.5" fill="#fff" opacity="0.55" transform="rotate(-25 42 34)"/>' + face + '</svg>';
   }
 
@@ -254,7 +261,9 @@ td.r, th.r { text-align: right; }
   }
 
   var KIND = {
-    trade: function (e) { return (e.side === 'buy' ? 'achète ' : 'vend ') + e.qty + ' ' + e.ticker + ' (' + money(e.value_cad) + ')'; },
+    trade: function (e) { return (e.side === 'buy' ? 'achète ' : e.side === 'expire' ? 'voit expirer ' : 'vend ') + e.qty + ' ' + pretty(e.ticker) + ' (' + money(e.value_cad) + ')'; },
+    ai_coach: function (e) { return 'a été coaché par Claude : « ' + e.lesson + ' »'; },
+    coach: function (e) { return 'reçoit ton conseil : « ' + e.advice + ' »'; },
     dividend: function (e) { return 'reçoit ' + money(e.amount_cad) + ' de dividendes (' + e.ticker + ')'; },
     rank_change: function (e) { return (e.new < e.old ? 'monte' : 'descend') + ' de la ' + e.old + 'e à la ' + e.new + 'e place'; },
     fee: function (e) { return 'paie ' + money(e.amount_cad) + ' (' + e.reason + ')'; },
@@ -332,12 +341,12 @@ td.r, th.r { text-align: right; }
       var pos = d.positions.length ? '<div class="tbl"><table><thead><tr><th>Titre</th><th class="r">Qté</th><th class="r">Coût</th><th class="r">Valeur</th><th class="r">Gain</th><th>Depuis</th></tr></thead><tbody>' +
         d.positions.map(function (p) {
           var gain = p.value_cad != null ? p.value_cad / p.cost_cad - 1 : null;
-          return '<tr><td>' + esc(p.ticker) + '</td><td class="r">' + p.qty + '</td><td class="r">' + money(p.cost_cad) + '</td><td class="r">' + (p.value_cad != null ? money(p.value_cad) : '—') +
+          return '<tr><td>' + esc(pretty(p.ticker)) + '</td><td class="r">' + p.qty + '</td><td class="r">' + money(p.cost_cad) + '</td><td class="r">' + (p.value_cad != null ? money(p.value_cad) : '—') +
             '</td><td class="r ' + (gain != null ? cls(gain) : '') + '">' + (gain != null ? pct(gain) : '—') + '</td><td>' + esc(p.opened_on) + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<p class="empty">Tout en cash.</p>';
       var trades = d.trades.length ? '<div class="tbl"><table><thead><tr><th>Jour</th><th>Ordre</th><th>Titre</th><th class="r">Qté</th><th class="r">Prix</th><th class="r">Montant</th><th class="r">Frais</th></tr></thead><tbody>' +
         d.trades.map(function (t) {
-          return '<tr><td>' + esc(t.day) + '</td><td class="' + (t.side === 'buy' ? 'up' : 'down') + '">' + (t.side === 'buy' ? 'Achat' : 'Vente') + '</td><td>' + esc(t.ticker) + '</td><td class="r">' + t.qty +
+          return '<tr><td>' + esc(t.day) + '</td><td class="' + (t.side === 'buy' ? 'up' : 'down') + '">' + (t.side === 'buy' ? 'Achat' : t.side === 'expire' ? 'Échéance' : 'Vente') + '</td><td>' + esc(pretty(t.ticker)) + '</td><td class="r">' + t.qty +
             '</td><td class="r">' + t.price.toFixed(2) + ' ' + esc(t.currency) + '</td><td class="r">' + money(t.value_cad) + '</td><td class="r">' + money(t.fees_cad) + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<p class="empty">Aucun trade.</p>';
       var journal = d.journal.length ? '<ul class="journal">' + d.journal.map(function (j) { return '<li><time>' + esc(j.day) + '</time>« ' + esc(j.text) + ' »</li>'; }).join('') + '</ul>' : '<p class="empty">Journal vide.</p>';
@@ -352,6 +361,9 @@ td.r, th.r { text-align: right; }
         '<div><small>Sharpe</small><span>' + m.sharpe.toFixed(2).replace('.', ',') + '</span></div>' +
         '<div><small>Semaines +</small><span>' + Math.round(m.regularity * 100) + ' %</span></div>' +
         '<div><small>Agressivité</small><span>' + d.aggressiveness.toFixed(2).replace('.', ',') + '</span></div></div>' +
+        (d.params && d.params.length ? '<section><h3>Réglages</h3><div class="stats">' + d.params.map(function (p) {
+          return '<div title="' + esc(p.help) + '"><small>' + esc(p.help) + '</small><span>' + String(+p.value.toFixed(3)).replace('.', ',') + '</span></div>';
+        }).join('') + '</div></section>' : '') +
         '<section><h3>Positions</h3>' + pos + '</section>' +
         '<section><h3>Journal</h3>' + journal + '</section>' +
         '<section><h3>Derniers trades</h3>' + trades + '</section>';

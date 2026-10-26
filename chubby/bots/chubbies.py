@@ -1,11 +1,12 @@
-"""Les six Chubbies et leur personnalité d'investisseur."""
+"""Les Chubbies et leur personnalité d'investisseur."""
 
 from __future__ import annotations
 
 import pandas as pd
 
 from .. import indicators as ind
-from .base import Bot, BotContext, Decision
+from .. import options as opt
+from .base import Bot, BotContext, Decision, Param
 
 # Grandes capitalisations du TSX et de Wall Street. Liste large plutôt que des gagnants choisis à la main.
 CANADA_LARGE = ["RY.TO", "TD.TO", "SHOP.TO", "ENB.TO", "BN.TO", "CNQ.TO", "CP.TO", "CNR.TO", "BMO.TO", "BNS.TO",
@@ -25,13 +26,14 @@ class Tortue(Bot):
 
     id, name, personality = "tortue", "Tortue", "Indicielle passive"
     universe = ["XIC.TO", "VFV.TO"]
+    params = {"canada": Param(0.5, 0.2, 0.8, "part de l'indice canadien (XIC) ; le reste va au S&P 500 (VFV)")}
 
     def decide(self, ctx: BotContext) -> Decision:
-        invested = ctx.invest_fraction(0.98)
-        if not ctx.account.positions or ctx.has_idle_cash(invested):
-            half = invested / 2
-            return Decision({"XIC.TO": half, "VFV.TO": half},
-                            ["J'achète l'indice canadien et l'indice américain. Ensuite, je fais la sieste."])
+        invested, canada = ctx.invest_fraction(0.98), self.p(ctx, "canada")
+        targets = {"XIC.TO": invested * canada, "VFV.TO": invested * (1 - canada)}
+        drift = max(abs(ctx.weights.get(t, 0.0) - w) for t, w in targets.items())
+        if not ctx.account.positions or ctx.has_idle_cash(invested) or drift > 0.10:
+            return Decision(targets, ["J'achète l'indice canadien et l'indice américain. Ensuite, je fais la sieste."])
         return Decision(None)
 
 
@@ -41,12 +43,17 @@ class Flan(Bot):
     id, name, personality = "flan", "Flan", "Rentier · dividendes"
     universe = ["ENB.TO", "RY.TO", "BNS.TO", "TD.TO", "BMO.TO", "FTS.TO", "BCE.TO", "T.TO",
                 "TRP.TO", "CU.TO", "PPL.TO", "KO", "PG", "JNJ", "PEP", "VZ"]
-    holdings = 8
+    params = {
+        "holdings": Param(8, 4, 12, "nombre de titres gardés", integer=True),
+        "min_yield": Param(0.02, 0.01, 0.04, "rendement en dividendes minimum"),
+        "max_yield": Param(0.09, 0.06, 0.12, "rendement maximum (au-delà, c'est souvent un piège)"),
+    }
 
     def decide(self, ctx: BotContext) -> Decision:
         invested = ctx.invest_fraction(0.97)
         if ctx.account.positions and not ctx.first_day_of_month() and not ctx.has_idle_cash(invested):
             return Decision(None)
+        lo, hi = self.p(ctx, "min_yield"), self.p(ctx, "max_yield")
         scored = []
         for t in self.universe:
             closes = ctx.closes(t, 220)
@@ -54,28 +61,35 @@ class Flan(Bot):
             if not px or sma200 is None:
                 continue
             yld = ctx.data.dividends_ttm(t, ctx.day) / px
-            if 0.02 <= yld <= 0.09 and px > 0.9 * sma200:  # pas de « piège à rendement »
+            if lo <= yld <= hi and px > 0.9 * sma200:
                 scored.append((yld, t))
-        picks = [t for _, t in sorted(scored, reverse=True)[: self.holdings]]
+        picks = [t for _, t in sorted(scored, reverse=True)[: int(self.p(ctx, "holdings"))]]
         if not picks:
             return Decision(None, ["Aucun dividende ne me plaît ce mois-ci, je garde mon cash."])
-        top = ", ".join(picks[:3])
         return Decision(self.equal_weights(picks, invested),
-                        [f"Mes {len(picks)} meilleurs payeurs ce mois-ci, dont {top}. Je réinvestis tout."])
+                        [f"Mes {len(picks)} meilleurs payeurs ce mois-ci, dont {', '.join(picks[:3])}. Je réinvestis tout."])
 
 
 class Dumpling(Bot):
-    """Portefeuille diversifié à poids fixes, rééquilibré quand il dérive."""
+    """Portefeuille diversifié (actions de partout, obligations, un peu d'or), rééquilibré quand il dérive."""
 
     id, name, personality = "dumpling", "Dumpling", "Équilibré · diversification"
-    mix = {"VCN.TO": 0.25, "VFV.TO": 0.25, "XEF.TO": 0.12, "XEC.TO": 0.05, "ZAG.TO": 0.28, "CGL.TO": 0.05}
-    universe = list(mix)
+    stocks = {"VCN.TO": 0.25, "VFV.TO": 0.25, "XEF.TO": 0.12, "XEC.TO": 0.05}
+    universe = list(stocks) + ["ZAG.TO", "CGL.TO"]
+    params = {
+        "bonds": Param(0.28, 0.10, 0.50, "part en obligations (ZAG)"),
+        "gold": Param(0.05, 0.0, 0.15, "part en or (CGL)"),
+        "drift": Param(0.05, 0.03, 0.10, "écart toléré avant de rééquilibrer"),
+    }
 
     def decide(self, ctx: BotContext) -> Decision:
         scale = ctx.invest_fraction(0.98)
-        targets = {t: w * scale for t, w in self.mix.items()}
-        drift = max(abs(ctx.weights.get(t, 0.0) - w) for t, w in targets.items())
-        if not ctx.account.positions or drift > 0.05 or ctx.has_idle_cash(scale):
+        bonds, gold = self.p(ctx, "bonds"), self.p(ctx, "gold")
+        equity_share = max(0.0, 1 - bonds - gold) / sum(self.stocks.values())
+        mix = {t: w * equity_share for t, w in self.stocks.items()} | {"ZAG.TO": bonds, "CGL.TO": gold}
+        targets = {t: w * scale for t, w in mix.items() if w > 0}
+        drift = max(abs(ctx.weights.get(t, 0.0) - targets.get(t, 0.0)) for t in self.universe)
+        if not ctx.account.positions or drift > self.p(ctx, "drift") or ctx.has_idle_cash(scale):
             return Decision(targets, [f"Mes poids ont dérivé de {drift:.0%}, je rééquilibre."])
         return Decision(None)
 
@@ -89,7 +103,11 @@ class Mochi(Bot):
 
     id, name, personality = "mochi", "Mochi", "Chasseur de tendance · momentum"
     universe = BROAD
-    holdings, keep_rank = 5, 10
+    params = {
+        "holdings": Param(5, 3, 8, "nombre de titres visés", integer=True),
+        "keep_rank": Param(10, 6, 15, "un titre détenu reste tant qu'il est dans ce top", integer=True),
+        "lookback": Param(63, 42, 126, "période de mesure de la tendance, en séances", integer=True),
+    }
 
     def decide(self, ctx: BotContext) -> Decision:
         held = set(ctx.account.positions)
@@ -105,15 +123,16 @@ class Mochi(Bot):
                 return Decision(None)
             keep = {t: w for t, w in ctx.weights.items() if t not in broken}
             return Decision(keep, [f"{', '.join(sorted(broken))} casse sa moyenne 50 jours, je coupe."])
+        lookback, keep_rank = int(self.p(ctx, "lookback")), int(self.p(ctx, "keep_rank"))
         ranked = []
         for t in self.universe:
-            closes = ctx.closes(t, 70)
-            r63, sma50 = ind.pct_return(closes, 63), ind.sma(closes, 50)
-            if r63 is not None and sma50 and closes.iloc[-1] > sma50 and r63 > 0:
-                ranked.append((r63, t))
+            closes = ctx.closes(t, lookback + 10)
+            r, sma50 = ind.pct_return(closes, lookback), ind.sma(closes, 50)
+            if r is not None and sma50 and closes.iloc[-1] > sma50 and r > 0:
+                ranked.append((r, t))
         order = [t for _, t in sorted(ranked, reverse=True)]
-        kept = [t for t in order[: self.keep_rank] if t in held and t not in broken]
-        new = [t for t in order if t not in kept][: max(0, self.holdings - len(kept))]
+        kept = [t for t in order[:keep_rank] if t in held and t not in broken]
+        new = [t for t in order if t not in kept][: max(0, int(self.p(ctx, "holdings")) - len(kept))]
         if set(kept + new) == held:
             return Decision(None)
         if not kept and not new:
@@ -124,7 +143,7 @@ class Mochi(Bot):
         dropped = sorted(held - set(kept))
         notes = [f"J'ajoute {', '.join(new)}." if new else "Je garde mes gagnants."]
         if dropped:
-            notes.append(f"Je lâche {', '.join(dropped)}, qui sort du top {self.keep_rank}.")
+            notes.append(f"Je lâche {', '.join(dropped)}, qui sort du top {keep_rank}.")
         return Decision(weights, notes)
 
 
@@ -133,30 +152,38 @@ class Muffin(Bot):
 
     id, name, personality = "muffin", "Muffin", "Chasseur d'aubaines · value"
     universe = BROAD
-    max_positions, slot = 6, 0.15
+    params = {
+        "max_positions": Param(6, 3, 8, "nombre maximum de positions", integer=True),
+        "rsi_buy": Param(30, 20, 35, "RSI sous lequel un titre est « en solde »"),
+        "rsi_sell": Param(60, 55, 70, "RSI au-dessus duquel il revend (rebond)"),
+        "stop": Param(0.08, 0.05, 0.15, "perte maximale tolérée par position"),
+        "max_days": Param(35, 20, 60, "durée maximale de détention, en jours", integer=True),
+    }
+    slot = 0.15
 
     def decide(self, ctx: BotContext) -> Decision:
         weights = dict(ctx.weights)
         notes, changed = [], False
+        rsi_sell, stop, max_days = self.p(ctx, "rsi_sell"), self.p(ctx, "stop"), self.p(ctx, "max_days")
         for t, pos in ctx.account.positions.items():
-            closes = ctx.closes(t, 30)
-            r = ind.rsi(closes)
+            r = ind.rsi(ctx.closes(t, 30))
             unit_value = ctx.broker.value_of(ctx.account, ctx.day).get(t, 0.0) / pos.qty
             held_days = (ctx.day - pd.Timestamp(pos.opened_on)).days
-            if (r is not None and r > 60) or held_days > 35 or unit_value < 0.92 * pos.avg_cost_cad:
+            if (r is not None and r > rsi_sell) or held_days > max_days or unit_value < (1 - stop) * pos.avg_cost_cad:
                 weights.pop(t, None)
                 changed = True
-                why = "il a rebondi" if r and r > 60 else "trop long" if held_days > 35 else "stop à -8 %"
+                why = "il a rebondi" if r and r > rsi_sell else "trop long" if held_days > max_days else f"stop à -{stop:.0%}"
                 notes.append(f"Je revends {t} ({why}).")
-        bargains = []
+        rsi_buy, bargains = self.p(ctx, "rsi_buy"), []
         for t in self.universe:
             if t in weights:
                 continue
             closes = ctx.closes(t, 220)
             r, sma200 = ind.rsi(closes), ind.sma(closes, 200)
-            if r is not None and sma200 and r < 30 and closes.iloc[-1] > 0.95 * sma200:
+            if r is not None and sma200 and r < rsi_buy and closes.iloc[-1] > 0.95 * sma200:
                 bargains.append((r, t))
-        for r, t in sorted(bargains)[: max(0, self.max_positions - len(weights))]:  # les plus survendus d'abord
+        room = max(0, int(self.p(ctx, "max_positions")) - len(weights))
+        for r, t in sorted(bargains)[:room]:  # les plus survendus d'abord
             weights[t] = self.slot * ctx.aggressiveness
             changed = True
             notes.append(f"{t} est en solde (RSI {r:.0f}), j'en prends.")
@@ -169,59 +196,79 @@ class Muffin(Bot):
 
 
 class Jalapeno(Bot):
-    """Mise tout sur le FNB à levier le plus en forme. Les vraies options viendront en v2.
+    """Le casse-cou : achète des options sur l'indice ou le FNB le plus en forme.
 
-    Garde chaque position au moins 7 séances, sauf si elle casse (stop), et ne change
-    de FNB que si le nouveau est nettement plus fort. Interrupteur de marché : tout au cash
-    quand le Nasdaq (QQQ) passe sous sa moyenne 200 jours.
+    Calls quand le Nasdaq est au-dessus de sa moyenne 200 jours, petits puts quand il est en dessous.
+    Une seule position à la fois, une partie du capital en primes, le reste au cash.
+    Sort sur objectif de gain, sur stop, si la tendance s'inverse ou à 7 jours de l'échéance.
     """
 
-    id, name, personality = "jalapeno", "Jalapeño", "Casse-cou · levier"
-    universe = ["TQQQ", "SOXL", "UPRO", "TNA"]
-    signals = ["QQQ"]
-    min_hold, switch_margin = 7, 0.03
+    id, name, personality = "jalapeno", "Jalapeño", "Casse-cou · options"
+    universe = ["QQQ", "SPY", "IWM", "SMH"]
+    params = {
+        "budget": Param(0.30, 0.10, 0.50, "part du capital mise en primes d'options"),
+        "otm": Param(0.05, 0.0, 0.10, "distance du prix d'exercice (hors de la monnaie)"),
+        "take_profit": Param(1.0, 0.5, 2.0, "gain qui déclenche la vente (1,0 = +100 %)"),
+        "stop": Param(0.5, 0.3, 0.7, "perte qui déclenche la vente (0,5 = -50 %)"),
+        "dte": Param(40, 21, 75, "jours avant l'échéance au moment de l'achat", integer=True),
+    }
 
     def decide(self, ctx: BotContext) -> Decision:
+        held = [t for t in ctx.account.positions if opt.is_option(t)]
+        if held:
+            return self._manage(ctx, held[0])
         nasdaq = ctx.closes("QQQ", 210)
         sma200 = ind.sma(nasdaq, 200)
-        if sma200 and nasdaq.iloc[-1] < sma200:
-            if ctx.account.positions:
-                return Decision({}, ["Le Nasdaq passe sous sa moyenne 200 jours : interrupteur coupé, tout au cash."])
+        if sma200 is None:
             return Decision(None)
-        strength = {}
+        bull = nasdaq.iloc[-1] > sma200
+        trend = {}
         for t in self.universe:
             closes = ctx.closes(t, 30)
             r10, sma20 = ind.pct_return(closes, 10), ind.sma(closes, 20)
-            if r10 is not None and sma20 and closes.iloc[-1] > sma20 and r10 > 0:
-                strength[t] = r10
-        best = max(strength, key=strength.get) if strength else None
-        current = next(iter(ctx.account.positions), None)
-        if current is None:
-            if best is None:
-                return Decision(None)
-            return Decision({best: ctx.invest_fraction(0.95)},
-                            [f"Je mets tout sur {best} ({strength[best]:+.0%} en 10 jours). YOLO."])
-        closes = ctx.closes(current, 30)
+            if r10 is None or not sma20:
+                continue
+            if bull and closes.iloc[-1] > sma20 and r10 > 0:
+                trend[t] = r10
+            if not bull and closes.iloc[-1] < sma20 and r10 < 0:
+                trend[t] = -r10
+        if not trend:
+            return Decision(None)
+        under = max(trend, key=trend.get)
+        kind = "C" if bull else "P"
+        spot = ctx.price(under)
+        expiry = opt.pick_expiry(ctx.day, self.p(ctx, "dte"))
+        strike = opt.pick_strike(spot, self.p(ctx, "otm"), kind)
+        sym = opt.symbol(under, kind, strike, expiry)
+        budget = self.p(ctx, "budget") * (1 if bull else 0.5)
+        weight = min(0.6, budget * ctx.aggressiveness)
+        premium = ctx.data.price(sym, ctx.day)
+        side = "calls" if kind == "C" else "puts"
+        return Decision({sym: weight}, [
+            f"J'achète des {side} {under} {strike:g} échéance {expiry.date()} "
+            f"(prime ≈ {premium * 100:,.0f} $ US par contrat). {'Ça monte' if bull else 'Ça baisse'}, j'y vais !"])
+
+    def _manage(self, ctx: BotContext, sym: str) -> Decision:
+        under, kind, strike, expiry = opt.parse(sym)
+        pos = ctx.account.positions[sym]
+        value = ctx.broker.value_of(ctx.account, ctx.day).get(sym, 0.0)
+        gain = value / (pos.avg_cost_cad * pos.qty) - 1
+        closes = ctx.closes(under, 30)
         sma20 = ind.sma(closes, 20)
-        if sma20 and closes.iloc[-1] < 0.95 * sma20:
-            return Decision({}, [f"{current} s'effondre, je coupe et je sors au cash."])
-        held_for = len(ctx.data.trading_days(ctx.account.positions[current].opened_on, ctx.day)) - 1
-        if held_for < self.min_hold:
+        reversed_ = sma20 and ((kind == "C" and closes.iloc[-1] < sma20) or (kind == "P" and closes.iloc[-1] > sma20))
+        days_left = (expiry - ctx.day).days
+        why = None
+        if gain >= self.p(ctx, "take_profit"):
+            why = f"objectif atteint ({gain:+.0%})"
+        elif gain <= -self.p(ctx, "stop"):
+            why = f"stop ({gain:+.0%})"
+        elif days_left <= 7:
+            why = f"échéance dans {days_left} jours ({gain:+.0%})"
+        elif reversed_:
+            why = f"la tendance s'inverse ({gain:+.0%})"
+        if why is None:
             return Decision(None)
-        if best is None:
-            return Decision({}, ["Tout baisse, je sors au cash… pour l'instant."])
-        if best == current or strength[best] < strength.get(current, 0.0) + self.switch_margin:
-            return Decision(None)
-        return Decision({best: ctx.invest_fraction(0.95)},
-                        [f"Je passe de {current} à {best} ({strength[best]:+.0%} en 10 jours)."])
+        return Decision({}, [f"Je vends mon {opt.describe(sym)} : {why}."])
 
 
-ALL_BOTS = [Tortue, Flan, Dumpling, Mochi, Muffin, Jalapeno]
-
-
-def all_bots() -> list[Bot]:
-    return [cls() for cls in ALL_BOTS]
-
-
-def all_tickers() -> list[str]:
-    return sorted({t for cls in ALL_BOTS for t in cls.universe + getattr(cls, "signals", [])})
+RULE_BOTS = [Tortue, Flan, Dumpling, Mochi, Muffin, Jalapeno]

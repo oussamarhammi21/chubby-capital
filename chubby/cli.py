@@ -1,4 +1,4 @@
-"""Commandes : chubby backtest | tick | serve | classement | journal | coach."""
+"""Commandes : chubby backtest | tick | serve | classement | journal | coach | coach-ia | conseil | web."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from .data import YFinanceData
 from .store import Store
 
 TORONTO = ZoneInfo("America/Toronto")
-WARMUP_DAYS = 400  # historique dont les bots ont besoin (moyenne 200 jours, dividendes 12 mois)
+WARMUP_DAYS = 800  # historique dont les bots ont besoin (Matcha apprend sur deux ans)
 
 
 def _load(start, end, cfg: ArenaConfig, cache: str, refresh: bool = False) -> YFinanceData:
@@ -58,12 +58,34 @@ def cmd_tick(args, cfg):
     today = datetime.now(TORONTO).date()
     store = Store(args.db)
     data = _load(today - timedelta(days=10), today, cfg, args.cache, refresh=True)
-    arena = Arena(store, data, all_bots(), cfg)
+    arena = Arena(store, data, all_bots(ia=not args.sans_ia), cfg)
     # Premier lancement : l'arène commence aujourd'hui, sans rejouer le passé.
     start = arena.last_day + pd.Timedelta(days=1) if arena.last_day is not None else today
     n = arena.run(start, today)
     print(f"{n} nouvelle(s) séance(s) jouée(s).")
+    if n and not args.sans_ia and arena.last_day.weekday() == 4:  # le vendredi, revue de la semaine
+        _weekly_review(arena)
     _print_board(arena)
+
+
+def _weekly_review(arena: Arena):
+    from .ai_coach import weekly_review
+    try:
+        n = weekly_review(arena.store, arena.data, arena.bots, arena.last_day, starting_cash=arena.cfg.starting_cash)
+        print(f"Coach Claude : {n} Chubby(s) IA coaché(s).")
+    except Exception as e:  # pas de clé, pas de réseau : l'arène continue sans coaching
+        logging.warning("Coaching IA impossible cette semaine : %s", e)
+
+
+def cmd_coach_ia(args, cfg):
+    """Lance tout de suite la revue hebdomadaire des Chubbies IA."""
+    store = Store(args.db)
+    last = store.get_meta("last_day")
+    if last is None:
+        raise SystemExit("L'arène n'a encore joué aucune séance.")
+    data = _load(pd.Timestamp(last) - pd.Timedelta(days=10), last, cfg, args.cache)
+    arena = Arena(store, data, all_bots(ia=True), cfg)
+    _weekly_review(arena)
 
 
 def cmd_serve(args, cfg):
@@ -85,7 +107,7 @@ def cmd_serve(args, cfg):
 
 def cmd_board(args, cfg):
     store = Store(args.db)
-    _print_board(Arena(store, None, all_bots(), cfg))
+    _print_board(Arena(store, None, all_bots(ia=True), cfg))
 
 
 def cmd_journal(args, cfg):
@@ -103,6 +125,27 @@ def cmd_coach(args, cfg):
     print(f"{result['name']} : agressivité {result['old']:.2f} -> {result['aggressiveness']:.2f} (+15 XP)")
 
 
+def cmd_conseil(args, cfg):
+    from .web.api import advice
+    text = open(args.fichier, encoding="utf-8-sig").read() if args.fichier else ""
+    profile = {"risk": args.risque, "style": args.style, "horizon": args.horizon, "usd_account": args.compte_usd}
+    out = advice(Store(args.db), cfg, profile, text)
+    print(f"\nTon portefeuille : {out['total_cad']:,.0f} $ CAD")
+    print("\nLes Chubbies qui te ressemblent :")
+    for m in out["matches"]:
+        status = "certifié" if m["certified"] else f"en observation ({m['sessions']} séances)"
+        print(f"  {m['name']:<14} affinité {m['fit']:>3}  score {m['score']:>3}  saison {m['return']:+.1%}  {status}")
+    if "advisor" in out:
+        print(f"\nPour ressembler à {out['advisor']['name']} :")
+        for r in out["rows"]:
+            if r["action"] != "garder":
+                print(f"  {r['action']:<8} {r['symbol']:<12} toi {r['mine']:>5.0%}  {out['advisor']['name']} {r['bot']:>5.0%}"
+                      f"  ({r['gap_cad']:+,.0f} $)")
+    for n in out["notes"]:
+        print(f"\n• {n}")
+    print("\nOutil d'aide à la décision, pas un conseil financier. C'est toi qui passes les ordres.\n")
+
+
 def cmd_web(args, cfg):
     from .web.server import serve
     serve(args.db, cfg, host=args.host, port=args.port)
@@ -115,6 +158,7 @@ def main(argv=None):
     p.add_argument("--compte", default="CELI", choices=["CELI", "REER", "NON_ENREGISTRE"])
     p.add_argument("--sans-compte-usd", action="store_true",
                    help="compte en CAD seulement : 1,5 %% de conversion sur chaque trade américain")
+    p.add_argument("--sans-ia", action="store_true", help="pas de versions IA ni de coach Claude")
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -133,6 +177,14 @@ def main(argv=None):
     c.add_argument("bot")
     c.add_argument("conseil", choices=["moins", "plus", "garde"])
     c.set_defaults(fn=cmd_coach)
+    sub.add_parser("coach-ia", help="lancer maintenant la revue des Chubbies IA par Claude").set_defaults(fn=cmd_coach_ia)
+    a = sub.add_parser("conseil", help="comparer ton portefeuille au Chubby qui te ressemble")
+    a.add_argument("fichier", nargs="?", help="export CSV de tes positions Wealthsimple")
+    a.add_argument("--risque", type=int, default=3, choices=range(1, 6), help="1 très prudent … 5 très audacieux")
+    a.add_argument("--style", default="equilibre", choices=["revenu", "croissance", "equilibre"])
+    a.add_argument("--horizon", default="long", choices=["court", "moyen", "long"])
+    a.add_argument("--compte-usd", action="store_true", help="tu as le forfait avec compte en USD")
+    a.set_defaults(fn=cmd_conseil)
     w = sub.add_parser("web", help="ouvrir le tableau de bord dans le navigateur")
     w.add_argument("--port", type=int, default=8000)
     w.add_argument("--host", default="0.0.0.0")

@@ -169,9 +169,13 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   var LOOK = {
     tortue: { color: 0xB5D6EE, css: '#6FA3CF', sy: 0.95 }, flan: { color: 0xFBE29A, css: '#E2B84A', sy: 0.92 },
     dumpling: { color: 0xB4E0DD, css: '#5FB3AC', sy: 1.15 }, mochi: { color: 0xDCC8E6, css: '#B79BD0', sy: 0.9 },
-    muffin: { color: 0xF7C9AE, css: '#E0956E', sy: 0.92 }, jalapeno: { color: 0xF2A39A, css: '#D9665C', sy: 0.95 }
+    muffin: { color: 0xF7C9AE, css: '#E0956E', sy: 0.92 }, jalapeno: { color: 0xF2A39A, css: '#D9665C', sy: 0.95 },
+    matcha: { color: 0xC8E6A8, css: '#7DB35A', sy: 0.95 }
   };
-  var ZONE_ORDER = ['mochi', 'flan', 'dumpling', 'tortue', 'muffin', 'jalapeno'];
+  var ZONE_ORDER = ['mochi', 'flan', 'dumpling', 'tortue', 'muffin', 'jalapeno', 'matcha'];
+  function baseId(id) { return String(id).replace(/-ia$/, ''); }
+  function isAI(id) { return /-ia$/.test(String(id)); }
+  function pretty(t) { var p = String(t).split(':'); return p[0] === 'OPT' ? (p[2] === 'C' ? 'call ' : 'put ') + p[1] + ' ' + p[3] : t; }
 
   // ---------- Scène ----------
   var canvas = $('#scene');
@@ -237,6 +241,10 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       g.add(mesh(new THREE.CylinderGeometry(0.5, 0.55, 2.2, 20), mat(0xFFFFFF), 0, 1.3, 0));
       g.add(mesh(new THREE.ConeGeometry(0.5, 0.9, 20), mat(0xD9665C), 0, 2.85, 0));
       for (var f = 0; f < 3; f++) { var fa = f * Math.PI * 2 / 3, fin = mesh(new THREE.BoxGeometry(0.08, 0.7, 0.5), mat(0xD9665C), Math.sin(fa) * 0.55, 0.45, Math.cos(fa) * 0.55); fin.rotation.y = fa; g.add(fin); }
+    } else if (id === 'matcha') {
+      g.add(mesh(new THREE.BoxGeometry(2.0, 1.2, 1.6), mat(0xEEF8E2), 0, 0.6, 0));
+      g.add(mesh(new THREE.BoxGeometry(2.6, 0.18, 2.2), mat(0x7DB35A), 0, 1.3, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.35, 0.28, 0.4, 18), mat(0x93C26E), 0.6, 0.2, 1.1));
     } else {
       g.add(mesh(new THREE.BoxGeometry(1.6, 1.2, 1.4), mat(0xE9E6F2), 0, 0.6, 0));
     }
@@ -251,7 +259,9 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   var zc = zzzCv.getContext('2d'); zc.fillStyle = '#5B47C2'; zc.font = '700 44px Fredoka, sans-serif'; zc.fillText('Zzz', 18, 48);
   var zzzMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(zzzCv), transparent: true, depthWrite: false });
 
-  function makeChubby(id, color, sy, idx) {
+  var antennaMat = new THREE.MeshBasicMaterial({ color: 0xB8A9FF });
+  function makeChubby(fullId, color, sy, idx) {
+    var id = baseId(fullId);
     var g = new THREE.Group(); g.userData.bot = idx;
     var body = new THREE.Group(); g.add(body);
     var bodyMat = mat(color, { roughness: 0.5 }), dk = mat(new THREE.Color(color).multiplyScalar(0.85), { roughness: 0.5 });
@@ -267,10 +277,12 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       var stem = mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.32, 10), mat(0x5FA35A), 0.05, 1.68, 0); stem.rotation.z = -0.3; body.add(stem);
     }
     if (id === 'tortue') { var tail = mesh(new THREE.TorusGeometry(0.2, 0.07, 8, 20, Math.PI * 1.5), dk, 0.72, 0.3, -0.42); tail.rotation.y = Math.PI / 2; body.add(tail); }
+    if (id === 'matcha') { var leaf = mesh(new THREE.SphereGeometry(0.16, 12, 8), mat(0x5FA35A), 0.12, 1.66, 0); leaf.scale.set(1.6, 0.5, 0.9); leaf.rotation.z = 0.5; body.add(leaf); }
     if (id === 'mochi') {
       [-0.78, 0.78].forEach(function (x) { var n = mesh(new THREE.SphereGeometry(0.3, 16, 12), bodyMat, x, 0.7, 0); n.scale.set(1, 0.75, 0.85); body.add(n); });
       [-0.36, 0.36].forEach(function (x) { var ft = mesh(new THREE.SphereGeometry(0.22, 14, 10), bodyMat, x, 0.12, 0.25); ft.scale.set(1, 0.6, 1); body.add(ft); });
     }
+    if (isAI(fullId)) { body.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8), mat(0x8E7BEF), 0, 1.78, 0)); body.add(mesh(new THREE.SphereGeometry(0.09, 12, 10), antennaMat, 0, 2.03, 0)); }
     body.scale.set(1, sy, 1);
     var sweat = mesh(new THREE.SphereGeometry(0.09, 12, 10), mat(0x8FC3EA, { roughness: 0.2 }), 0.52, 1.35, 0.45, false); sweat.scale.set(0.8, 1.25, 0.8); sweat.visible = false; g.add(sweat);
     var coin = mesh(coinGeo, coinMat, 0, 2.1, 0); coin.rotation.x = Math.PI / 2; coin.visible = false; g.add(coin);
@@ -293,19 +305,25 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
   var DAY_SECONDS = 36; // durée d'une séance à ×1
 
   function buildBots() {
-    var ids = data.bots.map(function (b) { return b.id; });
-    var zones = ZONE_ORDER.filter(function (id) { return ids.indexOf(id) >= 0; }).concat(ids.filter(function (id) { return ZONE_ORDER.indexOf(id) < 0; }));
-    zones.forEach(function (id, i) {
-      var info = data.bots.filter(function (b) { return b.id === id; })[0];
-      var L = LOOK[id] || { color: 0xC9C6D9, css: '#9C99B0', sy: 1 };
-      var a = i * 2 * Math.PI / zones.length + Math.PI / 6;
-      var zone = new THREE.Group(); zone.position.set(Math.sin(a) * 10.8, 0, Math.cos(a) * 10.8); zone.rotation.y = a + Math.PI; buildZone(id, zone); scene.add(zone);
+    // Un coin par personnalité ; la version IA vit dans le même coin que l'originale.
+    var bases = [];
+    data.bots.forEach(function (b) { var k = baseId(b.id); if (bases.indexOf(k) < 0) bases.push(k); });
+    bases.sort(function (x, y) { var i = ZONE_ORDER.indexOf(x), j = ZONE_ORDER.indexOf(y); return (i < 0 ? 99 : i) - (j < 0 ? 99 : j); });
+    var angle = {};
+    bases.forEach(function (k, i) {
+      var a = i * 2 * Math.PI / bases.length + Math.PI / 6; angle[k] = a;
+      var zone = new THREE.Group(); zone.position.set(Math.sin(a) * 10.8, 0, Math.cos(a) * 10.8); zone.rotation.y = a + Math.PI; buildZone(k, zone); scene.add(zone);
+    });
+    var ordered = data.bots.slice().sort(function (x, y) { return bases.indexOf(baseId(x.id)) - bases.indexOf(baseId(y.id)) || (isAI(x.id) ? 1 : 0) - (isAI(y.id) ? 1 : 0); });
+    ordered.forEach(function (info, i) {
+      var id = info.id, L = LOOK[baseId(id)] || { color: 0xC9C6D9, css: '#9C99B0', sy: 1 };
+      var a = angle[baseId(id)] + (isAI(id) ? 0.22 : 0); // la version IA se tient juste à côté
       var parts = makeChubby(id, L.color, L.sy, i);
       var home = new THREE.Vector3(Math.sin(a) * 9.0, 0, Math.cos(a) * 9.0);
       var work = new THREE.Vector3(Math.sin(a) * 7.4, 0, Math.cos(a) * 7.4);
       parts.group.position.copy(work); scene.add(parts.group);
       var label = document.createElement('div'); label.className = 'label'; $('#labels').appendChild(label);
-      var b = Object.assign({}, info, parts, L, { i: i, label: label, home: home, work: work, boardSpot: new THREE.Vector3(-2.5 + i, 0, -2.7),
+      var b = Object.assign({}, info, parts, L, { i: i, label: label, home: home, work: work, boardSpot: new THREE.Vector3(-3 + (i % 7), 0, -2.7 + Math.floor(i / 7) * 0.9),
         state: 'work', target: null, wait: rand(0, 2), hop: -1, hopEvery: rand(1.5, 3.5), baseY: 0, targetY: 0, podium: null, queue: [], speed: 2.6 });
       bots.push(b); byId[id] = b;
     });
@@ -344,7 +362,8 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
 
   var NAMES = function (id) { return byId[id] ? byId[id].name : id; };
   function describe(e) {
-    if (e.kind === 'trade') return (e.side === 'buy' ? 'achète ' : 'vend ') + e.qty + ' ' + e.ticker;
+    if (e.kind === 'trade') return (e.side === 'buy' ? 'achète ' : e.side === 'expire' ? 'voit expirer ' : 'vend ') + e.qty + ' ' + pretty(e.ticker);
+    if (e.kind === 'ai_coach') return 'a été coaché par Claude : « ' + e.lesson + ' »';
     if (e.kind === 'dividend') return 'reçoit ' + money(e.amount_cad) + ' de dividendes (' + e.ticker + ')';
     if (e.kind === 'rank_change') return (e.new < e.old ? 'monte' : 'descend') + ' à la ' + e.new + (e.new === 1 ? 're' : 'e') + ' place';
     if (e.kind === 'coach') return 'reçoit ton conseil : « ' + e.advice + ' »';
@@ -375,7 +394,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     });
     if (ph === 'ceremony') {
       var rk = ranking();
-      rk.forEach(function (b, r) { b.podium = r < 3 ? new THREE.Vector3(PODIUM[r].x, PODIUM[r].h, 0.9) : new THREE.Vector3(-2.4 + (r - 3) * 2.4, 0, 3.2); b.state = 'toPodium'; b.coin.visible = false; });
+      rk.forEach(function (b, r) { b.podium = r < 3 ? new THREE.Vector3(PODIUM[r].x, PODIUM[r].h, 0.9) : new THREE.Vector3(-4 + ((r - 3) % 6) * 1.6, 0, 3.0 + Math.floor((r - 3) / 6) * 1.5); b.state = 'toPodium'; b.coin.visible = false; });
       toast('Fin de séance', rk[0].name + ' mène l’arène');
     }
   }
@@ -469,8 +488,8 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     var c = bctx; c.fillStyle = '#2A2838'; c.fillRect(0, 0, 512, 256);
     c.fillStyle = '#FFD45A'; c.font = '700 28px Fredoka, sans-serif'; c.textAlign = 'left'; c.fillText('COTES DU JOUR', 24, 42);
     c.fillStyle = '#B9B6C6'; c.font = '700 18px Nunito, sans-serif'; c.textAlign = 'right'; c.fillText(data.days[dayIdx] || '', 488, 42);
-    var rowH = Math.min(30, 168 / Math.max(bots.length, 1));
-    bots.slice().sort(function (a, b) { return dayPct(b) - dayPct(a); }).forEach(function (b, i) {
+    var rowH = 26;
+    bots.slice().sort(function (a, b) { return dayPct(b) - dayPct(a); }).slice(0, 7).forEach(function (b, i) {
       var y = 84 + i * rowH, d = dayPct(b);
       c.textAlign = 'left'; c.fillStyle = b.css; c.beginPath(); c.arc(32, y - 7, 8, 0, Math.PI * 2); c.fill();
       c.fillStyle = '#FFFFFF'; c.font = '700 22px Nunito, sans-serif'; c.fillText(b.name, 50, y);

@@ -48,22 +48,31 @@ class Store:
         self.db = sqlite3.connect(str(path), timeout=30, check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
-        columns = {r["name"] for r in self.db.execute("PRAGMA table_info(snapshots)")}
-        if "holdings" not in columns:  # bases créées avant l'ajout de la colonne
+        # bases créées avant l'ajout de ces colonnes
+        if "holdings" not in {r["name"] for r in self.db.execute("PRAGMA table_info(snapshots)")}:
             self.db.execute("ALTER TABLE snapshots ADD COLUMN holdings TEXT")
+        if "params" not in {r["name"] for r in self.db.execute("PRAGMA table_info(bots)")}:
+            self.db.execute("ALTER TABLE bots ADD COLUMN params TEXT")
 
     def commit(self):
         self.db.commit()
 
     # --- Bots et comptes --------------------------------------------------
 
-    def ensure_bot(self, bot, starting_cash: float):
-        self.db.execute("INSERT OR IGNORE INTO bots (id, name, personality) VALUES (?, ?, ?)",
-                        (bot.id, bot.name, bot.personality))
+    def ensure_bot(self, bot, starting_cash: float, params: dict[str, float] | None = None):
+        self.db.execute("INSERT OR IGNORE INTO bots (id, name, personality, params) VALUES (?, ?, ?, ?)",
+                        (bot.id, bot.name, bot.personality, json.dumps(params or {})))
         self.db.execute("INSERT OR IGNORE INTO accounts VALUES (?, ?)", (bot.id, starting_cash))
 
     def bot_row(self, bot_id: str) -> sqlite3.Row:
         return self.db.execute("SELECT * FROM bots WHERE id = ?", (bot_id,)).fetchone()
+
+    def get_params(self, bot_id: str) -> dict[str, float]:
+        row = self.db.execute("SELECT params FROM bots WHERE id = ?", (bot_id,)).fetchone()
+        return json.loads(row["params"] or "{}") if row else {}
+
+    def set_params(self, bot_id: str, params: dict[str, float]):
+        self.db.execute("UPDATE bots SET params = ? WHERE id = ?", (json.dumps(params), bot_id))
 
     def set_aggressiveness(self, bot_id: str, value: float):
         self.db.execute("UPDATE bots SET aggressiveness = ? WHERE id = ?", (value, bot_id))
