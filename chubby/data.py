@@ -6,6 +6,7 @@ Toutes les lectures sont bornées à une date : un bot ne peut jamais voir le fu
 from __future__ import annotations
 
 import logging
+import warnings
 from pathlib import Path
 
 import pandas as pd
@@ -86,6 +87,10 @@ class YFinanceData(FrameData):
     def download(cls, tickers, start, end, calendar_ticker: str, fx_ticker: str,
                  cache_dir: str | Path | None = None, refresh: bool = False) -> "YFinanceData":
         import yfinance as yf
+
+        # yfinance appelle des fonctions de pandas que pandas 3.1 annonce comme dépréciées :
+        # des centaines d'avertissements sans conséquence pour nous, qu'on fait taire.
+        warnings.filterwarnings("ignore", module=r"yfinance(\..*)?")
 
         cache = Path(cache_dir) if cache_dir else None
         if cache:
