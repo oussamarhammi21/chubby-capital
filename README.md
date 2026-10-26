@@ -49,7 +49,7 @@ Le but est d'être réaliste, pour que les résultats veuillent dire quelque cho
 ## Le score
 
 Le classement se fait sur un score de 0 à 100 ([`chubby/scoring.py`](chubby/scoring.py)) :
-40 % rendement, 30 % Sharpe (rendement ajusté au risque), 20 % pire baisse, 10 % régularité (part des semaines positives).
+40 % rendement **par an**, 30 % Sharpe (rendement ajusté au risque), 20 % pire baisse, 10 % régularité (part des semaines positives).
 Un bot ne peut donc pas gagner juste en prenant des risques énormes.
 
 Chaque séance donne de l'XP : 10 pour tout le monde, plus 30, 20 et 10 pour le podium. Ton coaching donne 15 XP, celui de Claude 25.

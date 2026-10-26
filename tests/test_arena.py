@@ -4,7 +4,7 @@ import pandas as pd
 
 from chubby.arena import Arena
 from chubby.bots import ALL_BOTS, all_bots
-from chubby.scoring import Metrics, score
+from chubby.scoring import Metrics, metrics, score
 from chubby.store import Store
 from tests.fakes import fake_market
 
@@ -73,6 +73,16 @@ def test_bots_never_see_future_prices():
     assert data.closes("NVDA", day, 1000).index.max() == day
     assert data.dividends_ttm("RY.TO", day) == data.frames["RY.TO"].loc[day - pd.Timedelta(days=365):day,
                                                                           "Dividends"].sum()
+
+
+def test_score_uses_yearly_return_on_long_seasons():
+    import numpy as np
+    days = pd.bdate_range("2022-01-03", periods=1008)  # quatre ans
+    fast = pd.Series(10_000 * np.linspace(1, 1.9, len(days)), index=days)  # +90 %
+    slow = pd.Series(10_000 * np.linspace(1, 1.5, len(days)), index=days)  # +50 %
+    m_fast, m_slow = metrics(fast, 10_000), metrics(slow, 10_000)
+    assert 0.15 < m_fast.annual_return < 0.18
+    assert score(m_fast) > score(m_slow)  # avant, les deux saturaient à +20 %
 
 
 def test_score_rewards_return_and_punishes_drawdown():
