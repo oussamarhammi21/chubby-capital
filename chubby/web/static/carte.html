@@ -64,7 +64,9 @@ body.zones .zone { opacity: 1; }
 /* ---------- les panneaux ---------- */
 .glass { position: absolute; z-index: 10; background: var(--glass); backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3);
   border: 1px solid rgba(255,255,255,0.85); border-radius: 22px; box-shadow: 0 14px 40px rgba(10,30,80,0.22); transition: opacity 0.3s, transform 0.3s; }
-body.nopanels .hideable { opacity: 0; pointer-events: none; transform: translateY(8px); }
+body.nopanels .hideable, body.nopanels .fiche { opacity: 0; pointer-events: none; transform: translateY(8px); }
+/* panneaux cachés : il ne reste que le bouton pour les faire revenir */
+body.nopanels .ctrl > :not(#b-panels) { display: none; }
 .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 4px rgba(43,196,138,0.2); margin-right: 6px; }
 .dot.off { background: #9AA0BC; box-shadow: none; }
 h2 { margin: 0 0 8px; font: 700 16px Fredoka, Nunito, sans-serif; display: flex; align-items: center; justify-content: space-between; }
@@ -163,7 +165,7 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
   <div id="bubbles"></div>
 </div>
 
-<div class="glass ctrl hideable" role="toolbar" aria-label="Son et affichage">
+<div class="glass ctrl" role="toolbar" aria-label="Son et affichage">
   <button id="b-sound" aria-pressed="false">🔇 Son</button>
   <select id="s-voice" aria-label="Voix des Chubbies">
     <option value="humaine">🗣 Voix humaines</option><option value="mignonne">🐣 Voix mignonnes</option><option value="muette">🤐 Muets</option>
@@ -645,7 +647,13 @@ body.feedopen .feed { height: calc(100% - 128px); z-index: 13; }
     if (sel) sel = twinOf(sel); talkQueue = []; toast(team === 'ia' ? 'Les versions coachées par Claude' : 'Les Chubbies originaux'); render();
   };
   $('#b-zones').onclick = function () { var on = document.body.classList.toggle('zones'); this.setAttribute('aria-pressed', String(on)); };
-  $('#b-panels').onclick = function () { var off = document.body.classList.toggle('nopanels'); this.setAttribute('aria-pressed', String(!off)); };
+  function togglePanels() {
+    var off = document.body.classList.toggle('nopanels'), b = $('#b-panels');
+    b.setAttribute('aria-pressed', String(!off)); b.textContent = off ? '▤ Afficher les panneaux' : '▤ Panneaux';
+    if (off) toast('Touche P pour les faire revenir');
+  }
+  $('#b-panels').onclick = togglePanels;
+  addEventListener('keydown', function (e) { if ((e.key === 'p' || e.key === 'P') && !e.target.closest('input, select, textarea')) togglePanels(); });
   // Le son ne démarre qu'après un geste : on rétablit les choix d'hier au premier clic.
   var wantSound = (function () { try { return localStorage.getItem('chubby-son') === '1'; } catch (e) { return false; } })();
   if (wantSound) document.addEventListener('pointerdown', function first() {
