@@ -102,6 +102,11 @@ class Bot(ABC):
         spec = self.params[name]
         return spec.clamp(params.get(name, spec.default))
 
+    def watchlist(self, ctx: BotContext) -> list[tuple[str, str]]:
+        """Les titres qu'il surveille sans les détenir (ou qu'il pourrait ajuster), avec la raison, du plus proche
+        d'un achat au moins proche : [(ticker, "pourquoi")]. Calculée le soir, montrée dans sa fiche."""
+        return []
+
     def stops(self, positions: dict, params: dict[str, float], fx) -> dict[str, tuple[float, str]]:
         """Ordres stop laissés chez le courtier : {ticker: (prix de déclenchement, "below" ou "above")}.
 

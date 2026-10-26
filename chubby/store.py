@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS events (
     id INTEGER PRIMARY KEY, day TEXT, bot_id TEXT, kind TEXT, payload TEXT
 );
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS watchlist (bot_id TEXT PRIMARY KEY, day TEXT, items TEXT);
 CREATE TABLE IF NOT EXISTS option_quotes (day TEXT, ticker TEXT, price REAL, PRIMARY KEY (day, ticker));
 """
 
@@ -151,6 +152,13 @@ class Store:
     def real_option_quotes(self, day) -> dict[str, float]:
         return {r["ticker"]: r["price"] for r in
                 self.db.execute("SELECT ticker, price FROM option_quotes WHERE day = ?", (_d(day),))}
+
+    def set_watchlist(self, bot_id: str, day, items: list[dict]):
+        self.db.execute("INSERT OR REPLACE INTO watchlist VALUES (?, ?, ?)", (bot_id, _d(day), json.dumps(items, ensure_ascii=False)))
+
+    def get_watchlist(self, bot_id: str) -> dict | None:
+        row = self.db.execute("SELECT day, items FROM watchlist WHERE bot_id = ?", (bot_id,)).fetchone()
+        return {"day": row["day"], "items": json.loads(row["items"])} if row else None
 
     def get_meta(self, key: str) -> str | None:
         row = self.db.execute("SELECT value FROM meta WHERE key = ?", (key,)).fetchone()

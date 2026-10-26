@@ -11,6 +11,7 @@ import pandas as pd
 from .bots import Bot, BotContext
 from .broker import PaperBroker
 from .config import ArenaConfig
+from .fmt import french
 from . import options as opt
 from .options import OptionData
 from .scoring import metrics, score
@@ -48,15 +49,15 @@ class Arena:
         if self.last_day is not None:
             days = [d for d in days if d > self.last_day]
         for i, day in enumerate(days, 1):
-            self.tick(day)
+            self.tick(day, watch=i == len(days))  # la watchlist ne sert qu'au dernier soir : pas de calcul inutile
             if progress:
                 progress(i, len(days), day)
         return len(days)
 
-    def tick(self, day: pd.Timestamp):
+    def tick(self, day: pd.Timestamp, watch: bool = True):
         day_index = int(self.store.get_meta("day_index") or 0)
         for bot in self.bots:
-            self._play(bot, day, day_index)
+            self._play(bot, day, day_index, watch)
         self._rank(day)
         chains = getattr(self.data, "chains", None)
         if chains is not None and chains.is_live(day):
@@ -77,7 +78,7 @@ class Arena:
             self.store.event(day, bot.id, "trade", side=f.side, ticker=f.ticker, qty=f.qty,
                              value_cad=round(f.value_cad, 2))
 
-    def _play(self, bot: Bot, day: pd.Timestamp, day_index: int):
+    def _play(self, bot: Bot, day: pd.Timestamp, day_index: int, watch: bool = False):
         broker = self.broker_for(bot)
         acct = self.store.load_account(bot.id)
         targets, trades = self.store.pop_pending(bot.id)
@@ -110,7 +111,24 @@ class Arena:
                 self.store.set_pending(bot.id, decision.targets, day, decision.trades)
             for note in decision.notes:
                 self.store.journal(bot.id, day, note)
+        if watch:
+            self._watch(bot, ctx, day)
         self.store.save_account(acct)
+
+    def _watch(self, bot: Bot, ctx: BotContext, day: pd.Timestamp):
+        try:
+            items = bot.watchlist(ctx)
+        except Exception:
+            log.exception("Watchlist de %s impossible le %s", bot.name, day.date())
+            return
+        out = []
+        for ticker, why in items:
+            closes = self.data.closes(ticker, day, 2)
+            price = self.data.price(ticker, day)
+            change = float(closes.iloc[-1] / closes.iloc[-2] - 1) if len(closes) == 2 and closes.iloc[-2] else None
+            out.append({"ticker": ticker, "why": french(why), "price": round(price, 2) if price else None,
+                        "change": round(change, 4) if change is not None else None})
+        self.store.set_watchlist(bot.id, day, out)
 
     def _stops(self, bot: Bot, broker: PaperBroker, acct, day: pd.Timestamp):
         """Ordres stop : déclenchés pendant la séance si le plus bas (ou le plus haut) du jour franchit le seuil."""

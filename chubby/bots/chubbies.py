@@ -34,6 +34,12 @@ class Tortue(Bot):
         "Ne rééquilibre que si un poids s'éloigne de plus de 10 points de sa cible. Sinon, elle ne fait rien : c'est le groupe témoin de l'arène.",
     ]
 
+    def watchlist(self, ctx):
+        invested, canada = ctx.invest_fraction(0.98), self.p(ctx, "canada")
+        targets = {"XIC.TO": invested * canada, "VFV.TO": invested * (1 - canada)}
+        return [(t, f"poids {ctx.weights.get(t, 0.0):.0%} pour une cible de {w:.0%} ; rééquilibre à 10 points d'écart")
+                for t, w in targets.items()]
+
     def decide(self, ctx: BotContext) -> Decision:
         invested, canada = ctx.invest_fraction(0.98), self.p(ctx, "canada")
         targets = {"XIC.TO": invested * canada, "VFV.TO": invested * (1 - canada)}
@@ -62,6 +68,21 @@ class Flan(Bot):
         "Garde les {holdings:.0f} meilleurs rendements à parts égales, et revoit sa liste le premier jour de chaque mois.",
         "Les dividendes de ses quelques titres américains subissent une retenue de 15 % (dans un CELI).",
     ]
+
+    def watchlist(self, ctx):
+        lo, hi = self.p(ctx, "min_yield"), self.p(ctx, "max_yield")
+        out = []
+        for t in self.universe:
+            if t in ctx.account.positions:
+                continue
+            px, sma200 = ctx.price(t), ind.sma(ctx.closes(t, 220), 200)
+            if not px or sma200 is None:
+                continue
+            yld = ctx.data.dividends_ttm(t, ctx.day) / px
+            why = ("rendement trop bas" if yld < lo else "rendement trop beau pour être vrai" if yld > hi
+                   else "sous sa moyenne 200 jours" if px <= 0.9 * sma200 else "éligible, pas dans son top")
+            out.append((yld, t, f"rendement {yld:.1%} : {why}"))
+        return [(t, why) for _, t, why in sorted(out, reverse=True)[:8]]
 
     def decide(self, ctx: BotContext) -> Decision:
         invested = ctx.invest_fraction(0.97)
@@ -103,6 +124,17 @@ class Dumpling(Bot):
         "Les obligations et l'or amortissent les chutes de la bourse : il gagne moins dans les belles années, perd moins dans les mauvaises.",
     ]
 
+    def _targets(self, ctx):
+        scale = ctx.invest_fraction(0.98)
+        bonds, gold = self.p(ctx, "bonds"), self.p(ctx, "gold")
+        equity_share = max(0.0, 1 - bonds - gold) / sum(self.stocks.values())
+        mix = {t: w * equity_share for t, w in self.stocks.items()} | {"ZAG.TO": bonds, "CGL.TO": gold}
+        return {t: w * scale for t, w in mix.items() if w > 0}
+
+    def watchlist(self, ctx):
+        return [(t, f"poids {ctx.weights.get(t, 0.0):.0%} pour une cible de {w:.0%} ; rééquilibre à {self.p(ctx, 'drift'):.0%} d'écart")
+                for t, w in self._targets(ctx).items()]
+
     def decide(self, ctx: BotContext) -> Decision:
         scale = ctx.invest_fraction(0.98)
         bonds, gold = self.p(ctx, "bonds"), self.p(ctx, "gold")
@@ -136,6 +168,21 @@ class Mochi(Bot):
         "Chaque soir, vend un titre qui passe 3 % sous sa moyenne 50 jours : la tendance est cassée.",
     ]
 
+    def _ranking(self, ctx) -> list[tuple[float, str]]:
+        lookback = int(self.p(ctx, "lookback"))
+        ranked = []
+        for t in self.universe:
+            closes = ctx.closes(t, lookback + 10)
+            r, sma50 = ind.pct_return(closes, lookback), ind.sma(closes, 50)
+            if r is not None and sma50 and closes.iloc[-1] > sma50 and r > 0:
+                ranked.append((r, t))
+        return sorted(ranked, reverse=True)
+
+    def watchlist(self, ctx):
+        lookback = int(self.p(ctx, "lookback"))
+        return [(t, f"{i}e du classement : {r:+.0%} sur {lookback} séances, au-dessus de sa moyenne 50 jours")
+                for i, (r, t) in enumerate(self._ranking(ctx), 1) if t not in ctx.account.positions][:8]
+
     def decide(self, ctx: BotContext) -> Decision:
         held = set(ctx.account.positions)
         broken = set()
@@ -150,14 +197,8 @@ class Mochi(Bot):
                 return Decision(None)
             keep = {t: w for t, w in ctx.weights.items() if t not in broken}
             return Decision(keep, [f"{', '.join(sorted(broken))} casse sa moyenne 50 jours, je coupe."])
-        lookback, keep_rank = int(self.p(ctx, "lookback")), int(self.p(ctx, "keep_rank"))
-        ranked = []
-        for t in self.universe:
-            closes = ctx.closes(t, lookback + 10)
-            r, sma50 = ind.pct_return(closes, lookback), ind.sma(closes, 50)
-            if r is not None and sma50 and closes.iloc[-1] > sma50 and r > 0:
-                ranked.append((r, t))
-        order = [t for _, t in sorted(ranked, reverse=True)]
+        keep_rank = int(self.p(ctx, "keep_rank"))
+        order = [t for _, t in self._ranking(ctx)]
         kept = [t for t in order[:keep_rank] if t in held and t not in broken]
         new = [t for t in order if t not in kept][: max(0, int(self.p(ctx, "holdings")) - len(kept))]
         if set(kept + new) == held:
@@ -197,6 +238,17 @@ class Muffin(Bot):
         "Stop de secours chez le courtier à -{crash_stop:.0%}, déclenché pendant la séance : la protection contre un vrai effondrement.",
     ]
     slot = 0.15
+
+    def watchlist(self, ctx):
+        rsi_buy, out = self.p(ctx, "rsi_buy"), []
+        for t in self.universe:
+            if t in ctx.account.positions:
+                continue
+            closes = ctx.closes(t, 220)
+            r, sma200 = ind.rsi(closes), ind.sma(closes, 200)
+            if r is not None and sma200 and closes.iloc[-1] > 0.95 * sma200:
+                out.append((r, t, f"RSI {r:.0f} : " + ("en solde, il achète" if r < rsi_buy else f"il attend qu'il passe sous {rsi_buy:.0f}")))
+        return [(t, why) for _, t, why in sorted(out)[:8]]
 
     def stops(self, positions, params, fx):
         # Seulement le stop de secours : le -8 % se vérifie à la clôture, dans decide(). Testé sur 2022-2025, un stop
@@ -270,6 +322,22 @@ class Jalapeno(Bot):
         stop = self.param(params, "stop")
         return {t: (max(0.01, round(p.avg_cost_cad * (1 - stop) / (opt.MULTIPLIER * fx(t)), 2)), "below")
                 for t, p in positions.items() if opt.is_option(t) and p.qty > 0}
+
+    def watchlist(self, ctx):
+        nasdaq = ctx.closes("QQQ", 210)
+        sma200 = ind.sma(nasdaq, 200)
+        bull = sma200 is not None and nasdaq.iloc[-1] > sma200
+        out = []
+        for t in self.universe:
+            closes = ctx.closes(t, 30)
+            r10, sma20 = ind.pct_return(closes, 10), ind.sma(closes, 20)
+            if r10 is None or not sma20:
+                continue
+            above = closes.iloc[-1] > sma20
+            ready = (bull and above and r10 > 0) or (not bull and not above and r10 < 0)
+            out.append((-abs(r10), t, f"{r10:+.1%} sur 10 jours, {'au-dessus de' if above else 'sous'} sa moyenne 20 jours : "
+                        + (f"prêt pour des {'calls' if bull else 'puts'}" if ready else "pas dans le bon sens")))
+        return [(t, why) for _, t, why in sorted(out)]
 
     def decide(self, ctx: BotContext) -> Decision:
         held = [t for t in ctx.account.positions if opt.is_option(t)]
@@ -363,6 +431,19 @@ class JalapenoV2(Bot):
         return {t: (round(p.avg_cost_cad / (opt.MULTIPLIER * fx(t)) * stop, 2), "above")
                 for t, p in positions.items() if opt.is_option(t) and p.qty < 0}
 
+    def watchlist(self, ctx):
+        out = []
+        for under in self.universe:
+            spot = ctx.price(under)
+            if not spot:
+                continue
+            sym = ctx.data.contract(under, "P", ctx.day, self.p(ctx, "otm"), self.p(ctx, "dte"))
+            premium = ctx.data.price(sym, ctx.day) or 0
+            strike = opt.parse(sym)[2]
+            out.append((-premium / strike, under, f"{opt.describe(sym)} : prime ≈ {premium * 100:,.0f} $ US, "
+                                                  f"garantie de {strike * 100:,.0f} $ US par contrat"))
+        return [(t, why) for _, t, why in sorted(out)]
+
     def decide(self, ctx: BotContext) -> Decision:
         shorts = {t: p for t, p in ctx.account.positions.items() if opt.is_option(t) and p.qty < 0}
         for sym, pos in shorts.items():  # 1. gérer les options déjà vendues
@@ -452,6 +533,20 @@ class JalapenoV3(Bot):
         stop = self.param(params, "stop")
         return {t: (max(0.01, round(p.avg_cost_cad * (1 - stop) / (opt.MULTIPLIER * fx(t)), 2)), "below")
                 for t, p in positions.items() if opt.is_option(t) and p.qty > 0}
+
+    def watchlist(self, ctx):
+        out = []
+        for t in self.universe:
+            closes = ctx.closes(t, 210)
+            r, sma200 = ind.pct_return(closes, 63), ind.sma(closes, 200)
+            if r is None or not sma200:
+                continue
+            sym = ctx.data.contract(t, "C", ctx.day, -self.p(ctx, "itm"), self.p(ctx, "dte"))
+            premium = ctx.data.price(sym, ctx.day) or 0
+            cost = premium * opt.MULTIPLIER * ctx.broker.fx(sym, ctx.day)
+            trend = "au-dessus de" if closes.iloc[-1] > sma200 else "sous"
+            out.append((-r, t, f"{r:+.0%} sur 3 mois, {trend} sa moyenne 200 jours ; un {opt.describe(sym)} coûte ≈ {cost:,.0f} $"))
+        return [(t, why) for _, t, why in sorted(out)]
 
     def _new_call(self, ctx: BotContext, cash: float) -> tuple[str, int, list[str]] | None:
         """Le meilleur FNB en tendance dont au moins un contrat rentre dans le budget, et le nombre de contrats."""

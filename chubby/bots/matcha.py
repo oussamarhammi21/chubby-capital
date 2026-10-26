@@ -121,9 +121,17 @@ class Matcha(Bot):
         names = list(FEATURES.values())
         return ", ".join(f"{names[i]} ({'+' if self.weights[i] > 0 else '−'})" for i in order)
 
+    def watchlist(self, ctx):
+        if self.weights is None:
+            self.train(ctx)
+        scores = self.predict(ctx)
+        return [(t, f"{i}e selon son modèle (score {s:+.2f})") for i, (t, s) in enumerate(scores.items(), 1)
+                if t not in ctx.account.positions][:8]
+
     def decide(self, ctx: BotContext) -> Decision:
-        monthly = ctx.first_day_of_month() or self.weights is None
-        if not monthly and ctx.account.positions:
+        # En direct, chaque séance démarre un nouveau programme et le modèle est oublié : ne pas le prendre
+        # pour un nouveau mois, sinon elle changerait ses choix chaque soir au lieu d'une fois par mois.
+        if not ctx.first_day_of_month() and ctx.account.positions:
             return Decision(None)
         samples = self.train(ctx)
         if self.weights is None:

@@ -73,6 +73,35 @@ td.wrap { white-space: normal; min-width: 220px; }
 .pill.info { background: rgba(255,255,255,0.08); color: var(--muted); }
 .err { background: #3A1F28; color: #FFD0C8; border-radius: 16px; padding: 14px; font-weight: 700; }
 .empty { color: var(--muted); }
+.account { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.main, .side { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.acct-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
+.acct-head h1 { font-size: 30px; }
+.value b { font: 700 40px var(--display); font-variant-numeric: tabular-nums; display: block; }
+.value span { font-weight: 800; font-size: 15px; }
+.ranges { display: flex; gap: 4px; flex-wrap: wrap; margin: 12px 0 8px; }
+.ranges button { min-height: 36px; min-width: 44px; padding: 0 10px; border-radius: 10px; border: 0; background: transparent; color: var(--muted); font: 800 13px var(--body); cursor: pointer; }
+.ranges button[aria-pressed="true"] { background: var(--surface-2); color: var(--ink); }
+.big { font: 700 28px var(--display); font-variant-numeric: tabular-nums; display: block; margin: 4px 0; }
+.small { font-size: 13px; }
+.watch, .pend { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; }
+.watch li, .pend li { display: flex; gap: 10px; justify-content: space-between; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.watch li:last-child, .pend li:last-child { border-bottom: 0; }
+.watch b, .pend b { font: 700 15px var(--display); }
+.watch small, .pend small { display: block; color: var(--muted); font-size: 12px; font-weight: 700; line-height: 1.35; }
+.watch .px { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 800; font-size: 14px; }
+.act-day { margin: 14px 0 6px; color: var(--muted); font-size: 13px; font-weight: 800; }
+.act-day:first-child { margin-top: 0; }
+details.act { background: var(--surface-2); border-radius: 16px; margin-bottom: 8px; }
+details.act summary { list-style: none; cursor: pointer; display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 12px 14px; min-height: 44px; }
+details.act summary::-webkit-details-marker { display: none; }
+details.act summary b { font: 700 15px var(--display); }
+details.act summary small { display: block; color: var(--muted); font-size: 12px; font-weight: 700; }
+details.act summary .amt { font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+details.act dl { margin: 0; padding: 0 14px 12px; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 13px; }
+details.act dt { color: var(--muted); font-weight: 800; }
+details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (max-width: 980px) { .account { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 860px) {
   .grid2 { grid-template-columns: minmax(0, 1fr); }
   .moment { grid-template-columns: minmax(0, 1fr); }
@@ -89,14 +118,43 @@ td.wrap { white-space: normal; min-width: 220px; }
   </nav>
   <div id="error" class="err" hidden></div>
 
-  <section class="card hero" aria-live="polite">
-    <span id="avatar"></span>
-    <div class="who">
-      <h1 id="name">Chargement…</h1>
-      <p class="muted" id="role"></p>
-      <div class="tags" id="tags"></div>
+  <div class="account">
+    <div class="main">
+      <section class="card acct" aria-live="polite">
+        <div class="acct-head"><span id="avatar"></span><div><h1 id="name">Chargement…</h1><p class="muted" id="role"></p></div></div>
+        <div class="value"><b id="value">—</b><span id="value-sub"></span></div>
+        <div class="ranges" id="ranges" role="group" aria-label="Période de la courbe"></div>
+        <div class="legend" id="legend"></div>
+        <div class="chart" id="curve"></div>
+        <div class="tags" id="tags" style="margin-top:12px"></div>
+      </section>
+      <section class="card">
+        <h2>Positions</h2>
+        <div id="positions"></div>
+      </section>
+      <section class="card">
+        <h2>Activité récente</h2>
+        <div id="activity"></div>
+      </section>
     </div>
-  </section>
+    <aside class="side">
+      <section class="card">
+        <h3>Cash disponible</h3>
+        <b class="big" id="cash">—</b>
+        <p class="muted small" id="cash-sub"></p>
+      </section>
+      <section class="card" id="pending-card" hidden>
+        <h3>Ordres pour la prochaine ouverture</h3>
+        <p class="muted small" id="pending-when"></p>
+        <div id="pending"></div>
+      </section>
+      <section class="card">
+        <h3>Watchlist</h3>
+        <p class="muted small" id="watch-when"></p>
+        <ul class="watch" id="watch"></ul>
+      </section>
+    </aside>
+  </div>
 
   <section class="tiles" id="tiles" aria-label="Ses chiffres"></section>
 
@@ -113,22 +171,8 @@ td.wrap { white-space: normal; min-width: 220px; }
   </div>
 
   <section class="card">
-    <h2>Son capital</h2>
-    <div class="legend" id="legend"></div>
-    <div class="chart" id="curve"></div>
-    <h3 style="margin-top:14px">Baisse depuis son dernier sommet</h3>
+    <h2>Ses baisses depuis chaque sommet</h2>
     <div class="chart" id="dd"></div>
-  </section>
-
-  <section class="card" id="pending-card" hidden>
-    <h2>Ses ordres pour la prochaine ouverture</h2>
-    <p class="muted" id="pending-when" style="margin-bottom:10px;font-size:14px"></p>
-    <div id="pending"></div>
-  </section>
-
-  <section class="card">
-    <h2>Ce qu'il détient</h2>
-    <div id="positions"></div>
   </section>
 
   <div class="grid2">
@@ -162,16 +206,34 @@ td.wrap { white-space: normal; min-width: 220px; }
   function num(v, d) { return v == null ? '—' : (+v).toFixed(d == null ? 2 : d).replace('.', ','); }
   function signedMoney(v) { return (v >= 0 ? '+' : '−') + money(Math.abs(v)); }
   var id = new URLSearchParams(location.search).get('id') || 'tortue';
-  var report = null, filter = 'tout', shown = 25;
+  var report = null, live = null, filter = 'tout', shown = 25, range = 'TOUT';
+  var RANGES = [['1S', 5], ['1M', 21], ['3M', 63], ['AAJ', 'ytd'], ['1A', 252], ['TOUT', 0]];
 
   function tile(label, value, extra, klass) { return '<div><small>' + label + '</small><span class="' + (klass || '') + '">' + value + '</span>' + (extra ? '<em>' + extra + '</em>' : '') + '</div>'; }
 
+  function liveBot() { return live && live.ok && live.bots ? live.bots.filter(function (b) { return b.id === report.id; })[0] : null; }
+
+  function renderValue(r) {
+    var lb = liveBot();
+    if (lb && !lb.settled) {
+      $('#value').textContent = money(lb.equity);
+      $('#value-sub').innerHTML = '<span class="' + cls(lb.change_cad) + '">' + signedMoney(lb.change_cad) + ' (' + pct(lb.change, 2) + ')</span> <span class="muted">' +
+        (live.open ? 'aujourd’hui, en direct à ' : 'séance du ' + esc(live.day) + ', à ') + esc(live.as_of) + '</span>';
+    } else {
+      $('#value').textContent = money(r.equity);
+      var c = r.day_change;
+      $('#value-sub').innerHTML = c == null ? '<span class="muted">première séance</span>' : '<span class="' + cls(c) + '">' + pct(c, 2) + '</span> <span class="muted">dernière séance (' + esc(r.curve.days[r.curve.days.length - 1]) + ')</span>';
+    }
+    $('#cash').textContent = money(r.cash);
+    $('#cash-sub').textContent = r.account + '. Le cash rapporte des intérêts chaque jour.';
+  }
+
   function renderHead(r) {
     document.title = r.name + ' · Chubby Capital';
-    $('#avatar').innerHTML = C.avatar(r.id, 'calme', 120, r.name);
+    $('#avatar').innerHTML = C.avatar(r.id, 'calme', 72, r.name);
     $('#name').textContent = r.name; $('#role').textContent = r.personality;
     $('#tags').innerHTML = ['Niveau ' + r.level + ' · ' + r.xp + ' XP', r.account, r.universe + ' titres possibles',
-      'Agressivité ' + num(r.aggressiveness), r.rank != null ? (r.rank + 1) + (r.rank === 0 ? 're' : 'e') + ' place' : null]
+      'Agressivité ' + num(r.aggressiveness), r.score != null ? 'Score ' + r.score + ' / 100' : null, r.rank != null ? (r.rank + 1) + (r.rank === 0 ? 're' : 'e') + ' place' : null]
       .filter(Boolean).map(function (t) { return '<span class="tag">' + esc(t) + '</span>'; }).join('');
     var m = r.metrics || { total_return: 0, annual_return: 0, max_drawdown: 0, sharpe: 0, regularity: 0, volatility: 0 }, s = r.stats;
     $('#tiles').innerHTML =
@@ -216,40 +278,92 @@ td.wrap { white-space: normal; min-width: 220px; }
     });
     el.innerHTML = svg + '</svg>';
   }
+  function renderRanges() {
+    $('#ranges').innerHTML = '';
+    RANGES.forEach(function (x) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = x[0] === 'AAJ' ? 'Cette année' : x[0];
+      b.setAttribute('aria-pressed', String(range === x[0]));
+      b.addEventListener('click', function () { range = x[0]; renderRanges(); renderCurves(report); });
+      $('#ranges').appendChild(b);
+    });
+  }
+  function sliceStart(days) {
+    var x = RANGES.filter(function (r) { return r[0] === range; })[0][1];
+    if (x === 0) return 0;
+    if (x === 'ytd') { var y = days[days.length - 1].slice(0, 4); var i = days.findIndex(function (d) { return d.slice(0, 4) === y; }); return Math.max(0, i - 1); }
+    return Math.max(0, days.length - 1 - x);
+  }
   function renderCurves(r) {
-    var c = r.curve, color = look(r.id).base, series = [{ values: c.equity, color: color }];
+    var full = r.curve, k = full.days.length ? sliceStart(full.days) : 0;
+    var c = { days: full.days.slice(k), equity: full.equity.slice(k), drawdown: full.drawdown.slice(k),
+              twin: full.twin ? { name: full.twin.name, equity: full.twin.equity.slice(k) } : null };
+    var color = look(r.id).base, series = [{ values: c.equity, color: color }];
     var legend = '<span><i style="background:' + color + '"></i>' + esc(r.name) + '</span>';
     if (c.twin) { series.push({ values: c.twin.equity, color: '#B8A9FF', dash: true }); legend += '<span><i style="background:#B8A9FF"></i>' + esc(c.twin.name) + ' (son jumeau)</span>'; }
-    legend += '<span><i style="background:#5A5C7A"></i>10 000 $ de départ</span>';
+    if (k === 0) legend += '<span><i style="background:#5A5C7A"></i>10 000 $ de départ</span>';
     $('#legend').innerHTML = legend;
-    lineChart($('#curve'), c.days, series, { height: 260, ref: 10000, label: 'Capital de ' + r.name, fmt: function (v) { return (v / 1000).toFixed(1).replace('.', ',') + ' k$'; } });
+    lineChart($('#curve'), c.days, series, { height: 240, ref: k === 0 ? 10000 : null, label: 'Capital de ' + r.name, fmt: function (v) { return (v / 1000).toFixed(1).replace('.', ',') + ' k$'; } });
     lineChart($('#dd'), c.days, [{ values: c.drawdown, color: '#FF9A8A', area: true }], { height: 120, hi: 0, label: 'Baisse depuis le dernier sommet', fmt: function (v) { return Math.round(v * 100) + ' %'; } });
   }
 
   function renderPositions(r) {
-    if (!r.positions.length) { $('#positions').innerHTML = '<p class="empty">Tout en cash (' + money(r.cash) + ').</p>'; return; }
-    $('#positions').innerHTML = '<div class="tbl"><table><thead><tr><th>Titre</th><th class="r">Quantité</th><th class="r">Prix moyen payé</th><th class="r">Coût</th><th class="r">Valeur</th><th class="r">Poids</th><th class="r">Gain</th><th class="r">Ordre stop</th><th>Depuis</th></tr></thead><tbody>' +
+    if (!r.positions.length) { $('#positions').innerHTML = '<p class="empty">Aucune position : tout est en cash (' + money(r.cash) + ').</p>'; return; }
+    var lb = liveBot(), today = lb && !lb.settled ? lb.holdings || {} : null;
+    $('#positions').innerHTML = '<div class="tbl"><table><thead><tr><th>Titre</th><th class="r">Répartition</th><th class="r">Quantité</th><th class="r">Coût moyen</th>' +
+      '<th class="r">Valeur</th><th class="r">' + (today ? 'Aujourd’hui' : 'Dern. séance') + '</th><th class="r">Total</th></tr></thead><tbody>' +
       r.positions.map(function (p) {
-        var stop = p.stop ? (p.stop.direction === 'below' ? 'vend sous ' : 'rachète au-dessus de ') + num(p.stop.level) + ' ' + p.currency : '—';
-        return '<tr><td>' + esc(pretty(p.ticker)) + '</td><td class="r">' + p.qty + '</td><td class="r">' + num(p.unit_cost) + ' ' + p.currency + '</td><td class="r">' + money(p.cost_cad) +
-          '</td><td class="r">' + (p.value_cad != null ? money(p.value_cad) : '—') + '</td><td class="r">' + (p.weight != null ? Math.round(p.weight * 100) + ' %' : '—') +
-          '</td><td class="r ' + (p.gain != null ? cls(p.gain) : '') + '">' + (p.gain != null ? pct(p.gain) : '—') + '</td><td class="r">' + stop + '</td><td>' + esc(p.opened_on) + '</td></tr>';
-      }).join('') + '</tbody></table></div><p class="muted" style="margin-top:8px;font-size:13px">Cash : ' + money(r.cash) + '. Les montants sont en dollars canadiens ; les prix sont dans la devise du titre.</p>';
+        var day = today ? today[p.ticker] : p.day_change;
+        var stop = p.stop ? ' · stop ' + (p.stop.direction === 'below' ? 'sous ' : 'au-dessus de ') + num(p.stop.level) : '';
+        return '<tr><td><b>' + esc(pretty(p.ticker)) + '</b><br><span class="muted small">depuis le ' + esc(p.opened_on) + stop + '</span></td>' +
+          '<td class="r">' + (p.weight != null ? num(p.weight * 100, 1) + ' %' : '—') + '</td><td class="r">' + p.qty + '</td><td class="r">' + num(p.unit_cost) + ' <span class="muted small">' + p.currency + '</span></td>' +
+          '<td class="r">' + (p.value_cad != null ? money(p.value_cad) : '—') + '</td>' +
+          '<td class="r ' + (day != null ? cls(day) : '') + '">' + (day != null ? pct(day, 2) : '—') + '</td>' +
+          '<td class="r ' + (p.gain != null ? cls(p.gain) : '') + '">' + (p.gain != null ? signedMoney(p.value_cad - p.cost_cad) + '<br><span class="small">' + pct(p.gain) + '</span>' : '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div><p class="muted small" style="margin-top:8px">Valeurs en dollars canadiens ; coût moyen et stops dans la devise du titre.' +
+      (today ? ' « Aujourd’hui » suit les vrais cours de la séance.' : '') + '</p>';
+  }
+
+  function renderWatch(r) {
+    var w = r.watchlist, lb = liveBot(), quotes = lb && lb.watch ? lb.watch : {};
+    if (!w || !w.items.length) { $('#watch-when').textContent = 'Sa watchlist apparaîtra après sa prochaine séance.'; $('#watch').innerHTML = ''; return; }
+    $('#watch-when').textContent = 'Ce qu’il surveille et pourquoi (calculé le soir du ' + w.day + ').';
+    $('#watch').innerHTML = w.items.map(function (i) {
+      var q = quotes[i.ticker], last = q ? q.last : i.price, ch = q ? q.change : i.change;
+      return '<li><div><b>' + esc(pretty(i.ticker)) + '</b><small>' + esc(i.why) + '</small></div><div class="px">' + (last != null ? num(last) : '—') +
+        '<br><span class="' + (ch != null ? cls(ch) : '') + '">' + (ch != null ? pct(ch, 2) : '') + '</span></div></li>';
+    }).join('');
+  }
+
+  function renderActivity(r) {
+    if (!r.activity.length) { $('#activity').innerHTML = '<p class="empty">Aucun ordre exécuté pour l’instant. Ses premiers ordres partent à la prochaine ouverture.</p>'; return; }
+    var html = '', last = null;
+    r.activity.slice(0, 20).forEach(function (a) {
+      if (a.day !== last) { html += '<div class="act-day">' + esc(a.day) + '</div>'; last = a.day; }
+      var buy = a.side === 'buy';
+      html += '<details class="act"><summary><div><b>' + esc(pretty(a.ticker)) + '</b><small>' + esc(a.kind) + '</small></div><span class="amt">' +
+        (buy ? '−' : '+') + money(a.value_cad) + '</span></summary><dl>' +
+        '<dt>Statut</dt><dd>Exécuté</dd><dt>Décidé</dt><dd>' + esc(a.submitted) + '</dd><dt>Exécuté</dt><dd>' + esc(a.filled) + '</dd>' +
+        '<dt>Quantité</dt><dd>' + a.qty + (String(a.ticker).indexOf('OPT:') === 0 ? ' contrat(s) de 100' : '') + '</dd>' +
+        '<dt>Prix</dt><dd>' + num(a.price) + ' ' + esc(a.currency) + '</dd>' +
+        (a.currency === 'USD' ? '<dt>Taux USD/CAD</dt><dd>' + num(a.fx, 4) + '</dd>' : '') +
+        '<dt>Frais</dt><dd>' + money(a.fees_cad) + '</dd><dt>Total</dt><dd>' + money(a.value_cad) + '</dd></dl></details>';
+    });
+    if (r.activity.length > 20) html += '<p class="muted small">Tout l’historique est dans « Tout ce qu’il a fait, jour par jour », plus bas.</p>';
+    $('#activity').innerHTML = html;
   }
 
   function renderPending(r) {
     var p = r.pending, card = $('#pending-card');
     card.hidden = !(p && p.orders.length);
     if (card.hidden) return;
-    $('#pending-when').textContent = 'Décidés le soir du ' + p.decided_on + ', exécutés à l’ouverture suivante, au vrai prix du matin. ' +
-      'Les montants sont estimés au prix de la dernière clôture.' + (p.cash_target != null ? ' Il vise environ ' + Math.round(p.cash_target * 100) + ' % de cash.' : '');
-    $('#pending').innerHTML = '<div class="tbl"><table><thead><tr><th>Ordre</th><th>Titre</th><th class="r">Montant</th><th class="r">Poids actuel</th><th class="r">Poids visé</th></tr></thead><tbody>' +
-      p.orders.map(function (o) {
-        var buy = o.action.indexOf('acheter') === 0;
-        return '<tr><td><span class="pill ' + (buy ? 'buy' : 'sell') + '">' + esc(o.action) + '</span></td><td>' + esc(pretty(o.ticker)) + '</td><td class="r">' +
-          (o.qty != null ? o.qty + (String(o.ticker).indexOf('OPT:') === 0 ? ' contrat(s)' : ' part(s)') : '~' + money(o.amount_cad)) + '</td><td class="r">' + (o.weight_now != null ? Math.round(o.weight_now * 100) + ' %' : '—') +
-          '</td><td class="r">' + (o.weight_target != null ? Math.round(o.weight_target * 100) + ' %' : '—') + '</td></tr>';
-      }).join('') + '</tbody></table></div>';
+    $('#pending-when').textContent = 'Décidés le soir du ' + p.decided_on + ', exécutés à l’ouverture suivante au prix du matin. Montants estimés à la dernière clôture.' +
+      (p.cash_target != null ? ' Il vise environ ' + Math.round(p.cash_target * 100) + ' % de cash.' : '');
+    $('#pending').innerHTML = '<ul class="pend">' + p.orders.map(function (o) {
+      var buy = o.action.indexOf('acheter') === 0;
+      var amount = o.qty != null ? o.qty + (String(o.ticker).indexOf('OPT:') === 0 ? ' contrat(s)' : ' part(s)') : '~' + money(o.amount_cad);
+      return '<li><div><b>' + esc(pretty(o.ticker)) + '</b><small>' + (o.weight_target != null ? 'poids ' + Math.round(o.weight_now * 100) + ' % → ' + Math.round(o.weight_target * 100) + ' %' : 'ordre direct') + '</small></div>' +
+        '<div class="px"><span class="pill ' + (buy ? 'buy' : 'sell') + '">' + esc(o.action.split(' ')[0]) + '</span><br>' + amount + '</div></li>';
+    }).join('') + '</ul>';
   }
 
   function renderTrips(r) {
@@ -363,9 +477,16 @@ td.wrap { white-space: normal; min-width: 220px; }
     $('#pick').innerHTML = ov.leaderboard.map(function (e) { return '<option value="' + esc(e.id) + '"' + (e.id === id ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('');
   }).catch(function () {});
   fetch('/api/bots/' + encodeURIComponent(id) + '/fiche').then(function (r) { if (!r.ok) throw new Error(r.status === 404 ? 'Chubby inconnu' : 'le serveur a répondu ' + r.status); return r.json(); }).then(function (r) {
-    report = r; renderHead(r); renderCurves(r); renderPending(r); renderPositions(r); renderTrips(r); renderMonthly(r); renderFilters(); renderDays();
+    report = r; renderHead(r); renderValue(r); renderRanges(); renderCurves(r); renderPending(r); renderPositions(r); renderWatch(r); renderActivity(r); renderTrips(r); renderMonthly(r); renderFilters(); renderDays();
   }).catch(function (err) { var el = $('#error'); el.hidden = false; el.textContent = 'Impossible de charger la fiche : ' + err.message + '.'; });
   window.addEventListener('resize', function () { if (report) renderCurves(report); });
+  // Pendant la bourse : la valeur, les positions et la watchlist suivent les vrais cours.
+  function loadLive() {
+    fetch('/api/live').then(function (x) { return x.ok ? x.json() : null; }).then(function (lv) {
+      live = lv; if (report) { renderValue(report); renderPositions(report); renderWatch(report); }
+    }).catch(function () {});
+  }
+  loadLive(); setInterval(loadLive, 60000);
 })();
 </script>
 </body>

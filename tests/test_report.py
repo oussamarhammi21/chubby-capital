@@ -89,3 +89,31 @@ def test_first_evening_orders_are_visible(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "Tortue" in out and "XIC.TO" in out and "acheter" in out
     assert bot_report(arena.store, ArenaConfig(), "tortue")["pending"]["orders"]
+
+
+def test_every_bot_explains_its_watchlist_on_the_last_evening():
+    arena, _ = run_arena(400)
+    for bot in arena.bots:
+        w = arena.store.get_watchlist(bot.id)
+        assert w and w["day"] == str(arena.last_day.date()), bot.id
+        assert w["items"] and all(i["why"] and i["price"] for i in w["items"]), bot.id
+    held = set(arena.store.load_account("mochi").positions)
+    assert not held & {i["ticker"] for i in arena.store.get_watchlist("mochi")["items"]}  # des titres qu'il n'a pas
+
+
+def test_activity_reads_like_a_broker_statement():
+    arena, _ = run_arena(400)
+    r = bot_report(arena.store, ArenaConfig(), "muffin")
+    kinds = {a["kind"] for a in r["activity"]}
+    assert kinds & {"Achat au marché", "Vente au marché"}
+    assert all(a["submitted"] and a["filled"] for a in r["activity"])
+    assert r["day_change"] is not None
+
+
+def test_matcha_does_not_reshuffle_every_evening_in_live_mode():
+    # En direct, chaque séance démarre un nouveau programme : Matcha ne doit pas croire à un nouveau mois.
+    from types import SimpleNamespace
+
+    from chubby.bots.matcha import Matcha
+    ctx = SimpleNamespace(first_day_of_month=lambda: False, account=SimpleNamespace(positions={"RY.TO": object()}))
+    assert Matcha().decide(ctx).targets is None

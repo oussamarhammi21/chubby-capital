@@ -158,7 +158,9 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
     bots = store.db.execute("SELECT id, name, personality FROM bots ORDER BY id").fetchall()
     accounts = {b["id"]: store.load_account(b["id"]) for b in bots}
     stocks = {t for a in accounts.values() for t in a.positions if not opt.is_option(t)}
-    bars = fetch(sorted(stocks | set(INDEXES) | {FX}))
+    watched = {b["id"]: [i["ticker"] for i in (store.get_watchlist(b["id"]) or {}).get("items", [])
+                         if not opt.is_option(i["ticker"])] for b in bots}
+    bars = fetch(sorted(stocks | {t for w in watched.values() for t in w} | set(INDEXES) | {FX}))
     if bars is None or bars.empty:
         payload = {"time": now.isoformat(timespec="minutes"), "open": market_open(now), "ok": False,
                    "error": "Pas de cours en direct pour l'instant (réseau ou Yahoo indisponible)."}
@@ -204,6 +206,7 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
             if change is not None:
                 movers.append({"ticker": t, "name": opt.describe(t) if opt.is_option(t) else t,
                                "change": round(change, 4), "impact_cad": round(impact, 2)})
+        holdings_live = {m["ticker"]: m["change"] for m in movers}
         movers.sort(key=lambda m: -abs(m["impact_cad"]))
         stops = _watch_stops(b["id"], acct, store.get_params(b["id"]), session, float(fx.iloc[-1]), chains)
         base = base_row["equity"]
@@ -215,7 +218,7 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
             "equity": round(equity, 2), "base": round(base, 2), "change": round(change, 5),
             "change_cad": round(equity - base, 2), "mood": mood_of(change),
             "reaction": _stop_reaction(stops) or react(b["id"], change, top, now), "movers": movers[:3],
-            "stops": stops,
+            "stops": stops, "holdings": holdings_live, "watch": _quotes(watched.get(b["id"], []), session, prev),
             "curve": [round(float(v) / base - 1, 5) if base else 0.0 for v in curve],
             "settled": today_row is not None,
         })
@@ -233,6 +236,17 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
     store.set_meta("live", json.dumps(payload, ensure_ascii=False))
     store.commit()
     return payload
+
+
+def _quotes(tickers: list[str], session: pd.DataFrame, prev: pd.Series) -> dict[str, dict]:
+    """Dernier cours et variation du jour des titres de sa watchlist."""
+    out = {}
+    for t in tickers:
+        if t in session and session[t].notna().any():
+            last, start = float(session[t].dropna().iloc[-1]), prev.get(t)
+            out[t] = {"last": round(last, 2),
+                      "change": round(last / start - 1, 4) if start and not pd.isna(start) else None}
+    return out
 
 
 def _watch_stops(bot_id: str, acct, params: dict, session: pd.DataFrame, usdcad: float, chains) -> list[dict]:

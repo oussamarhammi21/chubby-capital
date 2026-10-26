@@ -14,6 +14,7 @@ import pandas as pd
 from . import options as opt
 from .bots import bot_class
 from .config import ArenaConfig, currency_of
+from .fmt import french
 from .scoring import metrics, score
 from .store import Store
 
@@ -131,16 +132,39 @@ def _timeline(store: Store, bot_id: str) -> list[dict]:
     return out[::-1]
 
 
-def _french(text: str) -> str:
-    """2.5% -> 2,5 % (virgule décimale et espace avant le signe pour cent)."""
-    return re.sub(r"(\d)%", r"\1 %", re.sub(r"(\d)\.(\d)", r"\1,\2", text))
+def _activity(store: Store, bot_id: str, limit: int = 40) -> list[dict]:
+    """Les derniers ordres, avec leurs détails comme sur un relevé de courtier."""
+    db = store.db
+    days = [r["day"] for r in db.execute("SELECT day FROM snapshots WHERE bot_id = ? ORDER BY day", (bot_id,))]
+    previous = {d: days[i - 1] for i, d in enumerate(days) if i}
+    stops = {(r["day"], json.loads(r["payload"])["ticker"]): json.loads(r["payload"]) for r in
+             db.execute("SELECT day, payload FROM events WHERE bot_id = ? AND kind = 'stop'", (bot_id,))}
+    out = []
+    for r in db.execute("SELECT * FROM trades WHERE bot_id = ? ORDER BY id DESC LIMIT ?", (bot_id, limit)):
+        stop = stops.get((r["day"], r["ticker"]))
+        if stop:
+            kind = "Ordre stop (vente)" if stop["direction"] == "below" else "Ordre stop (rachat)"
+            submitted = f"posé chez le courtier, seuil {stop['level']:.2f}"
+            filled = f"{r['day']}, pendant la séance"
+        elif r["side"] in ("expire", "assign"):
+            kind = "Échéance de l'option" if r["side"] == "expire" else "Option exercée"
+            submitted, filled = "automatique", f"{r['day']}, à l'échéance"
+        else:
+            kind = "Achat au marché" if r["side"] == "buy" else "Vente au marché"
+            submitted = f"{previous.get(r['day'], r['day'])}, le soir après la clôture"
+            filled = f"{r['day']}, à l'ouverture"
+        out.append({"day": r["day"], "ticker": r["ticker"], "side": r["side"], "kind": kind, "qty": r["qty"],
+                    "price": round(r["price"], 4), "currency": r["currency"], "fx": round(r["fx"] or 1.0, 4),
+                    "fees_cad": round(r["fees_cad"] or 0.0, 2), "value_cad": round(r["value_cad"], 2),
+                    "submitted": french(submitted), "filled": filled})
+    return out
 
 
 def explanation(cls, params: dict[str, float]) -> list[str]:
     """La façon de penser du Chubby : ses règles en clair, avec la valeur actuelle de ses réglages."""
     if cls.rules:
         values = {n: spec.clamp(params.get(n, spec.default)) for n, spec in cls.params.items()}
-        return [_french(rule.format(**values)) for rule in cls.rules]
+        return [french(rule.format(**values)) for rule in cls.rules]
     doc = inspect.getdoc(cls) or ""
     return [" ".join(p.split()) for p in doc.split("\n\n") if p.strip()]
 
@@ -189,8 +213,10 @@ def bot_report(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
     usdcad = float(store.get_meta("usdcad") or 1.37)
     params = store.get_params(bot_id)
 
-    last = db.execute("SELECT * FROM snapshots WHERE bot_id = ? ORDER BY day DESC LIMIT 1", (bot_id,)).fetchone()
+    snaps = db.execute("SELECT * FROM snapshots WHERE bot_id = ? ORDER BY day DESC LIMIT 2", (bot_id,)).fetchall()
+    last = snaps[0] if snaps else None
     values = json.loads(last["holdings"] or "{}") if last else {}
+    before = json.loads(snaps[1]["holdings"] or "{}") if len(snaps) > 1 else {}
     acct = store.load_account(bot_id)
     fx = lambda t: usdcad if currency_of(t) == "USD" else 1.0  # noqa: E731
     stops = cls().stops(acct.positions, params, fx) if cls else {}
@@ -204,6 +230,9 @@ def bot_report(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
             "weight": round(value / equity, 4) if value is not None and equity else None,
             # (valeur - coût) / |coût| : juste aussi pour une option vendue, dont le coût et la valeur sont négatifs
             "gain": round((value - cost) / abs(cost), 4) if value is not None and cost else None,
+            # variation de la dernière séance, si la position était déjà là la veille (à quantité égale)
+            "day_change": round((value - before[t]) / abs(before[t]), 4)
+            if value is not None and before.get(t) and p.opened_on < last["day"] else None,
             "unit_cost": round(p.avg_cost_cad / (fx(t) * (opt.MULTIPLIER if opt.is_option(t) else 1)), 2),
             "currency": currency_of(t),
             "stop": {"level": stops[t][0], "direction": stops[t][1]} if t in stops else None,
@@ -253,6 +282,9 @@ def bot_report(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
                            "equity": [None if pd.isna(v) else round(float(v), 2) for v in twin_eq.reindex(eq.index)]}
                   if twin and not twin_eq.empty else None},
         "positions": positions, "stats": stats, "pending": pending_orders(store, bot_id),
+        "watchlist": store.get_watchlist(bot_id),
+        "day_change": round(last["equity"] / snaps[1]["equity"] - 1, 4) if len(snaps) > 1 and snaps[1]["equity"] else None,
+        "activity": _activity(store, bot_id),
         "round_trips": closed[::-1],
         "open_trips": [{"ticker": s["ticker"], "start": s["start"], "cash_cad": round(s["cash"], 2)} for s in still_open.values()],
         "monthly": _monthly(store, bot_id, cfg.starting_cash),

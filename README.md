@@ -192,7 +192,15 @@ Elle n'a besoin d'aucune connexion Internet à part les polices.
 ### La fiche complète de chaque Chubby
 
 Bouton « Fiche complète » dans sa fiche du tableau de bord ou sur l'île, ou http://localhost:8000/chubby?id=muffin.
-Tout ce qu'il faut pour le comprendre :
+Elle se présente comme un compte de courtage, avec en haut :
+
+- **sa valeur**, avec la variation du jour (en direct pendant la bourse) et sa courbe sur 1 semaine, 1 mois, 3 mois, cette année, 1 an ou toute la saison ;
+- **ses positions**, avec la répartition, le coût moyen, la variation du jour et le rendement total ;
+- **son activité récente** : chaque ordre se déplie pour montrer quand il a été décidé et exécuté, le prix, le taux de change et les frais ;
+- **son cash disponible** et **ses ordres pour la prochaine ouverture** ;
+- **sa watchlist** : les titres qu'il surveille sans les détenir, et pourquoi. Par exemple pour Mochi « 6e du classement : +27 % sur 63 séances », pour Muffin « RSI 34 : il attend qu'il passe sous 30 ». Elle est calculée chaque soir avec ses propres règles, et suit les vrais cours pendant la bourse.
+
+Plus bas, tout ce qu'il faut pour le comprendre :
 
 - **comment il pense** : ses règles en clair, avec la valeur actuelle de ses réglages ;
 - **ses réglages** : actuels, de départ et leurs bornes (ce que le coaching a changé apparaît en vert) ;
