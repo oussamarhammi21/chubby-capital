@@ -13,9 +13,9 @@ Ce dépôt contient le **moteur** (Python). L'île 3D viendra se brancher dessus
 | Tortue | Indicielle passive | 50 % XIC.TO + 50 % VFV.TO, puis ne bouge plus (réinvestit seulement les dividendes) |
 | Flan | Rentier · dividendes | Chaque mois, garde les 8 meilleurs rendements en dividendes (entre 2 % et 9 %, pas en chute libre) |
 | Dumpling | Équilibré · diversification | Mix fixe d'ETF (actions Canada, É.-U., international, émergents, obligations, or), rééquilibré si un poids dérive de plus de 5 points |
-| Mochi | Chasseur de tendance | Chaque semaine, les 5 titres les plus forts sur 3 mois au-dessus de leur moyenne 50 jours ; coupe ce qui casse |
+| Mochi | Chasseur de tendance | Chaque semaine, vise les 5 titres les plus forts sur 3 mois ; garde un titre tant qu'il reste dans le top 10 et coupe ce qui casse sa moyenne 50 jours |
 | Muffin | Chasseur d'aubaines | Achète les bons titres survendus (RSI < 30, au-dessus de la moyenne 200 jours), revend au rebond, stop à -8 % |
-| Jalapeño | Casse-cou · levier | Tout sur le FNB à levier le plus en forme (TQQQ, SOXL, UPRO, TNA). Les options viendront en v2 |
+| Jalapeño | Casse-cou · levier | Tout sur le FNB à levier le plus en forme (TQQQ, SOXL, UPRO, TNA), gardé au moins 7 séances sauf s'il s'effondre. Les options viendront en v2 |
 
 Le code de chaque Chubby est dans [`chubby/bots/chubbies.py`](chubby/bots/chubbies.py). Pour en créer un nouveau, il suffit d'hériter de `Bot` et d'écrire `decide()`, qui renvoie les poids voulus.
 
@@ -24,7 +24,8 @@ Le code de chaque Chubby est dans [`chubby/bots/chubbies.py`](chubby/bots/chubbi
 Le but est d'être réaliste, pour que les résultats veuillent dire quelque chose :
 
 - **Pas de triche sur le futur** : un bot décide le soir avec les clôtures du jour, et ses ordres sont exécutés **à l'ouverture du lendemain**.
-- **Frais réels** : 0 $ de commission, mais **1,5 % de conversion** CAD ↔ USD sur les titres américains (comme Wealthsimple) et 0,05 % de glissement à chaque exécution.
+- **Frais réels** : 0 $ de commission et 0,05 % de glissement à chaque exécution.
+- **Compte en USD par défaut**, comme un forfait Wealthsimple à **10 $ par mois** (prélevés chaque mois sur chaque Chubby) : pas de conversion sur les trades américains. Avec `--sans-compte-usd`, chaque trade ou dividende américain paie **1,5 % de conversion** CAD ↔ USD, et il n'y a pas de forfait.
 - **Compte CELI par défaut** : retenue de 15 % sur les dividendes américains (pas en REER). Option `--compte`.
 - **Actions entières**, comptes en CAD, taux USD/CAD réel du jour.
 

@@ -60,6 +60,9 @@ class Arena:
                                  value_cad=round(f.value_cad, 2))
         for ticker, amount in self.broker.credit_dividends(acct, day):
             self.store.event(day, bot.id, "dividend", ticker=ticker, amount_cad=round(amount, 2))
+        if self.cfg.monthly_fee and self._first_day_of_month(day):
+            acct.cash -= self.cfg.monthly_fee
+            self.store.event(day, bot.id, "fee", reason="forfait compte USD", amount_cad=self.cfg.monthly_fee)
         self.store.add_snapshot(bot.id, day, self.broker.equity(acct, day), acct.cash)
 
         row = self.store.bot_row(bot.id)
@@ -76,6 +79,10 @@ class Arena:
             for note in decision.notes:
                 self.store.journal(bot.id, day, note)
         self.store.save_account(acct)
+
+    def _first_day_of_month(self, day: pd.Timestamp) -> bool:
+        previous = self.store.get_meta("last_day")
+        return previous is None or pd.Timestamp(previous).month != day.month
 
     def _rank(self, day: pd.Timestamp):
         table = self.leaderboard()

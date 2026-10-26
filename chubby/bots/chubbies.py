@@ -69,38 +69,52 @@ class Dumpling(Bot):
 
 
 class Mochi(Bot):
-    """Suit la tendance : garde les 5 titres les plus forts sur 3 mois, coupe ce qui casse."""
+    """Suit la tendance : garde les titres les plus forts sur 3 mois, coupe ce qui casse.
+
+    Pour limiter les frais, un titre détenu reste tant qu'il est dans le top 10 :
+    Mochi ne remplace que ce qui décroche vraiment.
+    """
 
     id, name, personality = "mochi", "Mochi", "Chasseur de tendance · momentum"
     universe = ["SHOP.TO", "RY.TO", "CNQ.TO", "CP.TO", "ATD.TO", "CSU.TO", "NVDA", "MSFT", "AAPL", "AMZN",
                 "META", "GOOGL", "AVGO", "LLY", "COST", "NFLX", "AMD", "TSLA", "JPM", "V"]
-    holdings = 5
+    holdings, keep_rank = 5, 10
 
     def decide(self, ctx: BotContext) -> Decision:
-        broken = []
-        for t in ctx.account.positions:
+        held = set(ctx.account.positions)
+        broken = set()
+        for t in held:
             closes = ctx.closes(t, 60)
             sma50 = ind.sma(closes, 50)
             if sma50 and closes.iloc[-1] < 0.97 * sma50:
-                broken.append(t)
-        weekly = ctx.day_index % 5 == 0
-        if not weekly and not broken and ctx.account.positions:
-            return Decision(None)
+                broken.add(t)
+        weekly = ctx.day_index % 5 == 0 or not held
         if not weekly:
+            if not broken:
+                return Decision(None)
             keep = {t: w for t, w in ctx.weights.items() if t not in broken}
-            return Decision(keep, [f"{', '.join(broken)} casse sa moyenne 50 jours, je coupe."])
+            return Decision(keep, [f"{', '.join(sorted(broken))} casse sa moyenne 50 jours, je coupe."])
         ranked = []
         for t in self.universe:
             closes = ctx.closes(t, 70)
             r63, sma50 = ind.pct_return(closes, 63), ind.sma(closes, 50)
             if r63 is not None and sma50 and closes.iloc[-1] > sma50 and r63 > 0:
                 ranked.append((r63, t))
-        picks = [t for _, t in sorted(ranked, reverse=True)[: self.holdings]]
-        if not picks:
+        order = [t for _, t in sorted(ranked, reverse=True)]
+        kept = [t for t in order[: self.keep_rank] if t in held and t not in broken]
+        new = [t for t in order if t not in kept][: max(0, self.holdings - len(kept))]
+        if set(kept + new) == held:
+            return Decision(None)
+        if not kept and not new:
             return Decision({}, ["Aucune tendance claire. Je reste au cash."])
-        best = sorted(ranked, reverse=True)[0]
-        return Decision(self.equal_weights(picks, ctx.invest_fraction(0.96)),
-                        [f"Je surfe sur {', '.join(picks)}. Le plus fort : {best[1]} ({best[0]:+.0%} sur 3 mois)."])
+        weights = {t: w for t, w in ctx.weights.items() if t in kept}  # on ne touche pas aux gagnants
+        room = max(0.0, ctx.invest_fraction(0.96) - sum(weights.values()))
+        weights.update({t: room / len(new) for t in new} if new else {})
+        dropped = sorted(held - set(kept))
+        notes = [f"J'ajoute {', '.join(new)}." if new else "Je garde mes gagnants."]
+        if dropped:
+            notes.append(f"Je lâche {', '.join(dropped)}, qui sort du top {self.keep_rank}.")
+        return Decision(weights, notes)
 
 
 class Muffin(Bot):
@@ -144,25 +158,43 @@ class Muffin(Bot):
 
 
 class Jalapeno(Bot):
-    """Mise tout sur le FNB à levier le plus en forme. Les vraies options viendront en v2."""
+    """Mise tout sur le FNB à levier le plus en forme. Les vraies options viendront en v2.
+
+    Garde chaque position au moins 7 séances, sauf si elle casse (stop), et ne change
+    de FNB que si le nouveau est nettement plus fort.
+    """
 
     id, name, personality = "jalapeno", "Jalapeño", "Casse-cou · levier"
     universe = ["TQQQ", "SOXL", "UPRO", "TNA"]
+    min_hold, switch_margin = 7, 0.03
 
     def decide(self, ctx: BotContext) -> Decision:
-        best = None
+        strength = {}
         for t in self.universe:
             closes = ctx.closes(t, 30)
             r10, sma20 = ind.pct_return(closes, 10), ind.sma(closes, 20)
-            if r10 is not None and sma20 and closes.iloc[-1] > sma20 and r10 > 0 and (best is None or r10 > best[0]):
-                best = (r10, t)
-        held = set(ctx.account.positions)
-        if best is None:
-            return Decision({}, ["Tout baisse, je sors au cash… pour l'instant."]) if held else Decision(None)
-        if held == {best[1]}:
+            if r10 is not None and sma20 and closes.iloc[-1] > sma20 and r10 > 0:
+                strength[t] = r10
+        best = max(strength, key=strength.get) if strength else None
+        current = next(iter(ctx.account.positions), None)
+        if current is None:
+            if best is None:
+                return Decision(None)
+            return Decision({best: ctx.invest_fraction(0.95)},
+                            [f"Je mets tout sur {best} ({strength[best]:+.0%} en 10 jours). YOLO."])
+        closes = ctx.closes(current, 30)
+        sma20 = ind.sma(closes, 20)
+        if sma20 and closes.iloc[-1] < 0.95 * sma20:
+            return Decision({}, [f"{current} s'effondre, je coupe et je sors au cash."])
+        held_for = len(ctx.data.trading_days(ctx.account.positions[current].opened_on, ctx.day)) - 1
+        if held_for < self.min_hold:
             return Decision(None)
-        return Decision({best[1]: ctx.invest_fraction(0.95)},
-                        [f"Je mets tout sur {best[1]} ({best[0]:+.0%} en 10 jours). YOLO."])
+        if best is None:
+            return Decision({}, ["Tout baisse, je sors au cash… pour l'instant."])
+        if best == current or strength[best] < strength.get(current, 0.0) + self.switch_margin:
+            return Decision(None)
+        return Decision({best: ctx.invest_fraction(0.95)},
+                        [f"Je passe de {current} à {best} ({strength[best]:+.0%} en 10 jours)."])
 
 
 ALL_BOTS = [Tortue, Flan, Dumpling, Mochi, Muffin, Jalapeno]

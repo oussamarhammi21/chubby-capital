@@ -28,7 +28,7 @@ def test_buy_canadian_stock_charges_slippage_only():
 
 
 def test_buy_us_stock_converts_currency_and_charges_fx_fee():
-    cfg = ArenaConfig(slippage_bps=0, fx_fee=0.015)
+    cfg = ArenaConfig(slippage_bps=0, fx_fee=0.015, usd_account=False)
     broker, acct = PaperBroker(cfg, market()), Account("x", 10_000)
     fill = broker.buy(acct, "KO", 10, DAY)
     assert fill.value_cad == pytest.approx(10 * 50 * 1.4 * 1.015)
@@ -54,10 +54,21 @@ def test_rebalance_reaches_targets_without_going_negative():
 
 def test_us_dividend_withholding_in_celi_but_not_reer():
     for account_type, expected in (("CELI", 10 * 1.0 * 1.4 * 0.85 * 0.985), ("REER", 10 * 1.0 * 1.4 * 0.985)):
-        broker = PaperBroker(ArenaConfig(account_type=account_type, slippage_bps=0), market(div_usd=1.0))
+        broker = PaperBroker(ArenaConfig(account_type=account_type, slippage_bps=0, usd_account=False),
+                             market(div_usd=1.0))
         acct = Account("x", 10_000)
         broker.buy(acct, "KO", 10, DAY)
         cash = acct.cash
         [(ticker, amount)] = broker.credit_dividends(acct, DAY)
         assert ticker == "KO" and amount == pytest.approx(expected)
         assert acct.cash == pytest.approx(cash + expected)
+
+
+def test_usd_account_trades_and_dividends_without_conversion_fee():
+    broker = PaperBroker(ArenaConfig(slippage_bps=0, usd_account=True), market(div_usd=1.0))
+    acct = Account("x", 10_000)
+    fill = broker.buy(acct, "KO", 10, DAY)
+    assert fill.fees_cad == 0
+    assert fill.value_cad == pytest.approx(10 * 50 * 1.4)
+    [(_, amount)] = broker.credit_dividends(acct, DAY)
+    assert amount == pytest.approx(10 * 1.0 * 1.4 * 0.85)  # seulement la retenue américaine

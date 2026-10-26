@@ -80,3 +80,17 @@ def test_score_rewards_return_and_punishes_drawdown():
     reckless = score(Metrics(0.10, 0.60, 0.3, -0.35, 0.45))
     assert calm > reckless
     assert 0 <= score(Metrics(-0.9, 2, -3, -0.95, 0)) <= score(Metrics(2, 0.1, 5, 0, 1)) <= 100
+
+
+def test_usd_account_fee_is_charged_once_a_month():
+    arena, played = run_arena()
+    n = arena.store.db.execute(
+        "SELECT COUNT(*) AS n FROM events WHERE kind = 'fee' AND bot_id = 'tortue'").fetchone()["n"]
+    assert 11 <= n <= 13  # 240 séances, environ 11 à 12 mois
+
+
+def test_mochi_and_jalapeno_do_not_churn():
+    arena, _ = run_arena()
+    counts = {r["bot_id"]: r["n"] for r in arena.store.db.execute(
+        "SELECT bot_id, COUNT(DISTINCT day) AS n FROM trades GROUP BY bot_id")}
+    assert counts["jalapeno"] <= 240 / 7 + 5

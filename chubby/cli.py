@@ -30,15 +30,19 @@ def _print_board(arena: Arena):
     span = db.execute("SELECT MIN(day) AS a, MAX(day) AS b, COUNT(DISTINCT day) AS n FROM snapshots").fetchone()
     if span["n"]:
         print(f"\nSaison du {span['a']} au {span['b']} ({span['n']} séances au total)")
-    costs = {r["bot_id"]: (r["n"], r["fees"]) for r in db.execute(
+    costs = {r["bot_id"]: (r["n"], r["fees"] or 0.0) for r in db.execute(
         "SELECT bot_id, COUNT(*) AS n, SUM(fees_cad) AS fees FROM trades GROUP BY bot_id")}
+    for r in db.execute("SELECT bot_id, SUM(json_extract(payload, '$.amount_cad')) AS fees"
+                        " FROM events WHERE kind = 'fee' GROUP BY bot_id"):
+        n, fees = costs.get(r["bot_id"], (0, 0.0))
+        costs[r["bot_id"]] = (n, fees + r["fees"])  # le forfait mensuel compte aussi
     print(f"\n{'#':>2}  {'Chubby':<10} {'Capital':>12} {'Saison':>8} {'Pire baisse':>12} {'Sharpe':>7}"
           f" {'Trades':>7} {'Frais':>9} {'Score':>6}")
     for i, e in enumerate(arena.leaderboard(), 1):
         m = e["metrics"]
         n, fees = costs.get(e["id"], (0, 0.0))
         print(f"{i:>2}  {e['name']:<10} {e['equity']:>10,.0f} $ {m.total_return:>+8.1%} {m.max_drawdown:>12.1%}"
-              f" {m.sharpe:>7.2f} {n:>7} {fees or 0:>7,.0f} $ {e['score']:>6}")
+              f" {m.sharpe:>7.2f} {n:>7} {fees:>7,.0f} $ {e['score']:>6}")
     print()
 
 
@@ -109,6 +113,8 @@ def main(argv=None):
     p.add_argument("--db", default="data/arena.db", help="fichier SQLite de l'arène")
     p.add_argument("--cache", default="data/cache", help="dossier de cache des prix")
     p.add_argument("--compte", default="CELI", choices=["CELI", "REER", "NON_ENREGISTRE"])
+    p.add_argument("--sans-compte-usd", action="store_true",
+                   help="compte en CAD seulement : 1,5 %% de conversion sur chaque trade américain")
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -131,7 +137,7 @@ def main(argv=None):
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose or args.cmd == "serve" else logging.WARNING,
                         format="%(asctime)s %(levelname)s %(message)s")
-    args.fn(args, ArenaConfig(account_type=args.compte))
+    args.fn(args, ArenaConfig(account_type=args.compte, usd_account=not args.sans_compte_usd))
 
 
 if __name__ == "__main__":

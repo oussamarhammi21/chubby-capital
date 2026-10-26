@@ -65,7 +65,7 @@ class PaperBroker:
         """Coût CAD d'une action à l'achat, et part de frais incluse."""
         fx = self.fx(ticker, day)
         gross = px * (1 + self.cfg.slippage) * fx
-        fee = gross * self.cfg.fx_fee if currency_of(ticker) == "USD" else 0.0
+        fee = gross * self.cfg.trade_fx_fee if currency_of(ticker) == "USD" else 0.0
         return gross + fee, fee
 
     def buy(self, acct: Account, ticker: str, qty: int, day) -> Fill | None:
@@ -94,7 +94,7 @@ class PaperBroker:
         qty = min(qty, pos.qty)
         fx = self.fx(ticker, day)
         gross = qty * px * (1 - self.cfg.slippage) * fx
-        fee = gross * self.cfg.fx_fee if currency_of(ticker) == "USD" else 0.0
+        fee = gross * self.cfg.trade_fx_fee if currency_of(ticker) == "USD" else 0.0
         proceeds = gross - fee - self.cfg.commission
         acct.cash += proceeds
         pos.qty -= qty
@@ -145,7 +145,7 @@ class PaperBroker:
                 continue
             amount = pos.qty * per_share * self.fx(t, day)
             if currency_of(t) == "USD":
-                amount *= (1 - self.cfg.withholding) * (1 - self.cfg.fx_fee)
+                amount *= (1 - self.cfg.withholding) * (1 - self.cfg.trade_fx_fee)
             acct.cash += amount
             paid.append((t, amount))
         return paid
