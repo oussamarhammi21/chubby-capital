@@ -26,11 +26,19 @@ def _load(start, end, cfg: ArenaConfig, cache: str, refresh: bool = False) -> YF
 
 
 def _print_board(arena: Arena):
-    print(f"\n{'#':>2}  {'Chubby':<10} {'Capital':>12} {'Saison':>8} {'Pire baisse':>12} {'Sharpe':>7} {'Score':>6}")
+    db = arena.store.db
+    span = db.execute("SELECT MIN(day) AS a, MAX(day) AS b, COUNT(DISTINCT day) AS n FROM snapshots").fetchone()
+    if span["n"]:
+        print(f"\nSaison du {span['a']} au {span['b']} ({span['n']} séances au total)")
+    costs = {r["bot_id"]: (r["n"], r["fees"]) for r in db.execute(
+        "SELECT bot_id, COUNT(*) AS n, SUM(fees_cad) AS fees FROM trades GROUP BY bot_id")}
+    print(f"\n{'#':>2}  {'Chubby':<10} {'Capital':>12} {'Saison':>8} {'Pire baisse':>12} {'Sharpe':>7}"
+          f" {'Trades':>7} {'Frais':>9} {'Score':>6}")
     for i, e in enumerate(arena.leaderboard(), 1):
         m = e["metrics"]
+        n, fees = costs.get(e["id"], (0, 0.0))
         print(f"{i:>2}  {e['name']:<10} {e['equity']:>10,.0f} $ {m.total_return:>+8.1%} {m.max_drawdown:>12.1%}"
-              f" {m.sharpe:>7.2f} {e['score']:>6}")
+              f" {m.sharpe:>7.2f} {n:>7} {fees or 0:>7,.0f} $ {e['score']:>6}")
     print()
 
 
@@ -38,7 +46,7 @@ def cmd_backtest(args, cfg):
     data = _load(args.start, args.end, cfg, args.cache)
     arena = Arena(Store(args.db), data, all_bots(), cfg)
     n = arena.run(args.start, args.end)
-    print(f"{n} séances jouées du {args.start} au {args.end}.")
+    print(f"{n} nouvelle(s) séance(s) jouée(s) entre le {args.start} et le {args.end}.")
     _print_board(arena)
 
 
