@@ -69,3 +69,23 @@ def test_page_and_api_are_served(tmp_path):
         assert fiche["name"] == "Flan" and fiche["timeline"]
     finally:
         server.shutdown()
+
+
+def test_first_evening_orders_are_visible(tmp_path, capsys):
+    from chubby.arena import Arena
+    from chubby.bots import all_bots
+    from chubby.cli import main
+    from chubby.report import pending_orders
+    from tests.fakes import fake_market
+
+    data = fake_market(300)
+    db = tmp_path / "arene.db"
+    arena = Arena(Store(db), data, all_bots())
+    arena.run(start=data.trading_days()[-1])  # le premier soir : tout le monde est au cash et décide
+    p = pending_orders(arena.store, "tortue")
+    assert {o["ticker"] for o in p["orders"]} == {"XIC.TO", "VFV.TO"}
+    assert all(o["action"] == "acheter" and o["amount_cad"] > 4000 for o in p["orders"])
+    main(["--db", str(db), "ordres"])
+    out = capsys.readouterr().out
+    assert "Tortue" in out and "XIC.TO" in out and "acheter" in out
+    assert bot_report(arena.store, ArenaConfig(), "tortue")["pending"]["orders"]

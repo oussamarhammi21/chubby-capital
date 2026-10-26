@@ -1,4 +1,4 @@
-"""Commandes : chubby backtest | tick | serve | direct | classement | journal | coach | coach-ia | conseil | web."""
+"""Commandes : chubby backtest | tick | serve | direct | classement | ordres | journal | coach | coach-ia | conseil | web."""
 
 from __future__ import annotations
 
@@ -169,6 +169,35 @@ def cmd_journal(args, cfg):
         print(f"{r['day']}  {r['text']}")
 
 
+def cmd_orders(args, cfg):
+    """Les ordres que chaque Chubby a préparés pour la prochaine ouverture."""
+    from .options import describe, is_option
+    from .report import pending_orders
+    store = Store(args.db)
+    bots = [args.bot] if args.bot else [r["id"] for r in store.db.execute("SELECT id FROM bots ORDER BY id")]
+    shown = 0
+    for bot_id in bots:
+        row = store.bot_row(bot_id)
+        if row is None:
+            raise SystemExit(f"Chubby inconnu : {bot_id}")
+        p = pending_orders(store, bot_id)
+        if not p or not p["orders"]:
+            continue
+        shown += 1
+        print(f"\n{row['name']} (décidé le {p['decided_on']}, exécuté à la prochaine ouverture)")
+        for o in p["orders"]:
+            name = describe(o["ticker"]) if is_option(o["ticker"]) else o["ticker"]
+            if "qty" in o:
+                print(f"  {o['action']:<24} {o['qty']} × {name}")
+            else:
+                print(f"  {o['action']:<24} ~{o['amount_cad']:>8,.0f} $  {name:<10} (poids {o['weight_now']:.0%} -> {o['weight_target']:.0%})")
+        if p["cash_target"] is not None:
+            print(f"  {'garder en cash':<24} ~{p['cash_target']:.0%} du capital")
+    if not shown:
+        print("Aucun ordre en attente : les Chubbies gardent leurs positions à la prochaine ouverture.")
+    print()
+
+
 def cmd_coach(args, cfg):
     from .coaching import coach
     result = coach(Store(args.db), args.bot, args.conseil)
@@ -253,6 +282,9 @@ def main(argv=None):
     j.add_argument("bot")
     j.add_argument("-n", type=int, default=15)
     j.set_defaults(fn=cmd_journal)
+    o = sub.add_parser("ordres", help="les ordres préparés pour la prochaine ouverture")
+    o.add_argument("bot", nargs="?", help="un seul Chubby (ex. mochi) ; tous par défaut")
+    o.set_defaults(fn=cmd_orders)
     c = sub.add_parser("coach", help="donner un conseil à un Chubby")
     c.add_argument("bot")
     c.add_argument("conseil", choices=["moins", "plus", "garde"])

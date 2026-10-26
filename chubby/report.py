@@ -145,6 +145,39 @@ def explanation(cls, params: dict[str, float]) -> list[str]:
     return [" ".join(p.split()) for p in doc.split("\n\n") if p.strip()]
 
 
+def pending_orders(store: Store, bot_id: str) -> dict | None:
+    """Les ordres décidés au dernier soir, qui partiront à la prochaine ouverture.
+
+    Un Chubby donne soit des poids visés (« 20 % en NVDA »), soit des ordres directs (« vendre 2 puts XLF »).
+    Pour les poids, on traduit en achat ou vente approximatifs, au prix de la dernière clôture.
+    """
+    row = store.db.execute("SELECT targets, trades, decided_on FROM pending WHERE bot_id = ?", (bot_id,)).fetchone()
+    if row is None:
+        return None
+    targets = json.loads(row["targets"] or "null")
+    trades = json.loads(row["trades"] or "[]")
+    last = store.db.execute("SELECT equity, holdings FROM snapshots WHERE bot_id = ? ORDER BY day DESC LIMIT 1",
+                            (bot_id,)).fetchone()
+    equity = last["equity"] if last else 0.0
+    values = json.loads(last["holdings"] or "{}") if last else {}
+    orders = []
+    if targets is not None:
+        for t in sorted(set(targets) | {t for t in values if values[t] > 0}):
+            want, now = targets.get(t, 0.0) * equity, values.get(t, 0.0)
+            gap = want - now
+            if abs(gap) < 100:  # en dessous de 100 $, le courtier ignore l'ajustement
+                continue
+            orders.append({"ticker": t, "action": "acheter" if gap > 0 else "vendre", "amount_cad": round(abs(gap), 2),
+                           "weight_now": round(now / equity, 4) if equity else 0.0,
+                           "weight_target": round(targets.get(t, 0.0), 4)})
+    for t, q in trades:
+        orders.append({"ticker": t, "qty": abs(int(q)),
+                       "action": ("acheter" if q > 0 else "vendre") + (" (ordre direct)" if not opt.is_option(t) else "")})
+    orders.sort(key=lambda o: (o["action"].startswith("acheter"), -o.get("amount_cad", 0)))  # ventes d'abord, comme à l'exécution
+    return {"decided_on": row["decided_on"], "orders": orders,
+            "cash_target": round(1 - sum(targets.values()), 4) if targets is not None else None}
+
+
 def bot_report(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
     bot = store.bot_row(bot_id)
     if bot is None:
@@ -219,7 +252,7 @@ def bot_report(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
                   "twin": {"id": twin_id, "name": twin["name"],
                            "equity": [None if pd.isna(v) else round(float(v), 2) for v in twin_eq.reindex(eq.index)]}
                   if twin and not twin_eq.empty else None},
-        "positions": positions, "stats": stats,
+        "positions": positions, "stats": stats, "pending": pending_orders(store, bot_id),
         "round_trips": closed[::-1],
         "open_trips": [{"ticker": s["ticker"], "start": s["start"], "cash_cad": round(s["cash"], 2)} for s in still_open.values()],
         "monthly": _monthly(store, bot_id, cfg.starting_cash),

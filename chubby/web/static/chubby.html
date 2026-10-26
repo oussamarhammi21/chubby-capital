@@ -120,6 +120,12 @@ td.wrap { white-space: normal; min-width: 220px; }
     <div class="chart" id="dd"></div>
   </section>
 
+  <section class="card" id="pending-card" hidden>
+    <h2>Ses ordres pour la prochaine ouverture</h2>
+    <p class="muted" id="pending-when" style="margin-bottom:10px;font-size:14px"></p>
+    <div id="pending"></div>
+  </section>
+
   <section class="card">
     <h2>Ce qu'il détient</h2>
     <div id="positions"></div>
@@ -229,6 +235,21 @@ td.wrap { white-space: normal; min-width: 220px; }
           '</td><td class="r">' + (p.value_cad != null ? money(p.value_cad) : '—') + '</td><td class="r">' + (p.weight != null ? Math.round(p.weight * 100) + ' %' : '—') +
           '</td><td class="r ' + (p.gain != null ? cls(p.gain) : '') + '">' + (p.gain != null ? pct(p.gain) : '—') + '</td><td class="r">' + stop + '</td><td>' + esc(p.opened_on) + '</td></tr>';
       }).join('') + '</tbody></table></div><p class="muted" style="margin-top:8px;font-size:13px">Cash : ' + money(r.cash) + '. Les montants sont en dollars canadiens ; les prix sont dans la devise du titre.</p>';
+  }
+
+  function renderPending(r) {
+    var p = r.pending, card = $('#pending-card');
+    card.hidden = !(p && p.orders.length);
+    if (card.hidden) return;
+    $('#pending-when').textContent = 'Décidés le soir du ' + p.decided_on + ', exécutés à l’ouverture suivante, au vrai prix du matin. ' +
+      'Les montants sont estimés au prix de la dernière clôture.' + (p.cash_target != null ? ' Il vise environ ' + Math.round(p.cash_target * 100) + ' % de cash.' : '');
+    $('#pending').innerHTML = '<div class="tbl"><table><thead><tr><th>Ordre</th><th>Titre</th><th class="r">Montant</th><th class="r">Poids actuel</th><th class="r">Poids visé</th></tr></thead><tbody>' +
+      p.orders.map(function (o) {
+        var buy = o.action.indexOf('acheter') === 0;
+        return '<tr><td><span class="pill ' + (buy ? 'buy' : 'sell') + '">' + esc(o.action) + '</span></td><td>' + esc(pretty(o.ticker)) + '</td><td class="r">' +
+          (o.qty != null ? o.qty + (String(o.ticker).indexOf('OPT:') === 0 ? ' contrat(s)' : ' part(s)') : '~' + money(o.amount_cad)) + '</td><td class="r">' + (o.weight_now != null ? Math.round(o.weight_now * 100) + ' %' : '—') +
+          '</td><td class="r">' + (o.weight_target != null ? Math.round(o.weight_target * 100) + ' %' : '—') + '</td></tr>';
+      }).join('') + '</tbody></table></div>';
   }
 
   function renderTrips(r) {
@@ -342,7 +363,7 @@ td.wrap { white-space: normal; min-width: 220px; }
     $('#pick').innerHTML = ov.leaderboard.map(function (e) { return '<option value="' + esc(e.id) + '"' + (e.id === id ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('');
   }).catch(function () {});
   fetch('/api/bots/' + encodeURIComponent(id) + '/fiche').then(function (r) { if (!r.ok) throw new Error(r.status === 404 ? 'Chubby inconnu' : 'le serveur a répondu ' + r.status); return r.json(); }).then(function (r) {
-    report = r; renderHead(r); renderCurves(r); renderPositions(r); renderTrips(r); renderMonthly(r); renderFilters(); renderDays();
+    report = r; renderHead(r); renderCurves(r); renderPending(r); renderPositions(r); renderTrips(r); renderMonthly(r); renderFilters(); renderDays();
   }).catch(function (err) { var el = $('#error'); el.hidden = false; el.textContent = 'Impossible de charger la fiche : ' + err.message + '.'; });
   window.addEventListener('resize', function () { if (report) renderCurves(report); });
 })();

@@ -143,6 +143,7 @@ chubby serve --web
 chubby direct                   # où en sont les Chubbies en ce moment
 
 chubby classement
+chubby ordres                   # les ordres préparés pour la prochaine ouverture (ou : chubby ordres mochi)
 chubby journal matcha
 chubby coach jalapeno moins     # moins | plus | garde : change son agressivité
 chubby conseil positions.csv --risque 2 --style revenu
