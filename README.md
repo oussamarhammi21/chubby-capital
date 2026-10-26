@@ -61,9 +61,9 @@ Sur le tableau de bord, la section **En direct** montre la courbe de la journée
 Pendant la bourse, l'île 3D s'ouvre directement sur la vraie séance (bouton « ● En direct ») :
 
 - les Chubbies sautent de joie quand leur journée s'améliore, et vont vérifier le tableau des cotes quand elle se gâte ;
-- ils **parlent** : leur bulle s'affiche et leur bouche bouge. Avec le bouton « 🔊 Son », chacun a sa petite voix de bébé qui babille, avec un petit rire quand il est content (un peu plus aiguë pour les versions IA) ;
+- ils **parlent** : leur bulle s'affiche et leur bouche bouge. Avec le bouton « 🔊 Son », chacun a une voix de mascotte douce et un peu soufflée : un seul petit son par réplique, « hmm~ », « ooh » et un petit rire quand ça va bien, un soupir quand ça va mal ;
 - quelques bruitages accompagnent la partie : pièces des dividendes, sauts, fanfare du podium.
-- avec le bouton « 🎵 Musique », un trio jazz doux tourne en fond : piano Rhodes, contrebasse qui marche, balais et vibraphone qui improvise. Elle est composée à la volée, donc jamais tout à fait la même, ralentit le soir et baisse quand un Chubby parle.
+- avec le bouton « 🎵 Musique », un petit morceau lo-fi composé tourne en fond : 16 mesures de piano Rhodes, nappe chaude, contrebasse, batterie feutrée et mélodie de kalimba. Elle est composée à la volée, donc jamais tout à fait la même, ralentit le soir et baisse quand un Chubby parle.
 
 Les sons sont créés dans le navigateur, sans aucun fichier audio.
 
@@ -237,6 +237,8 @@ Plus bas, tout ce qu'il faut pour le comprendre :
 L'historique se filtre par type, et s'exporte en CSV pour Excel ou Google Sheets.
 
 ### L'île 3D
+
+Une grande île au milieu de la mer : au centre, la place et sa fontaine au cristal ; au nord, le grand écran de l'arène et son podium ; à l'est, le stand du marché (écran TSX · NYSE en direct) ; à l'ouest, le coin du coach ; au sud, le coin de chaque Chubby ; un quai avec son bateau, des îles et un phare au loin.
 
 Bouton « Voir l'île 3D », ou http://localhost:8000/ile. Les Chubbies y **rejouent les vraies séances
 de la base** : chaque trade les fait courir au tableau des cotes, chaque dividende fait pleuvoir des
