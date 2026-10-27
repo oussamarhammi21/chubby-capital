@@ -57,6 +57,8 @@ class Store:
             self.db.execute("ALTER TABLE bots ADD COLUMN params TEXT")
         if "trades" not in {r["name"] for r in self.db.execute("PRAGMA table_info(pending)")}:
             self.db.execute("ALTER TABLE pending ADD COLUMN trades TEXT")
+        if "time" not in {r["name"] for r in self.db.execute("PRAGMA table_info(trades)")}:
+            self.db.execute("ALTER TABLE trades ADD COLUMN time TEXT")  # heure d'un ordre passé pendant la séance
 
     def commit(self):
         self.db.commit()
@@ -113,11 +115,18 @@ class Store:
 
     # --- Historique -------------------------------------------------------
 
-    def add_trade(self, bot_id: str, day, f: Fill):
+    def add_trade(self, bot_id: str, day, f: Fill, time: str | None = None):
+        """`time` : heure (HH:MM, Toronto) d'un ordre exécuté par la séance en direct ; None pour la séance du soir."""
         self.db.execute(
-            "INSERT INTO trades (bot_id, day, ticker, side, qty, price, currency, fx, fees_cad, value_cad)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (bot_id, _d(day), f.ticker, f.side, f.qty, f.price, f.currency, f.fx, f.fees_cad, f.value_cad))
+            "INSERT INTO trades (bot_id, day, ticker, side, qty, price, currency, fx, fees_cad, value_cad, time)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (bot_id, _d(day), f.ticker, f.side, f.qty, f.price, f.currency, f.fx, f.fees_cad, f.value_cad, time))
+
+    def bought_during_session(self, bot_id: str, day, after: str = "09:30") -> set[str]:
+        """Titres achetés en direct pendant la séance de ce jour-là, après l'ouverture."""
+        return {r["ticker"] for r in self.db.execute(
+            "SELECT DISTINCT ticker FROM trades WHERE bot_id = ? AND day = ? AND side = 'buy' AND time > ?",
+            (bot_id, _d(day), after))}
 
     def add_snapshot(self, bot_id: str, day, equity: float, cash: float, holdings: dict[str, float] | None = None):
         self.db.execute("INSERT OR REPLACE INTO snapshots (bot_id, day, equity, cash, holdings) VALUES (?, ?, ?, ?, ?)",

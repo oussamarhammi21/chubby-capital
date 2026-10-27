@@ -49,12 +49,27 @@ chubby --sans-ia tick  # arène sans versions IA
 
 ## L'arène en direct
 
-Les Chubbies sont des stratégies quotidiennes : ils **décident le soir**, avec les clôtures, et leurs ordres partent à
-l'ouverture suivante. Mais **pendant la bourse** (9 h 30 à 16 h, heure de Toronto), on les suit en direct
-([`chubby/live.py`](chubby/live.py)) :
+Les Chubbies **tradent pendant la bourse** (9 h 30 à 16 h, heure de Toronto), chacun selon sa personnalité
+([`chubby/intraday.py`](chubby/intraday.py)) :
 
-- leur capital est recalculé sur les vrais cours, par barres de 5 minutes ;
-- les ordres décidés la veille au soir sont comptés au premier cours de la séance (l'arène ne les inscrit que le soir, au prix d'ouverture) ;
+- **à l'ouverture**, les ordres décidés la veille au soir partent au premier cours de la séance, et sont inscrits tout de suite ;
+- **toutes les 15 minutes**, chacun refait son analyse avec le cours du moment, avec ses propres règles : Muffin achète au
+  creux dès que le RSI passe sous 30 et revend au rebond, Mochi coupe une tendance qui casse et place le cash qui dort sur
+  les plus fortes, Jalapeño encaisse son gain ou coupe sa perte, Tortue, Flan, Dumpling et Matcha investissent le cash qui dort ;
+- il **confirme** avant d'agir : l'occasion doit être encore là à la vérification suivante (pas de réaction au bruit) ;
+- **pas d'aller-retour** sur un même titre dans la journée, pour ne pas payer des frais pour rien ;
+- ses **ordres stop** sont surveillés en direct et exécutés dès que le cours franchit le seuil ;
+- chaque ordre est noté avec **l'heure et la raison** (journal, fiche, direct et île 3D).
+
+Le soir (16 h 20), la séance de clôture verse les dividendes et les intérêts, inscrit la valeur de clôture, fait le
+classement et prend la dernière décision de la journée (exécutée à l'ouverture suivante). Si elle a été manquée,
+elle est rattrapée au début de la séance suivante, avant de trader. `--sans-seance` revient à l'ancien fonctionnement
+(décisions le soir seulement), et `chubby seance` lance une analyse tout de suite.
+
+On suit aussi leur journée en direct ([`chubby/live.py`](chubby/live.py)) :
+
+- leur capital est recalculé sur les vrais cours, par barres de 5 minutes, en tenant compte des ordres passés dans la journée ;
+- on voit ce qu'ils viennent d'acheter ou de vendre, et l'occasion qu'ils s'apprêtent à confirmer ;
 - on voit le titre qui les fait le plus bouger ;
 - chacun **réagit selon sa personnalité** : Tortue ne bouge pas, Muffin flaire une aubaine, Jalapeño panique, Matcha prend des notes pour son prochain entraînement.
 
@@ -87,7 +102,7 @@ Pendant la bourse, ces seuils sont comparés aux vrais cours :
 
 Ils agissent toujours à la clôture : un seuil franchi à 11 h ne compte que s'il tient jusqu'à 16 h. C'est ce qui permet de repérer un comportement à corriger, par exemple un seuil trop serré qui se fait franchir tous les jours.
 
-Le direct se rafraîchit tout seul, toutes les 4 minutes au plus, dès qu'une page est ouverte : `chubby web` suffit.
+Le direct se rafraîchit tout seul, toutes les 4 minutes au plus, dès qu'une page est ouverte : `chubby web` suffit. Il fait aussi trader les Chubbies pendant la bourse et joue la séance du soir à 16 h 20, tant qu'il reste ouvert.
 
 ```bash
 chubby direct      # la même chose dans le terminal
@@ -161,6 +176,7 @@ chubby tick
 chubby serve --web
 
 chubby direct                   # où en sont les Chubbies en ce moment
+chubby seance                   # une analyse en séance tout de suite (chacun trade s'il voit une occasion)
 chubby watchlist                # recalculer watchlists et seuils de la dernière séance (sans rien rejouer)
 
 chubby classement
@@ -170,13 +186,16 @@ chubby coach jalapeno moins     # moins | plus | garde : change son agressivité
 chubby conseil positions.csv --risque 2 --style revenu
 ```
 
-Tout est enregistré dans un fichier SQLite (`data/arena.db`) : comptes, réglages, trades, valeurs quotidiennes, journal de chaque bot et **événements** (`trade`, `dividend`, `rank_change`, `coach`, `ai_coach`…), que l'île 3D anime.
+Tout est enregistré dans un fichier SQLite (`data/arena.db`) : comptes, réglages, trades, valeurs quotidiennes, journal de chaque bot et **événements** (`trade`, `stop`, `analyse`, `dividend`, `rank_change`, `coach`, `ai_coach`…), que l'île 3D anime.
 
 ## Au quotidien
 
-Une seule chose doit se faire chaque jour de bourse : **la séance du soir** (`chubby tick`, après 16 h 20, heure de Toronto).
-Les Chubbies y encaissent leurs ordres de la veille, comptent leur argent et décident pour le lendemain. Le vendredi, Claude coache aussi les versions IA.
-Rien n'a besoin de tourner toute la journée : le direct ne sert qu'à **regarder**.
+Pour que les Chubbies **tradent pendant la bourse**, le tableau de bord doit tourner pendant la séance
+(`chubby web`, ou `chubby serve --web`) : c'est lui qui les fait analyser et trader toutes les 15 minutes, et qui joue la
+séance du soir à 16 h 20 tant qu'il reste ouvert. Ouvre-le le matin, laisse la fenêtre ouverte, c'est tout.
+
+Sans lui, il reste **la séance du soir** (`chubby tick`, après 16 h 20, heure de Toronto) : les Chubbies y comptent leur
+argent et décident pour le lendemain, et leurs ordres partiront à l'ouverture suivante. Le vendredi, Claude coache aussi les versions IA.
 
 Si ton PC était éteint un soir, le `tick` suivant rattrape les séances manquées, chacune avec ses vrais cours de clôture.
 

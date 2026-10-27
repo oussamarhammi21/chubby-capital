@@ -110,6 +110,9 @@ def _timeline(store: Store, bot_id: str) -> list[dict]:
              "currency": r["currency"], "fees_cad": round(r["fees_cad"] or 0.0, 2), "value_cad": round(r["value_cad"], 2)}
         if (r["day"], r["ticker"]) in stop_keys:
             continue  # déjà raconté par l'événement « stop » de la séance
+        if (r["time"] or "") > "09:30":  # passé en direct, pendant la séance
+            days[r["day"]]["session"].append({**t, "time": r["time"]})
+            continue
         days[r["day"]]["close" if r["side"] in ("expire", "assign") else "open"].append(t)
     for r in db.execute("SELECT day, text FROM journal WHERE bot_id = ? ORDER BY id", (bot_id,)):
         days[r["day"]]["evening"].append({"kind": "journal", "text": r["text"]})
@@ -149,6 +152,9 @@ def _activity(store: Store, bot_id: str, limit: int = 40) -> list[dict]:
         elif r["side"] in ("expire", "assign"):
             kind = "Échéance de l'option" if r["side"] == "expire" else "Option exercée"
             submitted, filled = "automatique", f"{r['day']}, à l'échéance"
+        elif (r["time"] or "") > "09:30":
+            kind = "Achat en séance" if r["side"] == "buy" else "Vente en séance"
+            submitted = filled = f"{r['day']} à {r['time'].replace(':', ' h ')}, pendant la séance"
         else:
             kind = "Achat au marché" if r["side"] == "buy" else "Vente au marché"
             submitted = f"{previous.get(r['day'], r['day'])}, le soir après la clôture"

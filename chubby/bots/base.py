@@ -41,6 +41,7 @@ class BotContext:
     aggressiveness: float  # réglé par le coaching, 1.0 = neutre
     day_index: int  # nombre de séances depuis le début de l'arène
     params: dict[str, float] = field(default_factory=dict)  # réglages actuels du bot
+    intraday: bool = False  # vrai pendant la séance : le dernier prix est le cours du moment, pas une clôture
 
     @property
     def equity(self) -> float:
