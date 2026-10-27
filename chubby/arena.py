@@ -151,7 +151,12 @@ class Arena:
     def _stops(self, bot: Bot, broker: PaperBroker, acct, day: pd.Timestamp):
         """Ordres stop : déclenchés pendant la séance si le plus bas (ou le plus haut) du jour franchit le seuil."""
         levels = bot.stops(acct.positions, self.store.get_params(bot.id), lambda t: broker.fx(t, day))
+        # Un titre acheté en direct après l'ouverture : le plus bas du jour a pu venir avant l'achat. Ses stops ont
+        # déjà été surveillés en direct (intraday.py), on ne les rejoue pas sur les extrêmes de toute la journée.
+        fresh = self.store.bought_during_session(bot.id, day)
         for ticker, (level, direction) in levels.items():
+            if ticker in fresh:
+                continue
             hit = broker.stop_out(acct, ticker, level, direction, day)
             if hit is None:
                 continue

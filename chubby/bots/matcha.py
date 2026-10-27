@@ -69,6 +69,7 @@ class Matcha(Bot):
         self._panel: dict[str, pd.DataFrame] | None = None
         self._panel_source = None
         self.weights: np.ndarray | None = None
+        self._trained: tuple | None = None  # (jour, exemples) du dernier entraînement
 
     def _features(self, ctx: BotContext) -> dict[str, pd.DataFrame]:
         # Les indicateurs sont calculés une fois pour toute la série : chacun ne regarde que le passé,
@@ -133,7 +134,11 @@ class Matcha(Bot):
         # pour un nouveau mois, sinon elle changerait ses choix chaque soir au lieu d'une fois par mois.
         if not ctx.first_day_of_month() and ctx.account.positions:
             return Decision(None)
-        samples = self.train(ctx)
+        if ctx.intraday and self._trained and self._trained[0] == ctx.day and self.weights is not None:
+            samples = self._trained[1]  # pendant la séance, un entraînement par jour suffit
+        else:
+            samples = self.train(ctx)
+            self._trained = (ctx.day, samples)
         if self.weights is None:
             return Decision(None, [f"Pas encore assez d'historique pour apprendre ({samples} exemples)."])
         scores = self.predict(ctx)

@@ -1,0 +1,188 @@
+"""Les Chubbies tradent pendant la séance : ouverture, confirmation, stops, et ce que le direct en montre."""
+
+from datetime import datetime
+
+import pandas as pd
+import pytest
+
+from chubby.arena import Arena
+from chubby.bots import Bot, BotContext, Decision, all_bots
+from chubby.bots.chubbies import Muffin, Tortue
+from chubby.intraday import SessionTrader, overlay, trades_today
+from chubby.live import TORONTO, pulse
+from chubby.store import Store
+from tests.fakes import fake_market
+
+
+class Gourmand(Bot):
+    """Achète NVDA dès qu'il perd 3 % dans la journée ; stop à 5 % sous son prix d'achat."""
+
+    id, name, personality, universe = "gourmand", "Gourmand", "Teste la séance", ["NVDA"]
+    usd_account = False
+
+    def decide(self, ctx: BotContext) -> Decision:
+        closes = ctx.closes("NVDA", 2)
+        if "NVDA" not in ctx.account.positions and closes.iloc[-1] < 0.97 * closes.iloc[-2]:
+            return Decision({"NVDA": 0.5}, ["NVDA est en solde aujourd'hui."])
+        if "NVDA" in ctx.account.positions and closes.iloc[-1] > 1.0 * closes.iloc[-2]:
+            return Decision({}, ["Je revends NVDA."])
+        return Decision(None)
+
+    def stops(self, positions, params, fx):
+        return {t: (p.avg_cost_cad * 0.95 / fx(t), "below") for t, p in positions.items()}
+
+
+def session(data, day, path: dict[str, list[float]], until: str) -> pd.DataFrame:
+    """Barres de 5 minutes du jour jusqu'à `until` : chaque titre à sa clôture de la veille, sauf ceux de `path`
+    (variation par rapport à la veille, une valeur par barre, la dernière répétée)."""
+    stamps = [pd.Timestamp(f"{day.date()} {h:02d}:{m:02d}", tz=TORONTO) for h in range(9, 16) for m in range(0, 60, 5)
+              if (h, m) >= (9, 30) and f"{h:02d}:{m:02d}" <= until]
+    prev = data.trading_days(end=day - pd.Timedelta(days=1))[-1]
+    cols = {}
+    for t in data.frames:
+        base = data.price(t, prev)
+        moves = path.get(t, [0.0])
+        cols[t] = [base * (1 + moves[min(i, len(moves) - 1)]) for i in range(len(stamps))]
+    cols["CAD=X"] = [1.35] * len(stamps)
+    return pd.DataFrame(cols, index=pd.DatetimeIndex(stamps))
+
+
+def at(day, hhmm: str) -> datetime:
+    return datetime(day.year, day.month, day.day, int(hhmm[:2]), int(hhmm[3:]), tzinfo=TORONTO)
+
+
+@pytest.fixture()
+def setup():
+    data = fake_market(300)
+    days = data.trading_days()
+    store = Store(":memory:")
+    bots = [Tortue(), Gourmand()]
+    Arena(store, data, bots).run(days[-3], days[-2])  # l'arène a joué jusqu'à hier soir
+    trader = SessionTrader(":memory:", Arena(store, data, bots).cfg, bots, load_daily=lambda today: data)
+    return data, days[-1], store, trader
+
+
+def test_last_nights_orders_fill_at_the_open_right_away(setup):
+    data, today, store, trader = setup
+    store.set_pending("tortue", {"XIC.TO": 0.49, "VFV.TO": 0.49}, today - pd.Timedelta(days=1))
+    store.save_account(store.load_account("tortue").__class__("tortue", 10_000.0))
+    bars = session(data, today, {"VFV.TO": [0.0, 0.02]}, until="10:00")
+    trader.step(store, at(today, "10:00"), bars=bars)
+    rows = store.db.execute("SELECT ticker, price, time FROM trades WHERE bot_id = 'tortue' AND day = ?",
+                            (str(today.date()),)).fetchall()
+    assert {r["ticker"] for r in rows} == {"XIC.TO", "VFV.TO"} and {r["time"] for r in rows} == {"09:30"}
+    vfv = next(r for r in rows if r["ticker"] == "VFV.TO")
+    assert vfv["price"] == pytest.approx(bars["VFV.TO"].iloc[0] * 1.0005)  # le premier cours, pas celui de 10 h
+    assert store.pop_pending("tortue") == (None, [])  # plus rien en attente pour ce soir
+
+
+def test_an_opportunity_is_confirmed_then_traded_once(setup):
+    data, today, store, trader = setup
+    dip = {"NVDA": [0.0] * 6 + [-0.05]}  # NVDA perd 5 % à partir de 10 h
+    trader.step(store, at(today, "10:00"), bars=session(data, today, dip, "10:00"))
+    assert not trades_today(store, "gourmand", str(today.date()))
+    seen = store.db.execute("SELECT payload FROM events WHERE kind = 'analyse' AND bot_id = 'gourmand'").fetchall()
+    assert any("NVDA" in r["payload"] and "confirme" in r["payload"] for r in seen)
+
+    trader.step(store, at(today, "10:15"), bars=session(data, today, dip, "10:15"))
+    done = trades_today(store, "gourmand", str(today.date()))
+    assert [(d["side"], d["ticker"], d["time"]) for d in done] == [("buy", "NVDA", "10:15")]
+    assert "solde" in done[0]["why"]
+    journal = store.db.execute("SELECT text FROM journal WHERE bot_id = 'gourmand'").fetchall()
+    assert any(r["text"].startswith("10:15 · ") for r in journal)
+
+    # Le rebond arrive dans l'après-midi : pas d'aller-retour sur le même titre dans la journée.
+    rebound = {"NVDA": [0.0] * 6 + [-0.05] * 6 + [0.02]}
+    for hhmm in ("10:30", "10:45"):
+        trader.step(store, at(today, hhmm), bars=session(data, today, rebound, hhmm))
+    assert len(trades_today(store, "gourmand", str(today.date()))) == 1
+
+
+def test_a_passing_dip_is_not_traded(setup):
+    data, today, store, trader = setup
+    trader.step(store, at(today, "10:00"), bars=session(data, today, {"NVDA": [0.0] * 6 + [-0.05]}, "10:00"))
+    trader.step(store, at(today, "10:15"), bars=session(data, today, {"NVDA": [0.0] * 6 + [-0.05, 0.0]}, "10:15"))
+    trader.step(store, at(today, "10:30"), bars=session(data, today, {"NVDA": [0.0] * 6 + [-0.05, 0.0]}, "10:30"))
+    assert not trades_today(store, "gourmand", str(today.date()))  # le creux n'a pas tenu : il n'a pas acheté
+
+
+def test_stops_fire_during_the_session_after_the_purchase(setup):
+    data, today, store, trader = setup
+    path = {"NVDA": [0.0] * 6 + [-0.05] * 7 + [-0.12]}  # achète à 10 h 15 (-5 %), puis chute à -12 % à 10 h 35
+    for hhmm in ("10:00", "10:15", "10:45"):
+        trader.step(store, at(today, hhmm), bars=session(data, today, path, hhmm))
+    done = trades_today(store, "gourmand", str(today.date()))
+    assert [d["side"] for d in done] == ["buy", "sell"] and done[1]["time"] == "10:45"
+    assert "NVDA" not in store.load_account("gourmand").positions
+    # Le soir, l'arène ne rejoue pas le stop d'un titre acheté en direct sur le plus bas de toute la journée.
+    assert store.bought_during_session("gourmand", today) == {"NVDA"}
+
+
+def test_missed_evening_sessions_are_caught_up_first():
+    data = fake_market(300)
+    days = data.trading_days()
+    store = Store(":memory:")
+    bots = [Tortue()]
+    Arena(store, data, bots).run(days[-5], days[-5])
+    trader = SessionTrader(":memory:", Arena(store, data, bots).cfg, bots, load_daily=lambda today: data)
+    trader.step(store, at(days[-1], "10:00"), bars=session(data, days[-1], {}, "10:00"))
+    assert store.get_meta("last_day") == str(days[-2].date())
+    n = store.db.execute("SELECT COUNT(*) AS n FROM snapshots WHERE bot_id = 'tortue'").fetchone()["n"]
+    assert n == 4  # les trois soirées manquées ont été jouées avant de trader
+
+
+def test_overlay_puts_the_live_price_as_todays_close():
+    data = fake_market(300)
+    today = data.trading_days()[-1]
+    bars = session(data, today, {"NVDA": [0.0, -0.02, 0.01]}, "09:45")
+    now, opening = overlay(data, bars), overlay(data, bars, at_open=True)
+    assert now.price("NVDA", today) == pytest.approx(bars["NVDA"].iloc[-1])
+    assert now.price("NVDA", today, "Open") == pytest.approx(bars["NVDA"].iloc[-1])  # un ordre maintenant : cours actuel
+    assert opening.price("NVDA", today, "Open") == pytest.approx(bars["NVDA"].iloc[0])
+    assert now.extreme("NVDA", today, "low") == pytest.approx(bars["NVDA"].min())
+    assert now.closes("NVDA", today, 3).index[-1] == today and len(now.closes("NVDA", today, 300)) <= 300
+
+
+def test_muffin_waits_for_the_close_for_its_8_percent_stop():
+    data = fake_market(300)
+    day = data.trading_days()[-1]
+    from chubby.broker import Account, PaperBroker, Position
+    from chubby.config import ArenaConfig
+    broker = PaperBroker(ArenaConfig(usd_account=False), data)
+    px = data.price("HD", day)
+    acct = Account("muffin", 1_000.0, {"HD": Position("HD", 10, px * 1.35 * 1.2, str(day.date()))})  # -17 %
+    muffin = Muffin()
+    close = muffin.decide(BotContext(day, data, broker, acct, 1.0, 0, {"rsi_sell": 100}))
+    live = muffin.decide(BotContext(day, data, broker, acct, 1.0, 0, {"rsi_sell": 100}, intraday=True))
+    assert close.targets is not None and "HD" not in close.targets
+    assert live.targets is None or "HD" in live.targets
+
+
+def test_live_view_shows_what_they_just_did(setup):
+    data, today, store, trader = setup
+    dip = {"NVDA": [0.0] * 6 + [-0.05]}
+    for hhmm in ("10:00", "10:15"):
+        trader.step(store, at(today, hhmm), bars=session(data, today, dip, hhmm))
+    bars = session(data, today, dip, "10:20")
+    live = pulse(store, fetch=lambda tickers: bars, now=at(today, "10:20"))
+    g = next(e for e in live["bots"] if e["id"] == "gourmand")
+    assert g["trades_today"][0]["ticker"] == "NVDA" and "j'ai acheté" in g["reaction"] and "10 h 15" in g["reaction"]
+    assert g["curve"][0] == pytest.approx(0.0, abs=0.002)  # avant l'achat, la courbe ne compte pas NVDA
+    assert g["change"] == pytest.approx(g["equity"] / g["base"] - 1, abs=1e-4)
+    assert live["trading"]["checked_at"] == "10:15"
+
+
+def test_all_bots_survive_a_live_session():
+    data = fake_market(320)
+    days = data.trading_days()
+    store = Store(":memory:")
+    bots = all_bots()
+    Arena(store, data, bots).run(days[260], days[-2])
+    trader = SessionTrader(":memory:", Arena(store, data, bots).cfg, bots, load_daily=lambda today: data)
+    path = {t: [0.0, -0.03, -0.04] for t in data.frames}
+    for hhmm in ("10:00", "10:15", "10:30"):
+        trader.step(store, at(days[-1], hhmm), bars=session(data, days[-1], path, hhmm))
+    assert "error" not in {r["kind"] for r in store.db.execute("SELECT DISTINCT kind FROM events")}
+    assert store.db.execute("SELECT MIN(cash) AS m FROM accounts").fetchone()["m"] >= -1e-6
+    Arena(store, data, bots).run(days[-1], days[-1])  # la séance du soir passe derrière sans rien casser
+    assert store.get_meta("last_day") == str(days[-1].date())

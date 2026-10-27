@@ -1,8 +1,8 @@
 """L'arène en direct pendant la séance : la valeur de chaque Chubby minute après minute, et ses réactions.
 
-Les Chubbies décident toujours le soir, avec les clôtures (ce sont des stratégies quotidiennes). Pendant
-la journée, on suit leurs positions sur les vrais cours (barres de 5 minutes de Yahoo Finance) : qui
-gagne, qui perd, quel titre les fait bouger, et ce qu'ils en disent selon leur personnalité.
+Les Chubbies tradent pendant la séance (voir intraday.py) et décident aussi le soir, avec les clôtures. Ici, on
+suit leurs positions sur les vrais cours (barres de 5 minutes de Yahoo Finance) : qui gagne, qui perd, quel titre
+les fait bouger, ce qu'ils viennent d'acheter ou de vendre, et ce qu'ils en disent selon leur personnalité.
 """
 
 from __future__ import annotations
@@ -161,6 +161,8 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
     bots = store.db.execute("SELECT id, name, personality FROM bots ORDER BY id").fetchall()
     accounts = {b["id"]: store.load_account(b["id"]) for b in bots}
     stocks = {t for a in accounts.values() for t in a.positions if not opt.is_option(t)}
+    stocks |= {r["ticker"] for r in store.db.execute("SELECT DISTINCT ticker FROM trades WHERE day = ? AND time IS NOT NULL",
+                                                      (str(now.date()),)) if not opt.is_option(r["ticker"])}
     from .report import pending_orders
     pending = {b["id"]: pending_orders(store, b["id"]) for b in bots}
     watched = {b["id"]: [i["ticker"] for i in (store.get_watchlist(b["id"]) or {}).get("items", [])
@@ -182,6 +184,9 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
     fx = session[FX].fillna(prev.get(FX, fx_now)) if FX in session else pd.Series(fx_now, index=session.index)
     fx = fx.fillna(fx_now)
 
+    from .intraday import status as trading_status, trades_today
+    trading = trading_status(store)
+    intents = (trading or {}).get("intents", {}) if (trading or {}).get("day") == str(day) else {}
     out_bots = []
     for b in bots:
         base_row = store.db.execute("SELECT day, equity, holdings FROM snapshots WHERE bot_id = ? AND day < ?"
@@ -189,8 +194,6 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
         today_row = store.db.execute("SELECT equity FROM snapshots WHERE bot_id = ? AND day = ?",
                                      (b["id"], str(day))).fetchone()
         acct = accounts[b["id"]]
-        if base_row is None and today_row is None:
-            continue  # pas encore inscrit dans l'arène
         # Les ordres d'hier soir sont partis à l'ouverture de ce matin, mais l'arène ne les inscrit qu'au soir :
         # en attendant, on les compte au premier cours de la séance.
         morning = {}
@@ -200,31 +203,42 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
             held_acct = acct
         # Premier jour de l'arène : pas de veille, il part de son capital de départ (tout en cash).
         held = json.loads(base_row["holdings"] or "{}") if base_row else {}
-        curve = pd.Series(held_acct.cash, index=session.index, dtype=float)
+        # Les ordres passés en direct changent le cash et les quantités en cours de journée : la courbe en tient compte.
+        curve, qty_paths, traded_unit = _intraday_paths(store, b["id"], str(day), session, held_acct)
         movers = []
-        for t, pos in held_acct.positions.items():
+        for t, qty in qty_paths.items():
             usd = currency_of(t) == "USD"
+            now_qty = float(qty.iloc[-1])
             if not opt.is_option(t) and t in session and session[t].notna().any():
                 px = session[t].ffill().bfill()
-                value = pos.qty * px * (fx if usd else 1.0)
+                value = qty * px * (fx if usd else 1.0)
                 start = prev.get(t)
                 change = float(px.iloc[-1] / start - 1) if start and not pd.isna(start) else None
-                impact = float(pos.qty * (px.iloc[-1] - start) * (fx.iloc[-1] if usd else 1.0)) if change is not None else 0.0
+                impact = float(now_qty * (px.iloc[-1] - start) * (fx.iloc[-1] if usd else 1.0)) if change is not None else 0.0
             else:
                 quote = chains.quote(t) if chains is not None and opt.is_option(t) else None
                 last = held.get(t, 0.0)
-                now_value = pos.qty * quote * opt.MULTIPLIER * (fx.iloc[-1] if usd else 1.0) if quote else last
-                value = pd.Series(now_value, index=session.index)
+                if quote:
+                    unit = quote * opt.MULTIPLIER * (fx.iloc[-1] if usd else 1.0)
+                elif last and t in held_acct.positions:
+                    unit = last / held_acct.positions[t].qty
+                else:
+                    unit = traded_unit.get(t, 0.0)
+                value = qty * unit
+                now_value = now_qty * unit
                 change = (now_value / last - 1) if quote and last else None
                 impact = now_value - last if quote else 0.0
             curve = curve + value
-            if change is not None:
+            if change is not None and now_qty:
                 movers.append({"ticker": t, "name": opt.describe(t) if opt.is_option(t) else t,
                                "change": round(change, 4), "impact_cad": round(impact, 2)})
         holdings_live = {m["ticker"]: m["change"] for m in movers}
         movers.sort(key=lambda m: -abs(m["impact_cad"]))
         stops = _watch_stops(b["id"], acct, store.get_params(b["id"]), session, float(fx.iloc[-1]), chains)
-        base = base_row["equity"] if base_row else (float(today_row["equity"]) if not acct.positions else acct.cash)
+        if base_row is None and today_row is None:
+            base = float(curve.iloc[0])  # premier jour de l'arène, avant sa première séance du soir
+        else:
+            base = base_row["equity"] if base_row else (float(today_row["equity"]) if not acct.positions else acct.cash)
         equity = float(today_row["equity"]) if today_row else float(curve.iloc[-1])
         watch = store.get_watchlist(b["id"])
         radar = _radar(watch, session)
@@ -233,15 +247,22 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
         musings = _watch_lines(watch, quotes)
         change = equity / base - 1 if base else 0.0
         top = movers[0] if movers else ({"name": "Mon portefeuille", "change": 0.0} if held_acct.positions else None)
+        done = trades_today(store, b["id"], str(day))
+        intent = intents.get(b["id"])
+        recent = [_trade_line(x) for x in done[::-1] if x.get("time") and _minutes(session.index[-1]) - _minutes(x["time"]) <= 30]
+        action = (_intent_line(intent) if intent else None)
         out_bots.append({
             "id": b["id"], "name": b["name"], "personality": b["personality"],
             "equity": round(equity, 2), "base": round(base, 2), "change": round(change, 5),
             "change_cad": round(equity - base, 2), "mood": mood_of(change),
-            "reaction": (_stop_reaction(stops) or _radar_reaction(radar)
+            "reaction": (_stop_reaction(stops) or (recent[0] if recent else None) or action or _radar_reaction(radar)
                          or (None if held_acct.positions else (plans + musings)[0] if plans + musings else None)
                          or react(b["id"], change, top, now)),
             "movers": movers[:3],
-            "stops": stops, "radar": radar, "thoughts": (_thoughts(stops, radar) + plans[:2] + musings[:2])[:6],
+            "stops": stops, "radar": radar,
+            "thoughts": ([_trade_line(x) for x in done[::-1][:2]] + ([action] if action else [])
+                         + _thoughts(stops, radar) + plans[:2] + musings[:2])[:6],
+            "trades_today": done, "intent": intent,
             "holdings": holdings_live, "watch": quotes,
             "curve": [round(float(v) / base - 1, 5) if base else 0.0 for v in curve],
             "settled": today_row is not None,
@@ -263,10 +284,52 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
         "as_of": session.index[-1].strftime("%H:%M"), "open": market_open(now) and day == now.date(),
         "usdcad": round(float(fx.iloc[-1]), 4), "times": [t.strftime("%H:%M") for t in session.index],
         "indexes": indexes, "bots": out_bots,
+        "trading": trading if (trading or {}).get("day") == str(day) else None,
     }
     store.set_meta("live", json.dumps(payload, ensure_ascii=False))
     store.commit()
     return payload
+
+
+def _minutes(t) -> int:
+    if not isinstance(t, str):
+        t = t.strftime("%H:%M")
+    return int(t[:2]) * 60 + int(t[3:5])
+
+
+def _intraday_paths(store: Store, bot_id: str, day: str, session: pd.DataFrame, acct: Account):
+    """Le cash et la quantité de chaque titre, barre par barre : on défait les ordres passés en direct pour les barres
+    d'avant leur heure. Rend aussi, pour les titres échangés, leur valeur unitaire en CAD au moment de l'ordre."""
+    stamps = [i.strftime("%H:%M") for i in session.index]
+    cash = pd.Series(float(acct.cash), index=session.index)
+    qty = {t: pd.Series(float(p.qty), index=session.index) for t, p in acct.positions.items()}
+    unit = {}
+    for r in store.db.execute("SELECT ticker, side, qty, value_cad, time FROM trades WHERE bot_id = ? AND day = ?"
+                              " AND time > '09:30' AND side IN ('buy', 'sell') ORDER BY id", (bot_id, day)):
+        before = [s < r["time"] for s in stamps]
+        sign = 1 if r["side"] == "buy" else -1
+        cash[before] += sign * r["value_cad"]
+        path = qty.setdefault(r["ticker"], pd.Series(0.0, index=session.index))
+        path[before] -= sign * r["qty"]
+        unit.setdefault(r["ticker"], r["value_cad"] / r["qty"] if r["qty"] else 0.0)
+    return cash, qty, unit
+
+
+def _trade_line(x: dict) -> str:
+    verb = "acheté" if x["side"] == "buy" else "vendu"
+    name = opt.describe(x["ticker"]) if opt.is_option(x["ticker"]) else x["ticker"]
+    when = "À l'ouverture" if x.get("time") == "09:30" else f"À {x['time'].replace(':', ' h ')}"
+    qty = f"{x['qty']} " if x.get("qty") else ""
+    price = f" à {x['price']:.2f} $" if x.get("price") else ""
+    return french(f"{when}, j'ai {verb} {qty}{name}{price}. {x.get('why') or ''}").strip()
+
+
+def _intent_line(intent: dict) -> str:
+    verb = "acheter" if intent["side"] == "buy" else "vendre"
+    t = intent["ticker"]
+    name = opt.describe(t) if opt.is_option(t) else t
+    return french(f"J'ai repéré une occasion : je veux {verb} {name}. {intent.get('why') or ''} "
+                  f"Je confirme à la prochaine vérification.").replace("  ", " ")
 
 
 def _radar(watch: dict | None, session: pd.DataFrame) -> list[dict]:

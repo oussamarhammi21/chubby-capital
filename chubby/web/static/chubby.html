@@ -402,7 +402,7 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
     switch (e.kind) {
       case 'trade':
         var verb = { buy: 'Achat', sell: 'Vente', expire: 'Échéance', assign: 'Exercée' }[e.side] || e.side, k = e.side === 'buy' ? 'buy' : 'sell';
-        return '<span class="pill ' + k + '">' + verb + '</span>' + e.qty + ' × ' + Chubby.link(e.ticker) + ' à ' + num(e.price) + cur(e) + ' = ' + money(e.value_cad) + (e.fees_cad ? ' <span class="muted">(frais ' + money(e.fees_cad) + ')</span>' : '');
+        return (e.time ? '<span class="muted">' + esc(e.time.replace(':', ' h ')) + '</span> ' : '') + '<span class="pill ' + k + '">' + verb + '</span>' + e.qty + ' × ' + Chubby.link(e.ticker) + ' à ' + num(e.price) + cur(e) + ' = ' + money(e.value_cad) + (e.fees_cad ? ' <span class="muted">(frais ' + money(e.fees_cad) + ')</span>' : '');
       case 'stop':
         return '<span class="pill stop">Stop</span>' + Chubby.link(e.ticker) + ' : ' + (e.direction === 'below' ? 'vendu' : 'racheté') + ' à ' + num(e.price) + ' (seuil ' + num(e.level) + ') = ' + money(e.value_cad);
       case 'dividend': return '<span class="pill div">Dividende</span>' + esc(e.ticker) + ' : +' + money(e.amount_cad);

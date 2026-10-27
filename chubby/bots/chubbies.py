@@ -177,6 +177,8 @@ class Mochi(Bot):
         "Ne retient que celles au-dessus de leur moyenne 50 jours, et vise les {holdings:.0f} plus fortes.",
         "Garde un titre tant qu'il reste dans le top {keep_rank:.0f}, pour ne pas payer des frais à chaque petite variation.",
         "Chaque soir, vend un titre qui passe 3 % sous sa moyenne 50 jours : la tendance est cassée.",
+        "Pendant la séance, il vérifie toutes les 15 minutes : il coupe une tendance qui casse sans attendre le soir, "
+        "et place le cash qui dort sur les titres les plus forts du moment.",
     ]
 
     def _ranking(self, ctx) -> list[tuple[float, str]]:
@@ -198,6 +200,19 @@ class Mochi(Bot):
                    for i, (r, t) in enumerate(self._ranking(ctx), 1) if t not in ctx.account.positions][:8]
         return held + watched
 
+    def _fill_idle_cash(self, ctx: BotContext, held: set[str]) -> Decision | None:
+        """Pendant la séance : du cash dort et il a moins de titres que visé ? Il prend les plus forts du moment."""
+        slots = int(self.p(ctx, "holdings")) - len(held)
+        if slots <= 0 or not ctx.has_idle_cash(ctx.invest_fraction(0.96), 0.10):
+            return None
+        new = [t for _, t in self._ranking(ctx) if t not in held][:slots]
+        if not new:
+            return None
+        weights = dict(ctx.weights)
+        room = max(0.0, ctx.invest_fraction(0.96) - sum(weights.values()))
+        weights.update({t: room / len(new) for t in new})
+        return Decision(weights, [f"Du cash dort : j'ajoute {', '.join(new)}, parmi les tendances les plus fortes du moment."])
+
     def decide(self, ctx: BotContext) -> Decision:
         held = set(ctx.account.positions)
         broken = set()
@@ -207,6 +222,10 @@ class Mochi(Bot):
             if sma50 and closes.iloc[-1] < 0.97 * sma50:
                 broken.add(t)
         weekly = ctx.day_index % 5 == 0 or not held
+        if ctx.intraday and not weekly and not broken:
+            idle = self._fill_idle_cash(ctx, held)
+            if idle is not None:
+                return idle
         if not weekly:
             if not broken:
                 return Decision(None)
@@ -251,6 +270,8 @@ class Muffin(Bot):
         "Vend le soir un titre qui clôture à -{stop:.0%} ou plus sous son prix d'achat. Il ne regarde qu'à la clôture : "
         "un titre survendu plonge souvent pendant la journée puis remonte, et vendre au creux ferait rater le rebond.",
         "Stop de secours chez le courtier à -{crash_stop:.0%}, déclenché pendant la séance : la protection contre un vrai effondrement.",
+        "Pendant la séance, il refait son calcul toutes les 15 minutes avec le cours du moment : il achète au creux, "
+        "dès que le RSI passe sous {rsi_buy:.0f}, et revend dans la journée où le rebond arrive.",
     ]
     slot = 0.15
 
@@ -292,7 +313,9 @@ class Muffin(Bot):
             r = ind.rsi(ctx.closes(t, 30))
             unit_value = values.get(t, 0.0) / pos.qty
             held_days = (ctx.day - pd.Timestamp(pos.opened_on)).days
-            if (r is not None and r > rsi_sell) or held_days > max_days or unit_value < (1 - stop) * pos.avg_cost_cad:
+            # Le -8 % ne se vérifie qu'à la clôture : pendant la séance, un titre survendu plonge souvent puis remonte.
+            stopped = not ctx.intraday and unit_value < (1 - stop) * pos.avg_cost_cad
+            if (r is not None and r > rsi_sell) or held_days > max_days or stopped:
                 weights.pop(t, None)
                 changed = True
                 why = "il a rebondi" if r and r > rsi_sell else "trop long" if held_days > max_days else f"stop à -{stop:.0%}"

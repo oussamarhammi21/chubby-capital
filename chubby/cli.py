@@ -1,4 +1,4 @@
-"""Commandes : chubby backtest | tick | serve | direct | classement | ordres | journal | coach | coach-ia | conseil | web."""
+"""Commandes : chubby backtest | tick | serve | direct | seance | classement | ordres | journal | coach | coach-ia | conseil | web."""
 
 from __future__ import annotations
 
@@ -102,6 +102,67 @@ def _refresher(args):
     return Refresher(args.db, chains_factory=None if args.options_modele else _chains_factory)
 
 
+def _trader(args, cfg):
+    from .intraday import SessionTrader
+    return SessionTrader(args.db, cfg, all_bots(ia=not args.sans_ia),
+                         load_daily=lambda today: _load(today - timedelta(days=10), today - timedelta(days=1), cfg, args.cache),
+                         chains_factory=None if args.options_modele else _chains_factory)
+
+
+def _start_session(args, cfg, evening: bool = False):
+    """En arrière-plan : les Chubbies analysent et tradent toutes les 15 minutes pendant la bourse.
+
+    Avec evening=True (tableau de bord lancé seul), la séance du soir est aussi jouée à 16 h 20.
+    """
+    if args.sans_seance:
+        return None
+    import threading
+    trader = _trader(args, cfg)
+
+    def loop():
+        store = Store(args.db)
+        played = None
+        while True:
+            trader(store)
+            now = datetime.now(TORONTO)
+            if evening and now.weekday() < 5 and (now.hour, now.minute) >= (16, 20) and played != now.date():
+                played = now.date()
+                if store.get_meta("last_day") != str(now.date()):
+                    try:
+                        cmd_tick(args, cfg)
+                    except Exception:
+                        logging.exception("La séance du soir a échoué, nouvel essai à la prochaine ouverture.")
+            time.sleep(60)
+
+    threading.Thread(target=loop, daemon=True, name="seance").start()
+    print("Séance en direct : pendant la bourse, les Chubbies refont leur analyse et tradent toutes les 15 minutes.")
+    return trader
+
+
+def cmd_seance(args, cfg):
+    """Une analyse en séance tout de suite : chaque Chubby regarde les cours du moment et trade s'il le faut."""
+    trader = _trader(args, cfg)
+    now = datetime.now(TORONTO)
+    from .live import market_open
+    if not market_open(now):
+        raise SystemExit("La bourse est fermée : les Chubbies tradent entre 9 h 30 et 16 h (heure de Toronto), en semaine.")
+    print("Chargement des prix…", flush=True)
+    status = trader.step(Store(args.db), now)
+    if status.get("problem"):
+        raise SystemExit(status["problem"])
+    store = Store(args.db)
+    rows = store.db.execute("SELECT e.bot_id, e.kind, e.payload, b.name FROM events e JOIN bots b ON b.id = e.bot_id"
+                            " WHERE e.day = ? AND e.kind IN ('trade', 'stop', 'analyse') ORDER BY e.id",
+                            (str(now.date()),)).fetchall()
+    import json
+    for r in rows:
+        p = json.loads(r["payload"])
+        if p.get("intraday") and p.get("time") in (status["checked_at"], "09:30"):
+            what = f"{p.get('side', '')} {p.get('qty', '')} {p.get('ticker', '')}".strip() if r["kind"] != "analyse" else ""
+            print(f"  {p['time']}  {r['name']:<15} {r['kind']:<8} {what:<22} {p.get('why', '')}")
+    print(f"\nAnalyse de {status['checked_at']} terminée. Prochaine dans {status['every_min']} minutes avec chubby web.\n")
+
+
 def _chains_factory(today):
     from .chains import YahooChains
     return YahooChains(today)
@@ -163,6 +224,7 @@ def cmd_serve(args, cfg):
     if args.web:
         from .web.server import serve
         serve(args.db, cfg, host=args.host, port=args.port, live=_refresher(args), block=False)
+    _start_session(args, cfg)
     while True:
         now = datetime.now(TORONTO)
         run_at = now.replace(hour=16, minute=20, second=0, microsecond=0)
@@ -256,6 +318,7 @@ def cmd_conseil(args, cfg):
 
 def cmd_web(args, cfg):
     from .web.server import serve
+    _start_session(args, cfg, evening=True)
     serve(args.db, cfg, host=args.host, port=args.port, live=_refresher(args))
 
 
@@ -283,6 +346,8 @@ def main(argv=None):
     p.add_argument("--options-modele", action="store_true",
                    help="évaluer les options avec le modèle même en direct (pas de chaînes Yahoo)")
     p.add_argument("--sans-direct", action="store_true", help="pas de suivi en direct pendant la bourse")
+    p.add_argument("--sans-seance", action="store_true",
+                   help="les Chubbies ne tradent pas pendant la bourse (seulement le soir, comme avant)")
     p.add_argument("--taux-cash", type=float, default=3.0, help="intérêt annuel sur le cash, en %% (défaut : 3)")
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -298,6 +363,8 @@ def main(argv=None):
     sv.add_argument("--host", default="0.0.0.0")
     sv.set_defaults(fn=cmd_serve)
     sub.add_parser("direct", help="où en sont les Chubbies en ce moment").set_defaults(fn=cmd_direct)
+    sub.add_parser("seance", help="une analyse en séance maintenant : chaque Chubby trade s'il voit une occasion"
+                   ).set_defaults(fn=cmd_seance)
     sub.add_parser("watchlist", help="recalculer les watchlists et seuils de la dernière séance").set_defaults(fn=cmd_watch)
     sub.add_parser("classement", help="afficher le classement").set_defaults(fn=cmd_board)
     j = sub.add_parser("journal", help="lire le journal d'un Chubby")
