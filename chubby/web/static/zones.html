@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chubby Capital · les îles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap">
+<style>
+:root {
+  --ink: #2A2838; --muted: #59566C; --panel: rgba(255, 255, 255, 0.86); --line: rgba(42, 40, 56, 0.12);
+  --accent: #5B47C2; --up: #1C7347; --down: #B13A2A; --sky: #CFE6F7;
+  --display: 'Fredoka', 'Nunito', system-ui, sans-serif; --body: 'Nunito', system-ui, sans-serif;
+  color-scheme: light;
+}
+html, body { height: 100%; margin: 0; }
+[hidden] { display: none !important; }
+body { background: var(--sky); color: var(--ink); font-family: var(--body); overflow: hidden; }
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
+#ui { position: fixed; inset: 0; z-index: 1; display: flex; flex-direction: column; }
+.up { color: var(--up); } .down { color: var(--down); }
+.panel { background: var(--panel); border-radius: 18px; border: 1px solid rgba(255,255,255,0.8); box-shadow: 0 8px 24px rgba(30,40,80,0.14); }
+.btn { min-height: 40px; padding: 0 12px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); font: 800 13px var(--body); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { background: rgba(91,71,194,0.1); }
+.btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+select.btn { border: 2px solid var(--line); }
+button:focus-visible, a:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Bandeau du haut */
+.top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 8px; }
+.brand { padding: 8px 14px; display: flex; align-items: center; gap: 8px; }
+.brand b { font: 700 18px/1.1 var(--display); }
+.clock { padding: 6px 14px; display: flex; flex-direction: column; font-size: 12px; font-weight: 800; }
+.clock b { font: 700 16px/1.2 var(--display); }
+.clock span { color: var(--muted); }
+.idx { padding: 6px 12px; display: flex; gap: 14px; font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.idx span { white-space: nowrap; }
+.tools { margin-left: auto; padding: 4px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+
+/* La mosaïque : une île par Chubby */
+#grid { flex: 1; overflow-y: auto; padding: 4px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 12px;
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); align-content: start; }
+.tile { position: relative; display: block; width: 100%; border-radius: 20px; overflow: hidden; cursor: pointer; border: 3px solid rgba(255,255,255,0.85);
+  box-shadow: 0 8px 22px rgba(30,40,80,0.16); background: transparent; padding: 0; text-align: left; font: inherit; color: inherit; }
+.tile::before { content: ''; display: block; padding-top: 75%; } /* 4:3, comme la caméra de l'île */
+.tile:hover { border-color: var(--accent); }
+.tile .head { position: absolute; left: 8px; right: 8px; top: 8px; display: flex; align-items: center; gap: 8px; pointer-events: none; }
+.tile .who { background: var(--panel); border-radius: 999px; padding: 3px 10px 3px 4px; display: flex; align-items: center; gap: 6px; font: 700 15px var(--display); box-shadow: 0 2px 8px rgba(30,40,80,0.14); }
+.tile .who small { font: 800 13px var(--body); font-variant-numeric: tabular-nums; }
+.tile .doing { position: absolute; left: 8px; right: 8px; bottom: 8px; background: var(--panel); border-radius: 12px; padding: 6px 10px; font-size: 13px; font-weight: 800;
+  box-shadow: 0 2px 8px rgba(30,40,80,0.14); pointer-events: none; display: flex; gap: 8px; align-items: baseline; }
+.tile .doing span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile .doing time { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
+.bubble { position: absolute; left: 0; top: 0; max-width: min(240px, 70%); background: #fff; color: var(--ink); border-radius: 14px 14px 14px 4px; padding: 6px 10px;
+  font: 700 12px/1.35 var(--body); box-shadow: 0 4px 14px rgba(42,40,56,0.2); pointer-events: none; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.bubble.big { font-size: 14px; max-width: min(320px, 60%); -webkit-line-clamp: 6; }
+.bubble.trade { background: #FFF4CF; }
+
+/* Vue d'un seul Chubby (ou de toutes les îles) */
+#focus { flex: 1; display: grid; grid-template-columns: 1fr minmax(0, 360px); gap: 12px; padding: 4px 16px calc(16px + env(safe-area-inset-bottom, 0px)); min-height: 0; }
+#stage { position: relative; border-radius: 22px; overflow: hidden; touch-action: none; cursor: grab; border: 3px solid rgba(255,255,255,0.85); min-height: 0; }
+#stage .nav { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; }
+#stage .nav .btn { background: var(--panel); min-width: 40px; justify-content: center; box-shadow: 0 2px 8px rgba(30,40,80,0.14); }
+#stage .hint { position: absolute; left: 10px; bottom: 10px; background: var(--panel); border-radius: 10px; padding: 4px 10px; font-size: 12px; font-weight: 700; color: var(--muted); pointer-events: none; }
+#side { padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.side-head { display: flex; gap: 10px; align-items: center; }
+.side-head h2 { margin: 0; font: 600 22px var(--display); }
+.side-head p { margin: 0; color: var(--muted); font-weight: 700; font-size: 13px; }
+h3 { margin: 0 0 6px; font: 600 15px var(--display); }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; }
+.stats div { background: rgba(42,40,56,0.05); border-radius: 12px; padding: 6px 8px; }
+.stats dt { font-size: 11px; font-weight: 800; color: var(--muted); }
+.stats dd { margin: 0; font: 600 16px var(--display); font-variant-numeric: tabular-nums; }
+.now { margin: 0; background: #FFF4CF; border-radius: 12px; padding: 10px 12px; font-size: 14px; font-weight: 700; }
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; }
+.list li { background: rgba(42,40,56,0.05); border-radius: 10px; padding: 7px 9px; }
+.list time { color: var(--muted); margin-right: 6px; font-variant-numeric: tabular-nums; }
+.gauge { height: 6px; border-radius: 3px; background: rgba(42,40,56,0.1); margin-top: 5px; overflow: hidden; }
+.gauge i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.muted { color: var(--muted); font-size: 12px; font-weight: 700; margin: 0; }
+.toast { position: fixed; left: 50%; top: 84px; transform: translateX(-50%); z-index: 3; padding: 10px 18px; text-align: center; pointer-events: none; max-width: calc(100vw - 32px); font-weight: 800; }
+.toast b { font: 700 17px var(--display); margin-right: 6px; }
+.msg { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; padding: 20px 24px; max-width: min(420px, 90vw); text-align: center; font-weight: 700; }
+
+@media (max-width: 999px) { #grid { --cols: 2; } }
+@media (max-width: 599px) {
+  #grid { --cols: 1; }
+  .idx { display: none; }
+  .top { flex-wrap: wrap; }
+  .tools { margin-left: 0; width: 100%; flex-wrap: nowrap; overflow-x: auto; }
+  .tools .btn { flex: none; }
+  #focus { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(240px, 48vh) auto; overflow-y: auto; }
+  #side { overflow: visible; }
+  #stage .hint { display: none; }
+}
+</style>
+</head>
+<body>
+<canvas id="scene" aria-hidden="true"></canvas>
+<div id="ui">
+  <header class="top">
+    <div class="brand panel"><span id="logo"></span><b>Chubby Capital</b></div>
+    <div class="clock panel" role="status"><b id="date">—</b><span id="status">Chargement…</span></div>
+    <div class="idx panel" id="idx" hidden></div>
+    <div class="tools panel">
+      <button class="btn" id="b-all" aria-pressed="true" title="Une île par Chubby, côte à côte">▦ Mosaïque</button>
+      <button class="btn" id="b-world" aria-pressed="false" title="Toutes les îles d'un seul coup d'œil">🗺 Archipel</button>
+      <button class="btn" id="b-ai" aria-pressed="false" title="Montrer aussi les jumeaux coachés par Claude">🤖 Versions IA</button>
+      <button class="btn" id="b-sound" aria-pressed="false">🔇 Son</button>
+      <select class="btn" id="s-voice" aria-label="Voix des Chubbies">
+        <option value="mignonne">🐣 Voix mignonnes</option><option value="humaine">🗣 Voix humaines</option><option value="muette">🤐 Muets</option>
+      </select>
+      <button class="btn" id="b-music" aria-pressed="false">🎵 Musique</button>
+      <a class="btn" href="/">← Tableau</a>
+    </div>
+  </header>
+  <main id="grid" aria-label="Une île par Chubby"></main>
+  <section id="focus" hidden>
+    <div id="stage" aria-label="L'île du Chubby choisi">
+      <div class="nav">
+        <button class="btn" id="f-back">← Toutes les îles</button>
+        <button class="btn" id="f-prev" aria-label="Chubby précédent">‹</button>
+        <button class="btn" id="f-next" aria-label="Chubby suivant">›</button>
+      </div>
+      <div class="hint">Glisse pour tourner · molette ou pincement pour zoomer · double-clic pour recentrer</div>
+    </div>
+    <aside id="side" class="panel" aria-live="polite"></aside>
+  </section>
+</div>
+<div class="toast panel" id="toast" hidden></div>
+<div class="msg panel" id="msg" hidden></div>
+
+<script src="/static/vendor/three.min.js"></script>
+<script src="/static/chubbies.js"></script>
+<script src="/static/sons.js"></script>
+<script>
+/* Les îles des Chubbies : chacun vit sur sa propre île. On le voit aller à son écran pour analyser ses titres,
+   au marché pour acheter, ranger ses caisses (ses positions), revenir les vendre, ou se reposer quand il n'y a rien
+   à faire. Chaque geste vient d'un vrai événement : /api/activity (ses ordres, ses stops, ses analyses du jour)
+   et /api/live (ses seuils, ses positions et ce qu'il a en tête pendant la séance). */
+(function () {
+  'use strict';
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var C = window.Chubby, S = window.Sons;
+  var $ = function (s) { return document.querySelector(s); };
+  function esc(s) { return C.esc(s); }
+  function pct(v) { return C.pct(v || 0); }
+  function money(v) { return C.money(v); }
+  function num(v) { return Number(v).toLocaleString('fr-CA', { maximumFractionDigits: 2 }); }
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function message(text) { var m = $('#msg'); m.textContent = text; m.hidden = !text; }
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+  var toastTimer = null;
+  function toast(title, text) {
+    var t = $('#toast'); t.innerHTML = '<b>' + esc(title) + '</b>' + esc(text); t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 5000);
+  }
+  function baseId(id) { return String(id).replace(/-ia$/, ''); }
+  function isAI(id) { return /-ia$/.test(String(id)); }
+  function kindOf(id) { return baseId(id).replace(/-v\d+$/, ''); }
+  function short(t) { var p = String(t).split(':'); return p[0] === 'OPT' ? p[1] + ' ' + (p[2] === 'C' ? 'call' : 'put') : String(t); }
+
+  if (!window.THREE) { message("La 3D n'a pas pu se charger."); return; }
+  $('#logo').innerHTML = C.avatar('flan', 'content', 26);
+
+  // ---------- Rendu : une seule scène, une caméra par île ----------
+  var canvas = $('#scene');
+  var renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true }); }
+  catch (e) { message("Ton navigateur n'affiche pas la 3D (WebGL)."); return; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+  renderer.setClearColor(0x000000, 0);
+  var scene = new THREE.Scene();
+  var DAY = new THREE.Color(0xBFE3FF), NIGHT = new THREE.Color(0x2E3866);
+  scene.background = DAY.clone(); scene.fog = new THREE.Fog(DAY.clone(), 45, 140);
+  var hemi = new THREE.HemisphereLight(0xFFFFFF, 0xA7C79A, 0.95); scene.add(hemi);
+  var sun = new THREE.DirectionalLight(0xFFF4E0, 0.85); sun.position.set(20, 40, 25); scene.add(sun);
+
+  var matCache = {};
+  function mat(c, o) {
+    var key = o ? null : String(c);
+    if (key && matCache[key]) return matCache[key];
+    var m = new THREE.MeshStandardMaterial({ color: c, roughness: 0.65 });
+    if (o) { if (o.emissive !== undefined) { m.emissive.set(o.emissive); o = Object.assign({}, o); delete o.emissive; } Object.assign(m, o); }
+    if (key) matCache[key] = m;
+    return m;
+  }
+  function mesh(geo, material, x, y, z) { var m = new THREE.Mesh(geo, material); m.position.set(x || 0, y || 0, z || 0); return m; }
+  function canvasTex(w, h, draw) {
+    var cv = document.createElement('canvas'); cv.width = w; cv.height = h; draw(cv.getContext('2d'), w, h);
+    var t = new THREE.CanvasTexture(cv); t.anisotropy = 4; t.userData = { cv: cv }; return t;
+  }
+  function round(c, x, y, w, h, r) { c.beginPath(); if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); }
+  function sign(text, w, color) {
+    var g = new THREE.Group();
+    var tex = canvasTex(512, 128, function (c, W, H) {
+      c.fillStyle = color || '#8A5A3C'; c.fillRect(0, 0, W, H);
+      c.fillStyle = '#FFF6E6'; c.font = '700 60px Fredoka, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, W / 2, H / 2 + 4);
+    });
+    g.add(mesh(new THREE.BoxGeometry(w, w / 4, 0.1), mat(0x6E4630)));
+    var f = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.95, w / 4 * 0.88), new THREE.MeshBasicMaterial({ map: tex })); f.position.z = 0.06; g.add(f);
+    return g;
+  }
+
+  // La mer, commune à toutes les îles
+  var seaMat = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 }, night: { value: 0 } },
+    vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
+    fragmentShader: 'uniform float time; uniform float night; varying vec3 vW;' +
+      'void main(){ float wave = sin(vW.x * 0.35 + time * 1.1) * sin(vW.z * 0.31 - time * 0.9) * 0.5 + 0.5;' +
+      'vec3 c = mix(vec3(0.20, 0.55, 0.78), vec3(0.42, 0.82, 0.90), wave * 0.35) + wave * 0.04;' +
+      'gl_FragColor = vec4(mix(c, vec3(0.10, 0.16, 0.32), night * 0.7), 1.0); }'
+  });
+  var sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), seaMat); sea.rotation.x = -Math.PI / 2; sea.position.y = -1.1; scene.add(sea);
+
+  // ---------- Une île ----------
+  // Repères de l'île (le devant regarde la caméra, vers +z) : la maison au fond à gauche, l'écran d'analyse au fond
+  // à droite, le marché à droite, le panier (ses caisses = ses positions) à gauche, son coffre de pièces près de la maison.
+  var SPOT = {
+    home: new THREE.Vector3(-3.9, 0, -2.2), screen: new THREE.Vector3(3.3, 0, -2.2), stall: new THREE.Vector3(2.5, 0, 2.3),
+    shelf: new THREE.Vector3(-2.5, 0, 2.3), center: new THREE.Vector3(0, 0, 0.6)
+  };
+  var FACE = { home: Math.PI, screen: Math.PI, stall: Math.PI / 2, shelf: -Math.PI / 2 };
+  var ISLAND = 8.4, SPACING = 24;
+  var trunkMat = mat(0x9A7457), leafA = mat(0x7CC46F), leafB = mat(0x9ED696);
+  var sphere = new THREE.SphereGeometry(1, 18, 14), crateGeo = new THREE.BoxGeometry(0.8, 0.62, 0.8);
+
+  function buildHome(id, g) { // la maison de chaque personnalité (reprise de l'île d'origine)
+    if (id === 'flan') {
+      g.add(mesh(new THREE.BoxGeometry(2.2, 1.5, 1.8), mat(0xFFF3D6), 0, 0.75, 0));
+      var roof = mesh(new THREE.ConeGeometry(1.75, 1.0, 4), mat(0xE2B84A), 0, 2.0, 0); roof.rotation.y = Math.PI / 4; g.add(roof);
+      g.add(mesh(new THREE.BoxGeometry(0.6, 0.9, 0.05), mat(0xC88A3E), 0, 0.45, 0.92));
+    } else if (id === 'mochi') {
+      g.add(mesh(new THREE.BoxGeometry(2.0, 1.4, 1.6), mat(0xF4EAFA), 0, 0.7, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 2.4, 8), mat(0x8E8AA3), 1.2, 1.2, 0));
+      var fl = mesh(new THREE.BoxGeometry(0.7, 0.45, 0.04), mat(0x5B47C2), 1.55, 2.1, 0); g.add(fl);
+      g.add(mesh(new THREE.BoxGeometry(2.3, 0.2, 1.9), mat(0xB79BD0), 0, 1.5, 0));
+    } else if (id === 'dumpling') {
+      g.add(mesh(new THREE.CylinderGeometry(1.1, 1.2, 1.5, 20), mat(0xE6F8F6), 0, 0.75, 0));
+      g.add(mesh(new THREE.ConeGeometry(1.35, 1.0, 20), mat(0x6FB9B3), 0, 2.0, 0));
+    } else if (id === 'tortue') {
+      var pond = new THREE.Mesh(new THREE.CircleGeometry(1.6, 32), mat(0x8CC8E8, { roughness: 0.2 })); pond.rotation.x = -Math.PI / 2; pond.position.set(0.4, 0.03, 0.4); g.add(pond);
+      var shell = mesh(sphere, mat(0x7FAED6), -0.6, 0.2, -0.5); shell.scale.set(1.3, 0.9, 1.1); g.add(shell);
+    } else if (id === 'muffin') {
+      g.add(mesh(new THREE.BoxGeometry(2.2, 1.4, 1.6), mat(0xFFEDE2), 0, 0.7, 0));
+      for (var s = 0; s < 4; s++) { var aw = mesh(new THREE.BoxGeometry(0.55, 0.08, 0.7), mat(s % 2 ? 0xFFFFFF : 0xE0956E), -0.83 + s * 0.55, 1.35, 1.0); aw.rotation.x = 0.35; g.add(aw); }
+    } else if (id === 'jalapeno') {
+      g.add(mesh(new THREE.CylinderGeometry(0.5, 0.55, 2.2, 20), mat(0xFFFFFF), 0, 1.3, 0));
+      g.add(mesh(new THREE.ConeGeometry(0.5, 0.9, 20), mat(0xD9665C), 0, 2.85, 0));
+      for (var f = 0; f < 3; f++) { var fa = f * Math.PI * 2 / 3, fin = mesh(new THREE.BoxGeometry(0.08, 0.7, 0.5), mat(0xD9665C), Math.sin(fa) * 0.55, 0.45, Math.cos(fa) * 0.55); fin.rotation.y = fa; g.add(fin); }
+    } else if (id === 'matcha') {
+      g.add(mesh(new THREE.BoxGeometry(2.0, 1.2, 1.6), mat(0xEEF8E2), 0, 0.6, 0));
+      g.add(mesh(new THREE.BoxGeometry(2.6, 0.18, 2.2), mat(0x7DB35A), 0, 1.3, 0));
+    } else {
+      g.add(mesh(new THREE.BoxGeometry(1.6, 1.2, 1.4), mat(0xE9E6F2), 0, 0.6, 0));
+    }
+  }
+
+  function screenTexture() { return canvasTex(512, 320, function () {}); }
+  function crateTexture(label, change) {
+    return canvasTex(128, 96, function (c, W, H) {
+      c.fillStyle = '#C89B6D'; c.fillRect(0, 0, W, H); c.fillStyle = 'rgba(0,0,0,0.12)'; c.fillRect(0, 30, W, 4); c.fillRect(0, 62, W, 4);
+      c.fillStyle = change == null ? '#8A8799' : change >= 0 ? '#1C7347' : '#B13A2A'; c.fillRect(0, 0, W, 14);
+      c.fillStyle = '#2A2838'; c.font = '800 ' + (label.length > 6 ? 22 : 28) + 'px Nunito, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText(label, W / 2, 56);
+    });
+  }
+  var crateMats = {};
+  function crateMat(t, change) {
+    var key = t + '|' + (change == null ? 'n' : change >= 0 ? 'u' : 'd');
+    if (!crateMats[key]) {
+      var side = new THREE.MeshStandardMaterial({ map: crateTexture(short(t), change), roughness: 0.8 });
+      crateMats[key] = [side, side, mat(0xB8875A), mat(0xB8875A), side, side];
+    }
+    return crateMats[key];
+  }
+
+  function buildIsland(z) {
+    var g = new THREE.Group(); g.position.copy(z.center); scene.add(g); z.group = g;
+    var L = C.look(z.id), base = new THREE.Color(L.base), light = new THREE.Color(L.light);
+    g.add(mesh(new THREE.CylinderGeometry(ISLAND, ISLAND - 1.6, 3.2, 48), mat(0xB8A48F, { roughness: 0.9 }), 0, -1.75, 0));
+    g.add(mesh(new THREE.CylinderGeometry(ISLAND + 0.9, ISLAND + 1.5, 0.6, 48), mat(0xF1DDAE), 0, -0.85, 0));
+    g.add(mesh(new THREE.CylinderGeometry(ISLAND, ISLAND, 0.4, 48), mat(0x9BD38A), 0, -0.2, 0));
+    var plaza = mesh(new THREE.CylinderGeometry(4.6, 4.6, 0.06, 40), mat(base.clone().lerp(new THREE.Color(0xF3EBDD), 0.55).getHex()), 0, 0.02, 0.2); g.add(plaza);
+    // Maison et coffre
+    var home = new THREE.Group(); home.position.set(-3.9, 0, -4.4); buildHome(kindOf(z.id), home); g.add(home);
+    var winMat = mat(0xFFF3C4, { emissive: 0xFFC766, emissiveIntensity: 0 }); z.win = winMat;
+    g.add(mesh(new THREE.BoxGeometry(0.5, 0.4, 0.05), winMat, -3.0, 0.9, -3.35));
+    var chest = new THREE.Group(); chest.position.set(-1.4, 0, -4.1); g.add(chest); z.chest = chest;
+    chest.add(mesh(new THREE.BoxGeometry(1.1, 0.6, 0.7), mat(0x8A5A3C), 0, 0.3, 0));
+    chest.add(mesh(new THREE.BoxGeometry(1.15, 0.12, 0.75), mat(0xE9B730, { metalness: 0.5, roughness: 0.35 }), 0, 0.62, 0));
+    z.pile = [];
+    for (var i = 0; i < 10; i++) { var co = mesh(coinGeo, coinMat, rand(-0.2, 0.2), 0.72 + i * 0.07, rand(-0.12, 0.12)); co.visible = false; chest.add(co); z.pile.push(co); }
+    // L'écran d'analyse
+    var scr = new THREE.Group(); scr.position.set(3.3, 0, -4.4); g.add(scr);
+    [-1.55, 1.55].forEach(function (x) { scr.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 1.4, 8), mat(0x3C3A4A), x, 0.7, 0)); });
+    scr.add(mesh(new THREE.BoxGeometry(3.6, 2.3, 0.16), mat(0x1C1B2A), 0, 2.4, 0));
+    z.screenTex = screenTexture();
+    var face = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 2.12), new THREE.MeshBasicMaterial({ map: z.screenTex, toneMapped: false })); face.position.set(0, 2.4, 0.09); scr.add(face);
+    // Le marché (où il achète et vend)
+    var st = new THREE.Group(); st.position.set(4.7, 0, 2.3); g.add(st);
+    st.add(mesh(new THREE.BoxGeometry(1.3, 1.0, 3.0), mat(0xF7F2EA), 0, 0.5, 0));
+    st.add(mesh(new THREE.BoxGeometry(1.4, 0.1, 3.1), mat(0xA27B5C), 0, 1.03, 0));
+    [-1.4, 1.4].forEach(function (zz) { st.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.6, 8), mat(0x8A5A3C), 0.5, 1.3, zz)); });
+    for (var a = 0; a < 5; a++) { var aw = mesh(new THREE.BoxGeometry(1.8, 0.08, 0.62), mat(a % 2 ? 0xFFFFFF : base.getHex()), 0.1, 2.6, -1.24 + a * 0.62); aw.rotation.z = 0.3; st.add(aw); }
+    var ms = sign('Marché', 1.8, '#2F5FA8'); ms.position.set(0.1, 3.05, 0); ms.rotation.y = -Math.PI / 2; st.add(ms);
+    z.counter = new THREE.Vector3(4.6, 1.39, 2.3);
+    // Le panier : une étagère où il range une caisse par position
+    var sh = new THREE.Group(); sh.position.set(-4.7, 0, 2.3); g.add(sh);
+    sh.add(mesh(new THREE.BoxGeometry(1.8, 0.24, 3.6), mat(0xA27B5C), 0, 0.12, 0));
+    var ps = sign('Panier', 1.6, '#6E4630'); ps.position.set(-0.6, 2.1, 0); ps.rotation.y = Math.PI / 2; sh.add(ps);
+    sh.add(mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.9, 8), mat(0x6E4630), -0.6, 0.95, 0));
+    z.crates = {}; z.shelf = sh;
+    // Arbres au bord
+    [[-6.6, 4.6], [6.4, -1.0], [-6.8, -1.4], [6.0, 5.4], [0.8, -6.3]].forEach(function (q, k) {
+      var tr = new THREE.Group(); tr.position.set(q[0], 0, q[1]); tr.scale.setScalar(0.85 + (k % 3) * 0.12);
+      tr.add(mesh(new THREE.CylinderGeometry(0.18, 0.25, 1.3, 8), trunkMat, 0, 0.65, 0));
+      var t1 = mesh(sphere, k % 2 ? leafA : leafB, 0, 1.9, 0); t1.scale.setScalar(1.0); tr.add(t1);
+      var t2 = mesh(sphere, leafA, 0.45, 2.35, 0.2); t2.scale.setScalar(0.65); tr.add(t2);
+      g.add(tr);
+    });
+    // Le panneau à son nom (vu dans l'archipel)
+    var ns = sign(z.name, 3.2, L.dark); ns.position.set(0, 0.75, ISLAND - 0.2); ns.rotation.x = -0.35; g.add(ns);
+  }
+
+  // ---------- Les Chubbies ----------
+  var SY = { tortue: 0.95, flan: 0.92, dumpling: 1.15, mochi: 0.9, muffin: 0.92, jalapeno: 0.95, matcha: 0.95 };
+  var eyeGeo = new THREE.SphereGeometry(0.09, 16, 12), hiGeo = new THREE.SphereGeometry(0.03, 8, 6);
+  var eyeMat = mat(0x1E1D26, { roughness: 0.25 }), hiMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF });
+  var mouthGeo = new THREE.TorusGeometry(0.1, 0.022, 8, 18, Math.PI);
+  var blushMat = new THREE.MeshBasicMaterial({ color: 0xF48C8C, transparent: true, opacity: 0.55 });
+  var coinGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.06, 20), coinMat = mat(0xE9B730, { metalness: 0.55, roughness: 0.3 });
+  var shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.16, depthWrite: false });
+  var zzzMat = new THREE.SpriteMaterial({ map: canvasTex(128, 64, function (c) { c.fillStyle = '#5B47C2'; c.font = '700 44px Fredoka, sans-serif'; c.fillText('Zzz', 18, 48); }), transparent: true, depthWrite: false });
+  var lensMat = mat(0xBFE8FF, { transparent: true, opacity: 0.6, roughness: 0.1 });
+  var CHUBBY = 1.25;
+
+  function makeChubby(fullId) {
+    var id = kindOf(fullId), color = new THREE.Color(C.look(fullId).base).getHex(), sy = SY[id] || 1;
+    var g = new THREE.Group(), body = new THREE.Group(); g.add(body); g.scale.setScalar(CHUBBY);
+    var bodyMat = mat(color, { roughness: 0.5 }), dk = mat(new THREE.Color(color).multiplyScalar(0.85), { roughness: 0.5 });
+    var torso = mesh(sphere, bodyMat, 0, 0.8, 0); torso.scale.setScalar(0.8); body.add(torso);
+    var eyes = [];
+    [-0.24, 0.24].forEach(function (x) { var e = new THREE.Group(); e.position.set(x, 0.92, 0.74); e.add(new THREE.Mesh(eyeGeo, eyeMat)); var h = new THREE.Mesh(hiGeo, hiMat); h.position.set(0.03, 0.03, 0.07); e.add(h); body.add(e); eyes.push(e); });
+    var mouth = new THREE.Mesh(mouthGeo, eyeMat); mouth.position.set(0, 0.74, 0.79); body.add(mouth);
+    [-0.44, 0.44].forEach(function (x) { var bl = mesh(sphere, blushMat, x, 0.76, 0.64); bl.scale.set(0.12, 0.055, 0.045); body.add(bl); });
+    if (id === 'flan') body.add(mesh(new THREE.SphereGeometry(0.815, 32, 12, 0, Math.PI * 2, 0, 0.8), mat(0xC88A3E, { roughness: 0.35 }), 0, 0.8, 0));
+    if (id === 'muffin') [[-0.13, 1.6], [0, 1.7], [0.13, 1.6]].forEach(function (p) { var m = mesh(sphere, dk, p[0], p[1], 0); m.scale.setScalar(0.14); body.add(m); });
+    if (id === 'jalapeno') {
+      [-0.82, 0.82].forEach(function (x) { var arm = mesh(sphere, dk, x, 0.62, 0.1); arm.scale.set(0.2, 0.16, 0.16); body.add(arm); });
+      var stem = mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.32, 10), mat(0x5FA35A), 0.05, 1.68, 0); stem.rotation.z = -0.3; body.add(stem);
+    }
+    if (id === 'tortue') { var tail = mesh(new THREE.TorusGeometry(0.2, 0.07, 8, 20, Math.PI * 1.5), dk, 0.72, 0.3, -0.42); tail.rotation.y = Math.PI / 2; body.add(tail); }
+    if (id === 'matcha') { var leaf = mesh(sphere, mat(0x5FA35A), 0.12, 1.66, 0); leaf.scale.set(0.26, 0.08, 0.14); leaf.rotation.z = 0.5; body.add(leaf); }
+    if (id === 'mochi') {
+      [-0.78, 0.78].forEach(function (x) { var n = mesh(sphere, bodyMat, x, 0.7, 0); n.scale.set(0.3, 0.22, 0.25); body.add(n); });
+    }
+    if (isAI(fullId)) { body.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8), mat(0x8E7BEF), 0, 1.78, 0)); var ant = mesh(sphere, mat(0xB8A9FF), 0, 2.03, 0); ant.scale.setScalar(0.09); body.add(ant); }
+    body.scale.set(1, sy, 1);
+    var shadow = new THREE.Mesh(new THREE.CircleGeometry(0.7, 24), shadowMat); shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.04; g.add(shadow);
+    var sweat = mesh(sphere, mat(0x8FC3EA, { roughness: 0.2 }), 0.52, 1.35, 0.45); sweat.scale.set(0.07, 0.11, 0.07); sweat.visible = false; g.add(sweat);
+    var zzz = new THREE.Sprite(zzzMat); zzz.position.set(0.5, 2.0, 0); zzz.scale.set(1, 0.5, 1); zzz.visible = false; g.add(zzz);
+    var carry = new THREE.Mesh(crateGeo, crateMat('?', null)); carry.position.set(0, 1.95 * sy, 0.1); carry.visible = false; g.add(carry);
+    var lens = new THREE.Group(); lens.position.set(0.55, 1.05, 0.62); lens.visible = false; g.add(lens); // la loupe quand il analyse
+    var ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.04, 8, 24), mat(0x3C3A4A)); lens.add(ring);
+    lens.add(new THREE.Mesh(new THREE.CircleGeometry(0.19, 20), lensMat));
+    var handle = mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.3, 8), mat(0x6E4630), 0.12, -0.27, 0); handle.rotation.z = 0.5; lens.add(handle);
+    return { group: g, body: body, eyes: eyes, mouth: mouth, sweat: sweat, zzz: zzz, carry: carry, lens: lens, sy: sy };
+  }
+
+  // Pièces qui volent (achat : vers le marché ; vente : vers le coffre)
+  var flying = [];
+  for (var fc = 0; fc < 40; fc++) { var fm = mesh(coinGeo, coinMat); fm.visible = false; scene.add(fm); flying.push({ m: fm, t: -1 }); }
+  function coinsFly(from, to, n) {
+    var k = 0;
+    flying.forEach(function (f) {
+      if (k >= n || f.t >= 0) return;
+      f.a = from.clone(); f.b = to.clone(); f.t = -k * 0.08; f.on = true; f.m.visible = false; k++;
+    });
+  }
+  var sparkMat = new THREE.MeshBasicMaterial({ color: 0xFFD45A }), sparkGeo = new THREE.OctahedronGeometry(0.09);
+  var sparks = []; for (var sp = 0; sp < 60; sp++) { var sm = new THREE.Mesh(sparkGeo, sparkMat); sm.visible = false; scene.add(sm); sparks.push({ m: sm, v: new THREE.Vector3(), life: 0 }); }
+  function burst(pos, n) { if (reduceMotion) return; for (var i = 0; i < sparks.length && n > 0; i++) { var s = sparks[i]; if (s.life > 0) continue; s.m.position.copy(pos); s.v.set(rand(-1.4, 1.4), rand(2, 4), rand(-1.4, 1.4)); s.life = 1; s.m.visible = true; n--; } }
+
+  // ---------- Données ----------
+  var ready = false, live = null, liveById = {}, zones = [], byId = {}, lastEventId = null, dayEvents = {};
+  var ORDER = ['tortue', 'flan', 'dumpling', 'mochi', 'muffin', 'jalapeno', 'jalapeno-v2', 'jalapeno-v3', 'matcha'];
+  var showAI = store('chubby-ia') === '1';
+  function orderOf(id) { var i = ORDER.indexOf(baseId(id)); return (i < 0 ? 50 : i) * 2 + (isAI(id) ? 1 : 0); }
+  function marketOpen() { return !!(live && live.ok && live.open); }
+  function visibleZones() { return zones.filter(function (z) { return showAI || !isAI(z.id); }); }
+
+  function ensureZone(info) {
+    if (byId[info.id]) { var z0 = byId[info.id]; z0.name = info.name || z0.name; z0.personality = info.personality || z0.personality; return z0; }
+    var z = { id: info.id, name: info.name || info.id, personality: info.personality || '', queue: [], steps: [], step: null, journal: [],
+      pendBuy: {}, pendSell: {}, status: '', statusTime: '', say: null, focusTicker: null, idleIdx: 0 };
+    zones.push(z); byId[z.id] = z;
+    return z;
+  }
+  function layout() {
+    zones.sort(function (a, b) { return orderOf(a.id) - orderOf(b.id); });
+    var vis = visibleZones(), cols = Math.ceil(Math.sqrt(vis.length));
+    zones.forEach(function (z) {
+      var i = vis.indexOf(z);
+      var shown = i >= 0;
+      var c = shown ? new THREE.Vector3((i % cols - (cols - 1) / 2) * SPACING, 0, (Math.floor(i / cols) - (Math.ceil(vis.length / cols) - 1) / 2) * SPACING) : new THREE.Vector3(9999, 0, 9999);
+      if (!z.group) { z.center = c; buildIsland(z); buildActor(z); }
+      else { var d = c.clone().sub(z.center); z.center = c; z.group.position.copy(c); z.actor.group.position.add(d); }
+      z.group.visible = z.actor.group.visible = shown;
+      if (!z.cam) z.cam = new THREE.PerspectiveCamera(42, 4 / 3, 0.5, 220);
+      z.cam.position.set(c.x, 8.6, c.z + 13.6); z.cam.lookAt(c.x, 0.6, c.z - 0.6);
+    });
+    buildTiles();
+  }
+  function buildActor(z) {
+    var a = makeChubby(z.id); z.actor = a; a.speed = 3.0; a.facing = 0; a.hop = -1; a.talk = 0;
+    a.group.position.copy(z.center).add(SPOT.center); scene.add(a.group);
+  }
+  function local(z, v) { return v.clone().add(z.center); }
+
+  // ---------- Ce qu'il fait : une file d'actions, chacune faite de petits pas ----------
+  // go : marcher vers un repère ; wait : rester un moment (avec une phrase, une loupe, une caisse…).
+  function setStatus(z, icon, text, time) { z.status = icon + ' ' + text; z.statusTime = time || ''; }
+  function say(z, text, kind) {
+    if (!text) return;
+    z.say = { text: text, until: performance.now() + clamp(text.length * 70, 4500, 9000), kind: kind || '' };
+    z.actor.talk = Math.min(2.5, text.length * 0.04);
+    var focused = mode === 'focus' && current === z;
+    if (S && (focused || kind === 'trade')) S.speak(z.id, text, (liveById[z.id] || {}).mood || 'calme', focused && kind === 'trade');
+  }
+  function walk(spot) { return { go: spot }; }
+  function pause(sec, opts) { return Object.assign({ wait: sec }, opts || {}); }
+
+  function eventLine(e) {
+    var t = short(e.ticker || ''), px = e.price != null ? ' à ' + num(e.price) + ' $' : '';
+    if (e.kind === 'trade') return (e.side === 'buy' ? "J'achète " : 'Je vends ') + (e.qty != null ? e.qty + ' ' : '') + t + px + '.' + (e.why ? ' ' + e.why : '');
+    if (e.kind === 'stop') return 'Mon ordre stop sur ' + t + ' est touché : je vends' + px + '.';
+    if (e.kind === 'analyse') return e.why || (t ? "J'analyse " + t + '.' : "Rien d'intéressant pour l'instant.");
+    if (e.kind === 'dividend') return 'Un dividende de ' + t + ' tombe dans mon coffre : ' + money(e.amount_cad || 0) + '.';
+    return '';
+  }
+  function eventIcon(e) { return e.kind === 'trade' ? (e.side === 'buy' ? '🛒' : '💰') : e.kind === 'stop' ? '🚨' : e.kind === 'dividend' ? '🪙' : '🔍'; }
+
+  function planEvent(z, e, replay) {
+    var t = e.ticker, line = eventLine(e), time = e.time || (e.intraday ? '' : 'ce soir');
+    var pre = replay && e.time ? e.time + ' · ' : '';
+    var a = z.actor;
+    if (e.kind === 'trade' && e.side === 'buy') {
+      return [
+        walk('screen'), pause(replay ? 1.6 : 2.6, { status: ['🔍', 'Analyse ' + short(t), time], lens: true, ticker: t, say: pre + (e.why || "J'ai repéré " + short(t) + '.') }),
+        walk('stall'), pause(1.2, { status: ['🛒', 'Achète ' + (e.qty || '') + ' ' + short(t), time], coins: 'pay', say: pre + line, sayKind: 'trade', carry: t, sfx: 'trade' }),
+        walk('shelf'), pause(0.8, { drop: t, hop: true, done: function () { if (t) z.pendBuy[t] = Math.max(0, (z.pendBuy[t] || 1) - 1); } })
+      ];
+    }
+    if (e.kind === 'trade' || e.kind === 'stop') {
+      var stop = e.kind === 'stop';
+      return [
+        walk('screen'), pause(replay ? 1.2 : 2.0, { status: [stop ? '🚨' : '🔍', (stop ? 'Stop touché sur ' : 'Analyse ') + short(t), time], lens: !stop, sweat: stop, ticker: t, say: stop ? pre + line : pre + (e.why || 'Il est temps de vendre ' + short(t) + '.') }),
+        walk('shelf'), pause(0.8, { take: t, carry: t, done: function () { if (t) z.pendSell[t] = Math.max(0, (z.pendSell[t] || 1) - 1); } }),
+        walk('stall'), pause(1.4, { status: ['💰', 'Vend ' + (e.qty || '') + ' ' + short(t), time], coins: 'earn', drop: null, say: stop ? null : pre + line, sayKind: 'trade', sfx: stop ? 'oops' : 'coin', uncarry: true }),
+        walk('home'), pause(0.6, { status: ['🪙', "Range l'argent dans son coffre", time] })
+      ];
+    }
+    if (e.kind === 'dividend') return [walk('home'), pause(2.5, { status: ['🪙', 'Dividende de ' + short(t), time], say: pre + line, sfx: 'coin', hop: true })];
+    if (e.kind === 'analyse' && t) return [walk('screen'), pause(replay ? 2.5 : 5, { status: ['🔍', 'Analyse ' + short(t) + (e.side ? (e.side === 'buy' ? ' (achat ?)' : ' (vente ?)') : ''), time], lens: true, ticker: t, say: pre + line })];
+    return [walk('center'), pause(replay ? 2 : 4, { status: ['🤔', 'Ne voit rien à faire', time], say: pre + line })];
+  }
+
+  // Quand il n'a rien à faire : il refait ce qu'il a vraiment en tête (seuils, stops, watchlist, intention).
+  function idleSteps(z) {
+    var l = liveById[z.id];
+    if (!l) return [walk('home'), pause(10, { status: ['😴', 'Attend la séance'], sleep: true })];
+    if (!marketOpen()) {
+      z.idleIdx++;
+      if (z.idleIdx % 3) return [walk('home'), pause(12, { status: ['😴', 'Bourse fermée, il dort'], sleep: true })];
+      var lines0 = (l.thoughts || []).concat(l.reaction ? [l.reaction] : []);
+      return [walk('home'), pause(6, { status: ['💭', 'Repense à sa journée'], say: lines0[z.idleIdx % Math.max(1, lines0.length)] })];
+    }
+    var known = {};
+    (l.radar || []).forEach(function (x) { known[x.ticker] = 'screen'; });
+    Object.keys(l.watch || {}).forEach(function (t) { known[t] = known[t] || 'screen'; });
+    Object.keys(l.holdings || {}).forEach(function (t) { known[t] = 'shelf'; });
+    var ideas = [];
+    if (l.intent && l.intent.ticker) ideas.push({ text: l.intent.why || ('Je regarde ' + short(l.intent.ticker) + ' de près.'), ticker: l.intent.ticker, where: 'screen', icon: '🔍', label: 'Hésite sur ' + short(l.intent.ticker) });
+    (l.stops || []).forEach(function (x) { if (x.distance != null && Math.abs(x.distance) < 0.03) ideas.push({ text: (x.name || short(x.ticker)) + " n'est plus qu'à " + Math.abs(x.distance * 100).toFixed(1).replace('.', ',') + ' % de mon stop…', ticker: x.ticker, where: 'shelf', icon: '😰', label: 'Surveille son stop ' + short(x.ticker), sweat: true }); });
+    (l.thoughts || []).forEach(function (line) {
+      var t = Object.keys(known).filter(function (k) { return line.indexOf(short(k)) >= 0; })[0];
+      ideas.push({ text: line, ticker: t, where: t ? known[t] : 'center', icon: t && known[t] === 'shelf' ? '📦' : t ? '👀' : '💭', label: t ? (known[t] === 'shelf' ? 'Vérifie ' : 'Surveille ') + short(t) : 'Réfléchit' });
+    });
+    if (!ideas.length) ideas.push({ text: l.reaction, where: Object.keys(l.holdings || {}).length ? 'shelf' : 'center', icon: Object.keys(l.holdings || {}).length ? '📦' : '☕', label: Object.keys(l.holdings || {}).length ? 'Garde ses positions' : 'Tout au cash, attend une occasion' });
+    var idea = ideas[z.idleIdx++ % ideas.length];
+    var steps = [walk(idea.where), pause(7, { status: [idea.icon, idea.label], say: idea.text, ticker: idea.ticker, lens: idea.where === 'screen', sweat: idea.sweat, look: idea.where === 'shelf' })];
+    if (Math.random() < 0.5) steps.push(walk('center'), pause(rand(2, 4), { status: ['☕', 'Attend la prochaine vérification'] }));
+    return steps;
+  }
+
+  function stepTarget(z, name) {
+    if (name === 'center') return local(z, SPOT.center).add(new THREE.Vector3(rand(-1.6, 1.6), 0, rand(-0.8, 1.2)));
+    return local(z, SPOT[name]);
+  }
+  function startStep(z, s) {
+    var a = z.actor;
+    if (s.go) { s.target = stepTarget(z, s.go); s.face = FACE[s.go]; return; }
+    s.left = s.wait * (z.fast ? 0.55 : 1);
+    if (s.status) setStatus(z, s.status[0], s.status[1], s.status[2]);
+    if (s.ticker !== undefined) { z.focusTicker = s.ticker || null; drawScreen(z); }
+    a.lens.visible = !!s.lens; a.sweat.forced = !!s.sweat; a.sleeping = !!s.sleep;
+    if (s.say) say(z, s.say, s.sayKind);
+    if (s.sfx && S && (mode !== 'focus' || current === z)) S.sfx(s.sfx);
+    if (s.carry) { a.carry.material = crateMat(s.carry, ((liveById[z.id] || {}).holdings || {})[s.carry]); a.carry.visible = true; }
+    if (s.take) { refreshCrates(z); }
+    if (s.uncarry) a.carry.visible = false;
+    if (s.coins === 'pay') coinsFly(a.group.position.clone().setY(1.6), local(z, new THREE.Vector3(4.6, 1.4, 2.3)), 6);
+    if (s.coins === 'earn') coinsFly(local(z, new THREE.Vector3(4.6, 1.4, 2.3)), local(z, new THREE.Vector3(-1.4, 0.8, -4.1)), 8);
+    if (s.hop) { a.hop = 0; burst(a.group.position.clone().setY(2.2), 10); }
+  }
+  function endStep(z, s) {
+    var a = z.actor;
+    if (s.drop !== undefined && s.drop) { a.carry.visible = false; }
+    if (s.done) s.done();
+    if (s.drop || s.take) refreshCrates(z);
+    if (s.wait) { a.lens.visible = false; a.sweat.forced = false; a.sleeping = false; }
+  }
+  function moveTo(a, target, dt) {
+    var p = a.group.position, dx = target.x - p.x, dz = target.z - p.z, d = Math.hypot(dx, dz);
+    if (d < 0.05) return true;
+    var step = a.speed * dt, k = Math.min(1, step / d);
+    p.x += dx * k; p.z += dz * k; a.facing = Math.atan2(dx, dz); return d <= step;
+  }
+  function runSteps(z, dt) {
+    var a = z.actor;
+    if (!z.step) {
+      if (!z.steps.length) {
+        var next = z.queue.shift();
+        z.fast = !!(next && next.replay && z.queue.length > 0);
+        z.steps = next ? planEvent(z, next.e, next.replay) : idleSteps(z);
+        z.idle = !next;
+        if (next) z.current = next.e;
+      }
+      z.step = z.steps.shift(); startStep(z, z.step);
+    }
+    var s = z.step, speedUp = z.fast ? 1.8 : 1;
+    if (s.go) {
+      if (moveTo(a, s.target, dt * speedUp)) { if (s.face != null) a.facing = s.face; endStep(z, s); z.step = null; }
+    } else {
+      if (s.look) a.facing = FACE.shelf;
+      else if (s.lens) a.facing = FACE.screen;
+      s.left -= dt;
+      if (s.left <= 0) { endStep(z, s); z.step = null; }
+    }
+  }
+
+  // Les caisses du panier : ses positions, moins celles qu'il n'a pas encore rangées, plus celles qu'il n'a pas encore vendues.
+  function refreshCrates(z) {
+    var l = liveById[z.id] || {}, held = l.holdings || {}, want = {};
+    Object.keys(held).forEach(function (t) { if (!z.pendBuy[t]) want[t] = held[t]; });
+    Object.keys(z.pendSell).forEach(function (t) { if (z.pendSell[t] > 0) want[t] = held[t] != null ? held[t] : null; });
+    if (z.step && z.step.take && z.step.left > 0) delete want[z.step.take]; // il l'a dans les bras
+    Object.keys(z.crates).forEach(function (t) { if (!(t in want)) { z.shelf.remove(z.crates[t]); delete z.crates[t]; } });
+    Object.keys(want).sort().forEach(function (t, i) {
+      var m = z.crates[t];
+      if (!m) { m = new THREE.Mesh(crateGeo, crateMat(t, want[t])); z.crates[t] = m; z.shelf.add(m); }
+      else m.material = crateMat(t, want[t]);
+      var slot = i % 8, layer = Math.floor(i / 8);
+      m.position.set(slot % 2 ? 0.42 : -0.42, 0.55 + layer * 0.64, -1.3 + Math.floor(slot / 2) * 0.86);
+      m.visible = layer < 2;
+    });
+    var cashy = !Object.keys(want).length;
+    z.pile.forEach(function (co, i) { co.visible = i < (cashy ? 10 : 4); });
+  }
+
+  // L'écran d'analyse : ses seuils (radar), sinon sa watchlist, avec le titre qu'il regarde surligné.
+  function drawScreen(z) {
+    var cv = z.screenTex.userData.cv, c = cv.getContext('2d'), W = cv.width, H = cv.height, l = liveById[z.id] || {};
+    c.fillStyle = '#16152A'; c.fillRect(0, 0, W, H);
+    c.fillStyle = '#B8A9FF'; c.font = '700 30px Fredoka, sans-serif'; c.textBaseline = 'middle';
+    c.fillText('Ce que je surveille', 20, 30);
+    c.fillStyle = '#8E8AA3'; c.font = '700 20px Nunito, sans-serif'; c.textAlign = 'right'; c.fillText(live && live.as_of ? live.as_of : '', W - 20, 30); c.textAlign = 'left';
+    var rows = (l.radar || []).slice(0, 4).map(function (x) { return { t: x.ticker, last: x.last, sub: x.label, dist: x.distance, crossed: x.crossed }; });
+    var seen = {}; rows.forEach(function (r) { seen[r.t] = 1; });
+    Object.keys(l.watch || {}).forEach(function (t) { var q = l.watch[t]; if (rows.length < 5 && !seen[t] && q) { seen[t] = 1; rows.push({ t: t, last: q.last, change: q.change }); } });
+    if (z.focusTicker && !seen[z.focusTicker]) rows.unshift({ t: z.focusTicker, last: (l.watch || {})[z.focusTicker] ? l.watch[z.focusTicker].last : null, change: (l.holdings || {})[z.focusTicker] });
+    if (!rows.length) { c.fillStyle = '#E8E6F5'; c.font = '700 24px Nunito, sans-serif'; c.fillText(live ? 'Rien en vue pour l’instant.' : 'En attente du marché…', 20, 100); }
+    rows.slice(0, 5).forEach(function (r, i) {
+      var y = 66 + i * 50, hot = r.t === z.focusTicker;
+      if (hot) { c.fillStyle = 'rgba(255, 217, 102, 0.28)'; round(c, 10, y - 4, W - 20, 46, 10); c.fill(); }
+      c.fillStyle = hot ? '#FFD966' : '#FFFFFF'; c.font = '800 24px Nunito, sans-serif'; c.fillText(short(r.t), 20, y + 12);
+      c.fillStyle = '#C9C6D9'; c.font = '700 18px Nunito, sans-serif';
+      if (r.last != null) c.fillText(num(r.last), 150, y + 12);
+      if (r.dist != null) {
+        var close = r.crossed ? 1 : clamp(1 - Math.abs(r.dist) / 0.1, 0, 1);
+        c.fillStyle = '#3A3858'; round(c, 250, y + 4, 160, 14, 7); c.fill();
+        c.fillStyle = r.crossed ? '#FF7A6B' : close > 0.8 ? '#FFD966' : '#8FE3B0'; round(c, 250, y + 4, 160 * Math.max(0.05, close), 14, 7); c.fill();
+        c.fillStyle = '#E8E6F5'; c.textAlign = 'right'; c.fillText(r.crossed ? 'franchi !' : Math.abs(r.dist * 100).toFixed(1).replace('.', ',') + ' %', W - 20, y + 12); c.textAlign = 'left';
+        c.fillStyle = '#8E8AA3'; c.font = '700 14px Nunito, sans-serif'; c.fillText(String(r.sub || '').slice(0, 44), 150, y + 34);
+      } else if (r.change != null) {
+        c.fillStyle = r.change >= 0 ? '#8FE3B0' : '#FF9A8E'; c.textAlign = 'right'; c.fillText(pct(r.change), W - 20, y + 12); c.textAlign = 'left';
+      }
+    });
+    z.screenTex.needsUpdate = true;
+  }
+
+  // ---------- Les vues : mosaïque, une île, l'archipel ----------
+  var mode = 'mosaic', current = null, views = [];
+  var orbit = { az: 0, el: 0.62, r: 17, target: new THREE.Vector3(), want: new THREE.Vector3(), cam: new THREE.PerspectiveCamera(40, 1, 0.5, 400), touched: 0 };
+  function buildTiles() {
+    var grid = $('#grid'); grid.innerHTML = '';
+    visibleZones().forEach(function (z) {
+      var b = document.createElement('button'); b.className = 'tile'; b.type = 'button';
+      b.setAttribute('aria-label', 'Voir l’île de ' + z.name);
+      b.innerHTML = '<div class="head"><span class="who"><span class="av"></span><span class="nm"></span><small></small></span></div>' +
+        '<div class="bubble" hidden></div><div class="doing"><time></time><span></span></div>';
+      b.onclick = function () { openFocus(z); };
+      grid.appendChild(b); z.tile = b;
+      z.tileEls = { av: b.querySelector('.av'), nm: b.querySelector('.nm'), ch: b.querySelector('small'), bubble: b.querySelector('.bubble'), time: b.querySelector('time'), doing: b.querySelector('.doing span') };
+      z.tileEls.nm.textContent = z.name;
+    });
+    refreshTiles();
+  }
+  function refreshTiles() {
+    visibleZones().forEach(function (z) {
+      if (!z.tileEls) return;
+      var l = liveById[z.id], ch = l ? l.change : null, mood = l ? l.mood : 'calme';
+      if (z.tileEls.mood !== mood) { z.tileEls.av.innerHTML = C.avatar(z.id, mood, 26); z.tileEls.mood = mood; }
+      z.tileEls.ch.textContent = ch == null ? '' : pct(ch); z.tileEls.ch.className = ch == null ? '' : C.cls(ch);
+      z.tileEls.doing.textContent = z.status || '…'; z.tileEls.time.textContent = z.statusTime || '';
+    });
+  }
+  function setMode(m) {
+    mode = m;
+    $('#grid').hidden = m !== 'mosaic'; $('#focus').hidden = m === 'mosaic';
+    $('#b-all').setAttribute('aria-pressed', String(m === 'mosaic')); $('#b-world').setAttribute('aria-pressed', String(m === 'world'));
+    $('#f-prev').hidden = $('#f-next').hidden = m !== 'focus';
+    $('#stage').setAttribute('aria-label', m === 'world' ? 'Toutes les îles' : current ? 'L’île de ' + current.name : '');
+    if (m === 'world') { current = null; orbit.want.set(0, 0, 0); orbit.r = 40 + visibleZones().length * 6; orbit.el = 1.0; orbit.az = 0; orbit.target.copy(orbit.want); renderSide(); }
+    if (m === 'mosaic') { location.hash = ''; }
+  }
+  function openFocus(z) {
+    current = z; setMode('focus'); location.hash = z.id;
+    orbit.want.copy(z.center).add(new THREE.Vector3(0, 0.6, 0.2)); orbit.target.copy(orbit.want); orbit.r = 17; orbit.el = 0.6; orbit.az = 0;
+    renderSide(); if (z.say) say(z, z.say.text, z.say.kind);
+  }
+  function step(dir) { var v = visibleZones(), i = v.indexOf(current); openFocus(v[(i + dir + v.length) % v.length]); }
+  $('#f-back').onclick = function () { setMode('mosaic'); };
+  $('#f-prev').onclick = function () { step(-1); };
+  $('#f-next').onclick = function () { step(1); };
+  $('#b-all').onclick = function () { setMode('mosaic'); };
+  $('#b-world').onclick = function () { setMode('world'); };
+  document.addEventListener('keydown', function (e) {
+    if (e.target && /input|select|textarea/i.test(e.target.tagName)) return;
+    if (e.key === 'Escape' && mode !== 'mosaic') setMode('mosaic');
+    if (mode === 'focus' && e.key === 'ArrowRight') step(1);
+    if (mode === 'focus' && e.key === 'ArrowLeft') step(-1);
+  });
+  $('#b-ai').setAttribute('aria-pressed', String(showAI));
+  $('#b-ai').onclick = function () {
+    showAI = !showAI; store('chubby-ia', showAI ? '1' : '0'); this.setAttribute('aria-pressed', String(showAI));
+    if (current && isAI(current.id) && !showAI) setMode('mosaic');
+    layout(); if (mode === 'world') setMode('world');
+  };
+
+  // Glisser pour tourner, molette / pincement pour zoomer, double-clic pour recentrer ; clic sur un Chubby dans l'archipel.
+  (function () {
+    var st = $('#stage'), pts = {}, last = null, pinch = null, moved = 0;
+    st.addEventListener('pointerdown', function (e) { if (e.target.closest('.btn')) return; st.setPointerCapture(e.pointerId); pts[e.pointerId] = { x: e.clientX, y: e.clientY }; last = { x: e.clientX, y: e.clientY }; moved = 0; st.style.cursor = 'grabbing'; });
+    st.addEventListener('pointermove', function (e) {
+      if (!pts[e.pointerId]) return; pts[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pts);
+      if (ids.length === 2) { var a = pts[ids[0]], b = pts[ids[1]], d = Math.hypot(a.x - b.x, a.y - b.y); if (pinch) orbit.r = clamp(orbit.r * pinch / d, 6, 140); pinch = d; return; }
+      var dx = e.clientX - last.x, dy = e.clientY - last.y; last = { x: e.clientX, y: e.clientY }; moved += Math.abs(dx) + Math.abs(dy);
+      orbit.az -= dx * 0.006; orbit.el = clamp(orbit.el + dy * 0.004, 0.15, 1.35); orbit.touched = 4;
+    });
+    function up(e) {
+      delete pts[e.pointerId]; pinch = null; st.style.cursor = '';
+      if (moved < 6 && mode === 'world' && !e.target.closest('.btn')) pick(e);
+    }
+    st.addEventListener('pointerup', up); st.addEventListener('pointercancel', function (e) { delete pts[e.pointerId]; pinch = null; });
+    st.addEventListener('wheel', function (e) { e.preventDefault(); orbit.r = clamp(orbit.r * (1 + Math.sign(e.deltaY) * 0.1), 6, 140); }, { passive: false });
+    st.addEventListener('dblclick', function () { if (current) openFocus(current); else setMode('world'); });
+    var ray = new THREE.Raycaster();
+    function pick(e) {
+      var r = st.getBoundingClientRect(), p = new THREE.Vector2((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1);
+      ray.setFromCamera(p, orbit.cam);
+      var best = null;
+      visibleZones().forEach(function (z) { var hit = ray.intersectObject(z.group, true)[0]; if (hit && (!best || hit.distance < best.d)) best = { z: z, d: hit.distance }; });
+      if (best) openFocus(best.z);
+    }
+  })();
+
+  // ---------- Panneau du Chubby suivi ----------
+  function renderSide() {
+    var side = $('#side');
+    if (mode === 'world') {
+      side.innerHTML = '<h3>L’archipel des Chubbies</h3><p class="muted">Chaque île est un Chubby. Clique sur une île pour la suivre de près.</p><ul class="list">' +
+        visibleZones().map(function (z) { var l = liveById[z.id]; return '<li><b>' + esc(z.name) + '</b> ' + (l ? '<span class="' + C.cls(l.change) + '">' + pct(l.change) + '</span>' : '') + '<br>' + esc(z.status || '') + '</li>'; }).join('') + '</ul>';
+      return;
+    }
+    var z = current; if (!z) return;
+    var l = liveById[z.id] || {};
+    var radar = (l.radar || []).slice(0, 5).map(function (x) {
+      var close = x.crossed ? 1 : clamp(1 - Math.abs(x.distance) / 0.1, 0.03, 1);
+      return '<li><b>' + C.link(x.ticker) + '</b> · ' + esc(x.label) + '<br><span class="muted">' + (x.crossed ? 'Franchi : si ça tient à la clôture, ' + esc(x.then) : 'À ' + Math.abs(x.distance * 100).toFixed(1).replace('.', ',') + ' % : ensuite, ' + esc(x.then)) + '</span><div class="gauge"><i style="width:' + (close * 100).toFixed(0) + '%"></i></div></li>';
+    }).join('');
+    var held = Object.keys(l.holdings || {}).map(function (t) { return '<li>' + C.link(t) + ' <span class="' + C.cls(l.holdings[t]) + '">' + pct(l.holdings[t]) + '</span></li>'; }).join('');
+    var day = z.journal.slice().reverse().map(function (e) { return '<li><time>' + esc(e.time || (e.intraday ? '' : 'soir')) + '</time>' + eventIcon(e) + ' ' + esc(eventLine(e)) + '</li>'; }).join('');
+    side.innerHTML =
+      '<div class="side-head">' + C.avatar(z.id, l.mood || 'calme', 48) + '<div><h2>' + esc(z.name) + '</h2><p>' + esc(z.personality) + '</p></div></div>' +
+      '<dl class="stats"><div><dt>Valeur</dt><dd>' + (l.equity != null ? money(l.equity) : '—') + '</dd></div><div><dt>Aujourd’hui</dt><dd class="' + C.cls(l.change || 0) + '">' + (l.change != null ? pct(l.change) : '—') + '</dd></div><div><dt>Positions</dt><dd>' + Object.keys(l.holdings || {}).length + '</dd></div></dl>' +
+      '<p class="now" id="side-now">' + esc(z.status || '') + (z.say ? '<br><span style="font-weight:700">« ' + esc(z.say.text) + ' »</span>' : '') + '</p>' +
+      '<div><h3>Sa journée</h3>' + (day ? '<ul class="list">' + day + '</ul>' : '<p class="muted">Aucun achat ni vente pour l’instant aujourd’hui. Il refait ses vérifications pendant la séance.</p>') + '</div>' +
+      '<div><h3>Ses seuils de décision</h3>' + (radar ? '<ul class="list">' + radar + '</ul>' : '<p class="muted">Aucun seuil proche.</p>') + '</div>' +
+      '<div><h3>Dans son panier</h3>' + (held ? '<ul class="list">' + held + '</ul>' : '<p class="muted">Tout au cash.</p>') + '</div>' +
+      '<a class="btn" style="border:2px solid var(--line);justify-content:center" href="/chubby?id=' + encodeURIComponent(z.id) + '">Fiche complète</a>';
+  }
+  var sideTimer = 0;
+
+  // ---------- Chargement et suivi en direct ----------
+  function applyLive(lv) {
+    if (!lv || !lv.ok || !lv.bots) { if (lv && lv.error) $('#status').textContent = lv.error; return; }
+    var before = liveById; live = lv; liveById = {};
+    lv.bots.forEach(function (e) { liveById[e.id] = e; ensureZone(e); });
+    if (zones.some(function (z) { return !z.group; })) layout();
+    $('#date').textContent = new Date(lv.day + 'T12:00:00').toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long' });
+    $('#status').textContent = (lv.open ? '● En direct · ' : 'Bourse fermée · ') + lv.as_of;
+    var idx = $('#idx'); idx.hidden = !(lv.indexes || []).length;
+    idx.innerHTML = (lv.indexes || []).map(function (i) { return '<span>' + esc(i.name) + ' <b class="' + C.cls(i.change) + '">' + pct(i.change) + '</b></span>'; }).join('');
+    zones.forEach(function (z) {
+      refreshCrates(z); drawScreen(z);
+      var now = liveById[z.id], old = before[z.id];
+      if (now && old && now.stops && (now.stops.some(function (x) { return x.hit; }) && !(old.stops || []).some(function (x) { return x.hit; }))) say(z, now.reaction);
+    });
+    var night = lv.open ? 0 : 0.55;
+    scene.background.copy(DAY).lerp(NIGHT, night); scene.fog.color.copy(scene.background); seaMat.uniforms.night.value = night;
+    hemi.intensity = 0.95 - night * 0.4; sun.intensity = 0.85 - night * 0.5;
+    zones.forEach(function (z) { z.win.emissiveIntensity = night * 1.6; });
+    if (S) S.setTempo(lv.open ? 78 : 66);
+    refreshTiles(); renderSide();
+  }
+  // Dès qu'un ordre arrive, ses caisses sont réservées : un achat n'apparaît dans le panier qu'une fois rangé,
+  // une vente y reste tant qu'il ne l'a pas emportée au marché.
+  function enqueue(z, e, replay) {
+    var t = e.ticker;
+    if (t && e.kind === 'trade' && e.side === 'buy') z.pendBuy[t] = (z.pendBuy[t] || 0) + 1;
+    else if (t && (e.kind === 'trade' || e.kind === 'stop')) z.pendSell[t] = (z.pendSell[t] || 0) + 1;
+    z.queue.push({ e: e, replay: replay });
+    if (z.idle && z.step) { endStep(z, z.step); z.step = null; z.steps = []; } // un vrai ordre passe avant ses petites habitudes
+  }
+  function applyActivity(act, first) {
+    if (!act) return;
+    (act.events || []).forEach(function (e) {
+      if (!e.bot_id) return;
+      var z = byId[e.bot_id]; if (!z) return;
+      if (z.journal.some(function (x) { return x.id === e.id; })) return;
+      z.journal.push(e);
+      if (first) return;
+      enqueue(z, e, false);
+      if (e.kind === 'trade' || e.kind === 'stop') toast(z.name, eventLine(e));
+    });
+    if (first) { // à l'ouverture de la page, chacun rejoue en accéléré ce qu'il a fait aujourd'hui (les 6 derniers gestes)
+      zones.forEach(function (z) {
+        z.journal.filter(function (e) { return e.kind !== 'analyse' || e.ticker; }).slice(-6).forEach(function (e) { enqueue(z, e, true); });
+        refreshCrates(z);
+      });
+    }
+    lastEventId = act.last_id;
+    renderSide();
+  }
+  function getJSON(url) { return fetch(url).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
+  function pollLive() { if (!document.hidden) getJSON('/api/live').then(applyLive); }
+  function pollActivity() {
+    if (document.hidden || lastEventId == null) return;
+    getJSON('/api/activity?since=' + lastEventId).then(function (a) { applyActivity(a, false); });
+  }
+
+  // ---------- Son ----------
+  function setSoundBtn(on) { var b = $('#b-sound'); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '🔊 Son' : '🔇 Son'; }
+  if (S) {
+    $('#s-voice').value = S.voice || 'mignonne';
+    if (!S.humanAvailable()) $('#s-voice').querySelector('[value=humaine]').disabled = true;
+    $('#b-sound').onclick = function () { setSoundBtn(S.setSound(!S.sound)); };
+    $('#s-voice').onchange = function () { S.setVoice(this.value); if (!S.sound) setSoundBtn(S.setSound(true)); if (current) say(current, 'Coucou, c’est ma voix !'); };
+    $('#b-music').onclick = function () { this.setAttribute('aria-pressed', String(S.setMusic(!S.music))); };
+  }
+
+  // ---------- Boucle ----------
+  var tmp = new THREE.Vector3(), clock = new THREE.Clock(), uiTimer = 0;
+  function animateActor(z, dt, t) {
+    var a = z.actor, l = liveById[z.id] || {}, mood = l.mood || 'calme';
+    if (a.hop >= 0) { a.hop += dt * 2.2; if (a.hop >= 1) a.hop = -1; }
+    var hopY = a.hop >= 0 ? Math.sin(Math.PI * a.hop) * 0.7 : 0, walking = z.step && z.step.go;
+    var bob = reduceMotion ? 0 : walking ? Math.abs(Math.sin(t * 10 + z.center.x)) * 0.12 : 0;
+    var breathe = reduceMotion ? 0 : Math.sin(t * (a.sleeping ? 1.4 : 2.6) + z.center.x) * (a.sleeping ? 0.05 : 0.03);
+    a.group.position.y = hopY + bob;
+    a.body.scale.set(1 - breathe * 0.5, a.sy * (1 + breathe), 1 - breathe * 0.5);
+    var face = a.facing, cur = a.group.rotation.y;
+    if (!walking && z.step && z.step.wait && !z.step.lens && !z.step.look && face == null) face = 0;
+    if (face != null) { var diff = Math.atan2(Math.sin(face - cur), Math.cos(face - cur)); a.group.rotation.y = cur + diff * Math.min(1, dt * 7); }
+    if (!walking && !(z.step && (z.step.lens || z.step.look))) a.facing = 0; // il se tourne vers nous quand il parle ou attend
+    a.eyes.forEach(function (e) { e.scale.y = a.sleeping ? 0.15 : 1; });
+    var worried = (mood === 'inquiet' || a.sweat.forced) && !a.sleeping;
+    a.mouth.rotation.z = worried ? 0 : Math.PI; a.mouth.position.y = worried ? 0.68 : 0.76;
+    if (a.talk > 0) { a.talk -= dt; a.mouth.scale.set(1.1, 0.5 + Math.abs(Math.sin(t * 19)) * 1.4, 1); } else a.mouth.scale.setScalar(mood === 'calme' || a.sleeping ? 0.7 : 1);
+    a.sweat.visible = worried; if (worried) a.sweat.position.y = 1.35 - ((t * 0.6) % 1) * 0.35;
+    a.zzz.visible = !!a.sleeping; if (a.sleeping) a.zzz.position.y = 2.0 + Math.sin(t * 1.5) * 0.12;
+    if (a.lens.visible) a.lens.rotation.z = Math.sin(t * 3) * 0.15;
+    if (a.carry.visible) a.carry.position.y = 1.95 * a.sy + Math.sin(t * 8) * 0.03;
+  }
+  function placeBubble(z, cam, rect, el, big) {
+    var s = z.say;
+    if (!s || performance.now() > s.until) { if (!el.hidden) el.hidden = true; return; }
+    tmp.copy(z.actor.group.position); tmp.y += 2.6 * CHUBBY; tmp.project(cam);
+    if (el.textContent !== s.text) { el.textContent = s.text; }
+    el.className = 'bubble' + (big ? ' big' : '') + (s.kind === 'trade' ? ' trade' : '');
+    el.hidden = false;
+    var x = (tmp.x * 0.5 + 0.5) * rect.width, y = (-tmp.y * 0.5 + 0.5) * rect.height;
+    x = clamp(x - 14, 8, rect.width - el.offsetWidth - 8); y = clamp(y - el.offsetHeight, 46, rect.height - el.offsetHeight - 50);
+    el.style.transform = 'translate(' + x.toFixed(0) + 'px,' + y.toFixed(0) + 'px)';
+  }
+  var stageBubble = document.createElement('div'); stageBubble.className = 'bubble big'; stageBubble.hidden = true; $('#stage').appendChild(stageBubble);
+
+  function frame() {
+    requestAnimationFrame(frame);
+    var real = Math.min(clock.getDelta(), 0.25), dt = Math.min(real, 0.05), t = clock.elapsedTime;
+    seaMat.uniforms.time.value = t;
+    // Même si l'ordinateur rame, les Chubbies avancent au rythme de la vraie horloge (par petits pas).
+    zones.forEach(function (z) { if (!z.actor || !z.group.visible) return; if (ready) for (var left = real; left > 0; left -= 0.05) runSteps(z, Math.min(left, 0.05)); animateActor(z, dt, t); });
+    flying.forEach(function (f) {
+      if (!f.on) return; f.t += dt * 1.4; if (f.t < 0) return;
+      if (f.t >= 1) { f.on = false; f.t = -1; f.m.visible = false; return; }
+      f.m.visible = true; f.m.position.lerpVectors(f.a, f.b, f.t); f.m.position.y += Math.sin(Math.PI * f.t) * 2.2; f.m.rotation.x += dt * 9;
+    });
+    sparks.forEach(function (s) { if (s.life <= 0) return; s.v.y -= 7 * dt; s.m.position.addScaledVector(s.v, dt); s.life -= dt * 1.2; s.m.scale.setScalar(Math.max(s.life, 0.01)); if (s.life <= 0) s.m.visible = false; });
+    uiTimer -= dt; if (uiTimer <= 0) { uiTimer = 0.4; refreshTiles(); }
+    sideTimer -= dt; if (sideTimer <= 0 && mode !== 'mosaic') { sideTimer = 1; var n = $('#side-now'); if (n && current) n.innerHTML = esc(current.status || '') + (current.say && performance.now() < current.say.until ? '<br><span style="font-weight:700">« ' + esc(current.say.text) + ' »</span>' : ''); }
+
+    var W = canvas.clientWidth, H = canvas.clientHeight;
+    if (canvas.width !== Math.floor(W * renderer.getPixelRatio()) || canvas.height !== Math.floor(H * renderer.getPixelRatio())) renderer.setSize(W, H, false);
+    renderer.setScissorTest(false); renderer.clear(); renderer.setScissorTest(true);
+    function draw(rect, cam) {
+      if (rect.bottom < 0 || rect.top > H || rect.width < 2 || rect.height < 2) return false;
+      var y = H - rect.bottom;
+      renderer.setViewport(rect.left, y, rect.width, rect.height); renderer.setScissor(rect.left, y, rect.width, rect.height);
+      cam.aspect = rect.width / rect.height; cam.updateProjectionMatrix(); renderer.render(scene, cam); return true;
+    }
+    if (mode === 'mosaic') {
+      visibleZones().forEach(function (z) {
+        if (!z.tile) return;
+        var r = z.tile.getBoundingClientRect();
+        if (draw(r, z.cam)) placeBubble(z, z.cam, r, z.tileEls.bubble, false);
+      });
+    } else {
+      if (current) { tmp.copy(current.actor.group.position); orbit.want.copy(current.center).lerp(tmp, 0.35).setY(0.6); }
+      orbit.target.lerp(orbit.want, Math.min(1, dt * 2.5));
+      if (orbit.touched > 0) orbit.touched -= dt; else if (mode === 'world' && !reduceMotion) orbit.az += dt * 0.03;
+      var cam = orbit.cam, ce = Math.cos(orbit.el);
+      cam.position.set(orbit.target.x + Math.sin(orbit.az) * ce * orbit.r, orbit.target.y + Math.sin(orbit.el) * orbit.r, orbit.target.z + Math.cos(orbit.az) * ce * orbit.r);
+      cam.lookAt(orbit.target);
+      var r2 = $('#stage').getBoundingClientRect();
+      if (draw(r2, cam) && current) placeBubble(current, cam, r2, stageBubble, true); else stageBubble.hidden = true;
+    }
+  }
+
+  // ---------- Départ ----------
+  getJSON('/api/overview').then(function (ov) {
+    (ov && ov.leaderboard || []).forEach(function (b) { ensureZone(b); });
+    return getJSON('/api/live');
+  }).then(function (lv) {
+    if (lv && lv.ok) lv.bots.forEach(function (e) { ensureZone(e); });
+    if (!zones.length) { message('Aucun Chubby dans cette base pour l’instant. Lance l’arène (chubby serve) puis reviens ici.'); return; }
+    layout();
+    if (lv && lv.ok) applyLive(lv); else $('#status').textContent = (lv && lv.error) || 'Pas encore de séance en direct.';
+    return getJSON('/api/activity').then(function (a) { applyActivity(a, true); ready = true; });
+  }).then(function () {
+    var want = decodeURIComponent(location.hash.slice(1));
+    if (want && byId[want]) openFocus(byId[want]);
+    window.addEventListener('hashchange', function () { var id = decodeURIComponent(location.hash.slice(1)); if (id && byId[id] && current !== byId[id]) openFocus(byId[id]); });
+    setInterval(pollLive, 60000);
+    setInterval(pollActivity, 15000);
+  });
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

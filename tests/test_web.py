@@ -47,6 +47,22 @@ def test_replay_has_one_value_per_day_and_events_by_day():
     assert "trade" in kinds
 
 
+def test_activity_replays_the_last_day_then_only_what_is_new():
+    arena, _ = run_arena()
+    store = arena.store
+    act = api.activity(store)
+    last_day = store.db.execute("SELECT MAX(day) AS d FROM events WHERE kind = 'trade'").fetchone()["d"]
+    assert act["day"] == last_day and all(e["day"] == last_day for e in act["events"])
+    assert {e["kind"] for e in act["events"]} <= set(api.ACTIVITY_KINDS)
+    store.event(last_day, "mochi", "trade", side="buy", ticker="AMD", qty=3, price=250.0, value_cad=1027.0,
+                time="11:15", why="Il casse son plus haut", intraday=True)
+    store.event(last_day, "mochi", "leader", score=1)
+    store.commit()
+    new = api.activity(store, since=act["last_id"])
+    assert [(e["ticker"], e["time"], e["intraday"]) for e in new["events"]] == [("AMD", "11:15", True)]
+    assert api.activity(store, since=new["last_id"])["events"] == []
+
+
 def test_server_serves_page_and_api(tmp_path):
     db = tmp_path / "arene.db"
     arena, _ = run_arena()
@@ -62,6 +78,8 @@ def test_server_serves_page_and_api(tmp_path):
         detail = json.loads(urllib.request.urlopen(base + "/api/bots/flan").read())
         assert detail["name"] == "Flan"
         assert "Chubby Capital" in urllib.request.urlopen(base + "/ile").read().decode()
+        assert "Chubby Capital" in urllib.request.urlopen(base + "/carte").read().decode()
+        assert "events" in json.loads(urllib.request.urlopen(base + "/api/activity?since=0").read())
         assert len(urllib.request.urlopen(base + "/static/vendor/three.min.js").read()) > 500_000
         try:
             urllib.request.urlopen(base + "/static/../server.py")

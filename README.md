@@ -170,7 +170,7 @@ chubby coach jalapeno moins     # moins | plus | garde : change son agressivité
 chubby conseil positions.csv --risque 2 --style revenu
 ```
 
-Tout est enregistré dans un fichier SQLite (`data/arena.db`) : comptes, réglages, trades, valeurs quotidiennes, journal de chaque bot et **événements** (`trade`, `dividend`, `rank_change`, `coach`, `ai_coach`…), que l'île 3D anime.
+Tout est enregistré dans un fichier SQLite (`data/arena.db`) : comptes, réglages, trades, valeurs quotidiennes, journal de chaque bot et **événements** (`trade`, `stop`, `analyse`, `dividend`, `rank_change`, `coach`, `ai_coach`…), que les îles 3D animent.
 
 ## Au quotidien
 
@@ -237,18 +237,31 @@ Plus bas, tout ce qu'il faut pour le comprendre :
 
 L'historique se filtre par type, et s'exporte en CSV pour Excel ou Google Sheets.
 
-### L'île 3D
+### Les îles des Chubbies (3D)
 
-Une grande île au milieu de la mer : au centre, la place et sa fontaine au cristal ; au nord, le grand écran de l'arène et son podium ; à l'est, le stand du marché (écran TSX · NYSE en direct) ; à l'ouest, le coin du coach ; au sud, le coin de chaque Chubby ; un quai avec son bateau, des îles et un phare au loin.
+Bouton « Voir l'île », ou http://localhost:8000/ile. Chaque Chubby vit sur **sa propre île** : sa maison et son
+coffre de pièces, son **écran d'analyse** (ses seuils de décision et sa watchlist, le titre qu'il regarde
+surligné), le **marché** où il achète et vend, et son **panier** où il range une caisse par position.
 
-Bouton « Voir l'île 3D », ou http://localhost:8000/ile. Les Chubbies y **rejouent les vraies séances
-de la base** : chaque trade les fait courir au tableau des cotes, chaque dividende fait pleuvoir des
-pièces, leur humeur suit leur journée, et le podium suit le classement réel.
+Chaque geste vient d'un vrai événement de la journée (`/api/activity` et `/api/live`) :
 
-- Par défaut, l'île rejoue la dernière séance.
-- « Rejouer la saison » et les vitesses ×10 et ×50 font défiler toute la saison ; le curseur saute à n'importe quel jour.
-- Clique sur un Chubby pour voir sa fiche et le **coacher** : ton conseil change vraiment son agressivité
-  pour ses prochaines séances (comme `chubby coach`), et Claude en tient compte le vendredi.
+- **achat** : il analyse le titre à son écran, paie au marché, rapporte la caisse dans son panier ;
+- **vente** ou **stop touché** : il reprend la caisse, l'apporte au marché, les pièces reviennent dans son coffre ;
+- **analyse** : il regarde le titre à la loupe en attendant la confirmation ;
+- **entre deux** : il refait ce qu'il a vraiment en tête (seuil proche, stop qui approche, titre de sa watchlist qui bouge) ;
+  bourse fermée, il dort chez lui.
+
+À l'ouverture de la page, chacun rejoue en accéléré ses derniers gestes du jour, puis suit la séance en direct
+(nouveaux ordres toutes les 15 secondes, cours toutes les minutes).
+
+- **Mosaïque** : toutes les îles côte à côte, chacune avec sa caméra, ce qu'il fait et ce qu'il dit.
+- Clique sur une île pour la **suivre** : caméra libre (glisser, molette, double-clic), sa journée heure par heure,
+  ses seuils, son panier. Flèches ← → pour passer au suivant, Échap pour revenir. Lien direct : `/ile#muffin`.
+- **Archipel** : toutes les îles d'un coup d'œil.
+- **Versions IA** ajoute les îles des jumeaux coachés par Claude.
+
+L'ancienne grande île (avec le podium et le replay de la saison) reste sur http://localhost:8000/ile-3d, et la
+carte illustrée sur http://localhost:8000/carte.
 
 ### Le mode conseiller
 
