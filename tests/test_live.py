@@ -169,7 +169,8 @@ def test_first_day_of_the_arena_is_live_too():
     assert all(e["equity"] == pytest.approx(10_000, rel=0.01) for e in live["bots"])
 
 
-def test_on_the_first_day_they_talk_about_tomorrows_orders():
+def test_last_nights_orders_count_from_this_mornings_open():
+    """Décidés hier soir, ses achats partent à l'ouverture : le direct les compte avant que l'arène les inscrive."""
     from chubby.arena import Arena
     from chubby.bots import all_bots
     data = fake_market(300)
@@ -177,11 +178,32 @@ def test_on_the_first_day_they_talk_about_tomorrows_orders():
     arena = Arena(store, data, all_bots())
     arena.run(start=data.trading_days()[-1])
     bars, today = fake_bars(arena)
-    for t in ("XIC.TO", "VFV.TO"):  # les achats prévus par Tortue
-        bars[t] = list(bars[t]) if t in bars else [50.0] * len(bars)
     n = len(bars) // 2
-    bars.loc[bars.index[n:], "VFV.TO"] = bars["VFV.TO"].iloc[0] * 1.02
+    for t in ("XIC.TO", "VFV.TO"):  # les achats prévus par Tortue
+        bars[t] = 50.0
+    bars.loc[bars.index[n:], "VFV.TO"] = list(50.0 * (1 + np.linspace(0, 0.02, len(bars) - n)))
     live = pulse(store, fetch=lambda tickers: bars, now=datetime(today.year, today.month, today.day, 11, 0, tzinfo=TORONTO))
     tortue = next(e for e in live["bots"] if e["id"] == "tortue")
-    assert "Demain à l'ouverture, j'achète VFV.TO" in tortue["reaction"] and "plus cher" in tortue["reaction"]
+    assert any("Ce matin à l'ouverture, j'ai acheté" in t and "VFV.TO à 50,00 $" in t and "bien joué" in t
+               for t in tortue["thoughts"])
+    assert "VFV.TO" in tortue["holdings"] and tortue["change"] > 0  # il profite de la hausse depuis l'ouverture
     assert not any("Je suis au cash" in e["reaction"] for e in live["bots"] if e["thoughts"])
+
+
+def test_after_the_evening_session_orders_are_for_tomorrow():
+    from chubby.arena import Arena
+    from chubby.bots import all_bots
+    data = fake_market(300)
+    store = Store(":memory:")
+    arena = Arena(store, data, all_bots())
+    arena.run(start=data.trading_days()[-2], end=data.trading_days()[-2])
+    arena.run(start=data.trading_days()[-1])  # la séance du soir est déjà jouée : ses ordres partent demain
+    bars, today = fake_bars(arena)
+    bars = bars[bars.index.date < today.date()]  # le soir même : la dernière séance est celle de l'arène
+    for t in ("XIC.TO", "VFV.TO"):
+        bars[t] = 50.0
+    bars.loc[bars.index[len(bars) // 2:], "VFV.TO"] = 51.0
+    last = arena.last_day
+    live = pulse(store, fetch=lambda tickers: bars, now=datetime(last.year, last.month, last.day, 17, 0, tzinfo=TORONTO))
+    lines = [t for e in live["bots"] for t in e["thoughts"]]
+    assert not any("Ce matin" in t for t in lines)

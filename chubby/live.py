@@ -10,12 +10,14 @@ from __future__ import annotations
 import json
 import logging
 import zlib
+from dataclasses import replace
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 
 from . import options as opt
+from .broker import Account, Position
 from .config import currency_of
 from .fmt import french
 from .store import Store
@@ -189,11 +191,18 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
         acct = accounts[b["id"]]
         if base_row is None and today_row is None:
             continue  # pas encore inscrit dans l'arène
+        # Les ordres d'hier soir sont partis à l'ouverture de ce matin, mais l'arène ne les inscrit qu'au soir :
+        # en attendant, on les compte au premier cours de la séance.
+        morning = {}
+        if today_row is None and pending.get(b["id"]) and pending[b["id"]]["decided_on"] < str(day):
+            held_acct, morning = _morning_fills(acct, pending[b["id"]], session, fx, str(day))
+        else:
+            held_acct = acct
         # Premier jour de l'arène : pas de veille, il part de son capital de départ (tout en cash).
         held = json.loads(base_row["holdings"] or "{}") if base_row else {}
-        curve = pd.Series(acct.cash, index=session.index, dtype=float)
+        curve = pd.Series(held_acct.cash, index=session.index, dtype=float)
         movers = []
-        for t, pos in acct.positions.items():
+        for t, pos in held_acct.positions.items():
             usd = currency_of(t) == "USD"
             if not opt.is_option(t) and t in session and session[t].notna().any():
                 px = session[t].ffill().bfill()
@@ -220,16 +229,16 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
         watch = store.get_watchlist(b["id"])
         radar = _radar(watch, session)
         quotes = _quotes(watched.get(b["id"], []), session, prev)
-        plans = _plan_lines(pending.get(b["id"]), quotes)
+        plans = _plan_lines(pending.get(b["id"]), quotes, morning)
         musings = _watch_lines(watch, quotes)
         change = equity / base - 1 if base else 0.0
-        top = movers[0] if movers else ({"name": "Mon portefeuille", "change": 0.0} if acct.positions else None)
+        top = movers[0] if movers else ({"name": "Mon portefeuille", "change": 0.0} if held_acct.positions else None)
         out_bots.append({
             "id": b["id"], "name": b["name"], "personality": b["personality"],
             "equity": round(equity, 2), "base": round(base, 2), "change": round(change, 5),
             "change_cad": round(equity - base, 2), "mood": mood_of(change),
             "reaction": (_stop_reaction(stops) or _radar_reaction(radar)
-                         or (None if acct.positions else (plans + musings)[0] if plans + musings else None)
+                         or (None if held_acct.positions else (plans + musings)[0] if plans + musings else None)
                          or react(b["id"], change, top, now)),
             "movers": movers[:3],
             "stops": stops, "radar": radar, "thoughts": (_thoughts(stops, radar) + plans[:2] + musings[:2])[:6],
@@ -281,14 +290,62 @@ def _signed(v: float) -> str:
     return french(f"{v * 100:+.1f} %").replace("-", "−")
 
 
-def _plan_lines(pending: dict | None, quotes: dict) -> list[str]:
-    """Ce qu'il pense de ses ordres de demain en voyant le marché d'aujourd'hui (les plus gros mouvements d'abord)."""
+def _morning_fills(acct: Account, pending: dict, session: pd.DataFrame, fx: pd.Series, day: str):
+    """Une copie du compte avec les ordres d'hier soir passés au premier cours de la séance (frais non comptés).
+
+    Rend aussi, par titre, l'ordre passé : {"ticker": ("buy" ou "sell", quantité, prix)}. Les options attendent le soir.
+    """
+    positions, cash, done = dict(acct.positions), acct.cash, {}
+    for o in pending.get("orders", []):
+        t = o["ticker"]
+        if opt.is_option(t) or t not in session or not session[t].notna().any():
+            continue
+        px = float(session[t].dropna().iloc[0])
+        rate = float(fx.iloc[0]) if currency_of(t) == "USD" else 1.0
+        have = positions[t].qty if t in positions else 0
+        buy = o["action"].startswith("acheter")
+        if "qty" in o:
+            qty = o["qty"]
+        elif not buy and not o.get("weight_target"):
+            qty = have  # sortir complètement
+        else:
+            qty = int(o["amount_cad"] // (px * rate))
+        qty = qty if buy else min(qty, have)
+        if buy:
+            qty = min(qty, int(max(cash, 0) // (px * rate)))
+        if qty <= 0:
+            continue
+        cash += (-qty if buy else qty) * px * rate
+        left = have + (qty if buy else -qty)
+        if left:
+            positions[t] = replace(positions[t], qty=left) if t in positions else Position(t, left, px * rate, day)
+        else:
+            positions.pop(t, None)
+        done[t] = ("buy" if buy else "sell", qty, px)
+    return Account(acct.bot_id, cash, positions), done
+
+
+def _plan_lines(pending: dict | None, quotes: dict, morning: dict | None = None) -> list[str]:
+    """Ce qu'il pense de ses ordres en voyant le marché d'aujourd'hui (les plus gros mouvements d'abord).
+
+    Les ordres déjà passés à l'ouverture de ce matin (`morning`) sont racontés au passé.
+    """
     out = []
     for o in (pending or {}).get("orders", []):
         q = quotes.get(o["ticker"])
         if not q or q["change"] is None:
             continue
         ch, t = q["change"], o["ticker"]
+        if t in (morning or {}):
+            side, qty, px = morning[t]
+            since = q["last"] / px - 1 if q.get("last") and px else 0.0
+            verb = "acheté" if side == "buy" else "vendu"
+            good = since > 0.002 if side == "buy" else since < -0.002
+            bad = since < -0.002 if side == "buy" else since > 0.002
+            mood = "bien joué" if good else "un peu trop tôt" if bad else "pas de surprise"
+            out.append((abs(since), f"Ce matin à l'ouverture, j'ai {verb} {qty} {t} à {french(f'{px:.2f}')} $. "
+                                    f"Depuis : {_signed(since)}, {mood}."))
+            continue
         if o["action"].startswith("acheter"):
             mood = ("ça me coûtera un peu plus cher" if ch > 0.005 else "il sera un peu moins cher, tant mieux" if ch < -0.005
                     else "rien ne bouge, parfait")

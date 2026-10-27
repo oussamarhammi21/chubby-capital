@@ -86,3 +86,21 @@ def test_server_serves_page_and_api(tmp_path):
             assert e.code == 400 and "Symbol" in json.loads(e.read())["erreur"]
     finally:
         server.shutdown()
+
+
+def test_closed_browser_connection_is_not_an_error(tmp_path, caplog):
+    """Le navigateur ferme la connexion avant la réponse (page rechargée) : pas d'erreur ni de 500."""
+    import io
+    from chubby.web.server import make_handler as mk
+
+    class Closed(io.BytesIO):
+        def write(self, b):
+            raise ConnectionAbortedError(10053, "connexion interrompue")
+
+    handler = mk(str(tmp_path / "arene.db"), ArenaConfig(), live=lambda store: {"ok": True})
+    h = handler.__new__(handler)
+    h.path, h.request_version, h.requestline, h.command = "/api/live", "HTTP/1.1", "GET /api/live HTTP/1.1", "GET"
+    h.client_address, h.wfile, h.close_connection = ("127.0.0.1", 0), Closed(), False
+    with caplog.at_level("ERROR"):
+        h.do_GET()
+    assert h.close_connection and not caplog.records

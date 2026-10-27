@@ -19,6 +19,8 @@ TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf
          ".png": "image/png", ".svg": "image/svg+xml",
          ".webp": "image/webp"}
 log = logging.getLogger(__name__)
+# Le navigateur a fermé la connexion avant la réponse (page rechargée ou quittée) : rien de grave, rien à renvoyer.
+DISCONNECTED = (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)
 
 
 def make_handler(db_path: str, cfg: ArenaConfig, live=None):
@@ -50,6 +52,8 @@ def make_handler(db_path: str, cfg: ArenaConfig, live=None):
                     detail = api.bot_detail(store, cfg, path.rsplit("/", 1)[1])
                     return self._json(detail) if detail else self._json({"erreur": "Chubby inconnu"}, 404)
                 return self._json({"erreur": "page introuvable"}, 404)
+            except DISCONNECTED:
+                self.close_connection = True
             except Exception:
                 log.exception("Erreur sur %s", self.path)
                 return self._json({"erreur": "erreur du serveur"}, 500)
@@ -70,6 +74,8 @@ def make_handler(db_path: str, cfg: ArenaConfig, live=None):
                     return self._json(api.advice(Store(db_path), cfg, body.get("profil") or {}, str(body.get("csv") or ""),
                                                  cache_dir=cache))
                 return self._json({"erreur": "page introuvable"}, 404)
+            except DISCONNECTED:
+                self.close_connection = True
             except ValueError as e:  # inclut un JSON ou un CSV illisible
                 return self._json({"erreur": str(e) or "requête invalide"}, 400)
             except Exception:
@@ -86,12 +92,15 @@ def make_handler(db_path: str, cfg: ArenaConfig, live=None):
             self._send(status, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")
 
         def _send(self, status: int, body: bytes, content_type: str):
-            self.send_response(status)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "no-store")
-            self.end_headers()
-            self.wfile.write(body)
+            try:
+                self.send_response(status)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
+            except DISCONNECTED:
+                self.close_connection = True
 
         def log_message(self, fmt, *args):
             log.debug(fmt, *args)
