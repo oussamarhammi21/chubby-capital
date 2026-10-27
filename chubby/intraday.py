@@ -159,6 +159,8 @@ class SessionTrader:
         closed = [d for d in self.daily.trading_days(end=day - pd.Timedelta(days=1))]
         if not closed:
             return "Pas d'historique de prix."
+        if undo_early_session(arena.store, day):
+            log.warning("La séance du %s avait été jouée avant la clôture : annulée, elle sera rejouée ce soir.", day.date())
         last = arena.last_day
         if last is None:
             return None  # nouvelle arène : elle commence aujourd'hui, la séance du soir l'inscrira
@@ -286,6 +288,39 @@ class SessionTrader:
         store.set_meta("intraday", json.dumps(status, ensure_ascii=False))
         store.commit()
         return status
+
+
+def undo_early_session(store: Store, day: pd.Timestamp) -> bool:
+    """Défait la séance du soir de `day` si elle a été jouée pendant la bourse (un `tick` lancé trop tôt, avec des
+    cours pas encore définitifs). Rend True si elle l'a fait.
+
+    On garde ce qui est vrai : les ordres de la veille passés à l'ouverture. On retire la valeur « de clôture », le
+    classement, les dividendes et le forfait (rendus au cash, ils reviendront ce soir) et surtout les ordres décidés
+    avec ces faux cours de clôture : sinon ils partiraient demain, en plus de ce que le Chubby a fait en séance.
+    """
+    d = str(day.date())
+    if store.get_meta("last_day") != d:
+        return False
+    db = store.db
+    for bot in db.execute("SELECT id FROM bots").fetchall():
+        acct = store.load_account(bot["id"])
+        for r in db.execute("SELECT kind, payload FROM events WHERE bot_id = ? AND day = ? AND kind IN ('dividend', 'fee')",
+                            (bot["id"], d)):
+            amount = json.loads(r["payload"] or "{}").get("amount_cad") or 0.0
+            acct.cash += -amount if r["kind"] == "dividend" else amount
+        store.save_account(acct)
+    db.execute("DELETE FROM events WHERE day = ? AND kind IN ('dividend', 'fee', 'rank_change', 'leader')", (d,))
+    db.execute("DELETE FROM snapshots WHERE day = ?", (d,))
+    db.execute("DELETE FROM pending WHERE decided_on = ?", (d,))
+    db.execute("DELETE FROM journal WHERE day = ? AND text NOT GLOB '[0-9][0-9]:[0-9][0-9] · *'", (d,))
+    prev = db.execute("SELECT MAX(day) AS d FROM snapshots").fetchone()["d"]
+    if prev:
+        store.set_meta("last_day", prev)
+    else:
+        db.execute("DELETE FROM meta WHERE key = 'last_day'")
+    store.set_meta("day_index", str(max(0, int(store.get_meta("day_index") or 1) - 1)))
+    store.commit()
+    return True
 
 
 def status(store: Store) -> dict | None:
