@@ -64,8 +64,17 @@ def cmd_backtest(args, cfg):
     _print_board(arena)
 
 
+def last_closed_day(now: datetime):
+    """Dernier jour dont la clôture est connue : avant 16 h 10 (heure de Toronto), la séance du jour n'est pas finie."""
+    now = now.astimezone(TORONTO)
+    return now.date() if (now.hour, now.minute) >= (16, 10) else now.date() - timedelta(days=1)
+
+
 def cmd_tick(args, cfg):
-    today = datetime.now(TORONTO).date()
+    now = datetime.now(TORONTO)
+    today = last_closed_day(now)
+    if today != now.date() and now.weekday() < 5:
+        print("La bourse n'a pas encore fermé : la séance d'aujourd'hui se jouera après 16 h 10 (heure de Toronto).")
     store = Store(args.db)
     data = _load(today - timedelta(days=10), today, cfg, args.cache, refresh=True)
     arena = Arena(store, data, all_bots(ia=not args.sans_ia), cfg, chains=_chains(args, today))
