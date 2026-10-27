@@ -186,3 +186,34 @@ def test_all_bots_survive_a_live_session():
     assert store.db.execute("SELECT MIN(cash) AS m FROM accounts").fetchone()["m"] >= -1e-6
     Arena(store, data, bots).run(days[-1], days[-1])  # la séance du soir passe derrière sans rien casser
     assert store.get_meta("last_day") == str(days[-1].date())
+
+
+def test_a_session_played_too_early_is_undone_before_trading():
+    """Un `tick` lancé pendant la bourse a inscrit la journée avec des cours pas définitifs : ses ordres partiraient
+    demain en plus de ce que le Chubby fait en séance. Le trader l'annule ; la séance du soir la rejouera."""
+    data = fake_market(300)
+    days = data.trading_days()
+    store = Store(":memory:")
+    bots = [Tortue(), Gourmand()]
+    arena = Arena(store, data, bots)
+    arena.run(days[-3], days[-1])  # jusqu'à aujourd'hui, comme un tick à 9 h 45
+    store.set_pending("gourmand", None, days[-1], [("NVDA", 5)])
+    trader = SessionTrader(":memory:", arena.cfg, bots, load_daily=lambda today: data)
+    trader.step(store, at(days[-1], "10:00"), bars=session(data, days[-1], {}, "10:00"))
+    assert store.get_meta("last_day") == str(days[-2].date())
+    assert not store.db.execute("SELECT 1 FROM snapshots WHERE day = ?", (str(days[-1].date()),)).fetchall()
+    assert store.pop_pending("gourmand") == (None, [])
+    Arena(store, data, bots).run(days[-1], days[-1])  # ce soir, la journée est rejouée normalement
+    assert store.get_meta("last_day") == str(days[-1].date())
+
+
+def test_live_value_ignores_a_close_value_written_during_the_session(setup):
+    data, today, store, trader = setup
+    dip = {"NVDA": [0.0] * 6 + [-0.05]}
+    for hhmm in ("10:00", "10:15"):
+        trader.step(store, at(today, hhmm), bars=session(data, today, dip, hhmm))
+    acct = store.load_account("gourmand")
+    store.add_snapshot("gourmand", today, acct.cash + 5_000, acct.cash + 5_000)  # une vieille valeur « de clôture »
+    live = pulse(store, fetch=lambda tickers: session(data, today, dip, "10:20"), now=at(today, "10:20"))
+    g = next(e for e in live["bots"] if e["id"] == "gourmand")
+    assert abs(g["change"]) < 0.01 and not g["settled"]

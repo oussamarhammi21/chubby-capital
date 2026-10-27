@@ -193,6 +193,8 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
                                     " ORDER BY day DESC LIMIT 1", (b["id"], str(day))).fetchone()
         today_row = store.db.execute("SELECT equity FROM snapshots WHERE bot_id = ? AND day = ?",
                                      (b["id"], str(day))).fetchone()
+        if market_open(now) and day == now.date():
+            today_row = None  # bourse ouverte : une valeur de clôture du jour ne peut pas encore exister (séance jouée trop tôt)
         acct = accounts[b["id"]]
         # Les ordres d'hier soir sont partis à l'ouverture de ce matin, mais l'arène ne les inscrit qu'au soir :
         # en attendant, on les compte au premier cours de la séance.
