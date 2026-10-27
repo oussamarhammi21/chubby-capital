@@ -140,6 +140,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
       <button class="btn" id="b-all" aria-pressed="true" title="Un quartier par Chubby, côte à côte">▦ Mosaïque</button>
       <button class="btn" id="b-world" aria-pressed="false" title="Toute la ville d'un seul coup d'œil">🏙 La ville</button>
       <button class="btn" id="b-ai" aria-pressed="false" title="Montrer aussi les jumeaux coachés par Claude">🤖 Versions IA</button>
+      <button class="btn" id="b-speed" aria-pressed="false" title="Accélérer les Chubbies (x1, x2, x3)">⏩ x1</button>
       <button class="btn" id="b-sound" aria-pressed="false">🔇 Son</button>
       <select class="btn" id="s-voice" aria-label="Voix des Chubbies">
         <option value="mignonne">🐣 Voix mignonnes</option><option value="humaine">🗣 Voix humaines</option><option value="muette">🤐 Muets</option>
@@ -187,6 +188,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   function rand(a, b) { return a + Math.random() * (b - a); }
   function message(text) { var m = $('#msg'); m.textContent = text; m.hidden = !text; }
+  var speed = 1; // x1, x2 ou x3 : accélère la marche, les pauses, les rejeux et les bulles
   function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
   var toastTimer = null;
   function toast(title, text) {
@@ -518,7 +520,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   function setStatus(z, icon, text, time) { z.status = icon + ' ' + text; z.statusTime = time || ''; }
   function say(z, text, kind) {
     if (!text) return;
-    z.say = { text: text, until: performance.now() + clamp(text.length * 70, 4500, 9000), kind: kind || '' };
+    z.say = { text: text, until: performance.now() + clamp(text.length * 70, 4500, 9000) / speed, kind: kind || '' };
     z.actor.talk = Math.min(2.5, text.length * 0.04);
     var focused = mode === 'focus' && current === z;
     if (S && (focused || kind === 'trade')) S.speak(z.id, text, (liveById[z.id] || {}).mood || 'calme', focused && kind === 'trade');
@@ -972,6 +974,11 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     getJSON('/api/activity?since=' + lastEventId).then(function (a) { applyActivity(a, false); });
   }
 
+  // ---------- Vitesse ----------
+  function setSpeed(v) { speed = v; var b = $('#b-speed'); b.textContent = '⏩ x' + v; b.setAttribute('aria-pressed', String(v > 1)); store('chubby-vitesse', String(v)); }
+  setSpeed([1, 2, 3].indexOf(+store('chubby-vitesse')) >= 0 ? +store('chubby-vitesse') : 1);
+  $('#b-speed').onclick = function () { setSpeed(speed % 3 + 1); };
+
   // ---------- Son ----------
   function setSoundBtn(on) { var b = $('#b-sound'); b.setAttribute('aria-pressed', String(on)); b.textContent = on ? '🔊 Son' : '🔇 Son'; }
   if (S) {
@@ -1021,15 +1028,16 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   function frame() {
     requestAnimationFrame(frame);
     var real = Math.min(clock.getDelta(), 0.25), dt = Math.min(real, 0.05), t = clock.elapsedTime;
+    var sim = real * speed, sdt = dt * speed; // le temps des Chubbies (accéléré) ; la caméra garde le vrai temps
     seaMat.uniforms.time.value = t;
     // Même si l'ordinateur rame, les Chubbies avancent au rythme de la vraie horloge (par petits pas).
-    zones.forEach(function (z) { if (!z.actor || !z.group.visible) return; if (ready) for (var left = real; left > 0; left -= 0.05) runSteps(z, Math.min(left, 0.05)); animateActor(z, dt, t); });
+    zones.forEach(function (z) { if (!z.actor || !z.group.visible) return; if (ready) for (var left = sim; left > 0; left -= 0.05) runSteps(z, Math.min(left, 0.05)); animateActor(z, sdt, t); });
     flying.forEach(function (f) {
-      if (!f.on) return; f.t += dt * 1.4; if (f.t < 0) return;
+      if (!f.on) return; f.t += sdt * 1.4; if (f.t < 0) return;
       if (f.t >= 1) { f.on = false; f.t = -1; f.m.visible = false; return; }
-      f.m.visible = true; f.m.position.lerpVectors(f.a, f.b, f.t); f.m.position.y += Math.sin(Math.PI * f.t) * 2.2; f.m.rotation.x += dt * 9;
+      f.m.visible = true; f.m.position.lerpVectors(f.a, f.b, f.t); f.m.position.y += Math.sin(Math.PI * f.t) * 2.2; f.m.rotation.x += sdt * 9;
     });
-    sparks.forEach(function (s) { if (s.life <= 0) return; s.v.y -= 7 * dt; s.m.position.addScaledVector(s.v, dt); s.life -= dt * 1.2; s.m.scale.setScalar(Math.max(s.life, 0.01)); if (s.life <= 0) s.m.visible = false; });
+    sparks.forEach(function (s) { if (s.life <= 0) return; s.v.y -= 7 * sdt; s.m.position.addScaledVector(s.v, sdt); s.life -= sdt * 1.2; s.m.scale.setScalar(Math.max(s.life, 0.01)); if (s.life <= 0) s.m.visible = false; });
     uiTimer -= dt; if (uiTimer <= 0) { uiTimer = 0.4; refreshTiles(); }
     sideTimer -= dt; if (sideTimer <= 0 && mode !== 'mosaic') { sideTimer = 1; var n = $('#side-now'); if (n && current) n.innerHTML = esc(current.status || '') + (current.say && performance.now() < current.say.until ? '<br><span style="font-weight:700">« ' + esc(current.say.text) + ' »</span>' : ''); }
 

@@ -284,6 +284,7 @@ rejoué tout seul quand tu reviens.
   suivant, Échap pour revenir. Lien direct : `/ile#muffin`.
 - **La ville** : tous les quartiers d'un coup d'œil, avec le même classement et le même fil d'événements.
 - **Versions IA** ajoute les quartiers des jumeaux coachés par Claude.
+- **⏩ x1 / x2 / x3** accélère les Chubbies (marche, pauses, rejeux, bulles) ; la vitesse choisie est retenue.
 
 L'ancienne grande île (avec le podium et le replay de la saison) reste sur http://localhost:8000/ile-3d, et la
 carte illustrée sur http://localhost:8000/carte.
