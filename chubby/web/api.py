@@ -146,3 +146,28 @@ def events(store: Store, limit: int = 50) -> list[dict]:
                             (limit,)).fetchall()
     return [{"id": r["id"], "day": r["day"], "bot_id": r["bot_id"], "kind": r["kind"],
              **json.loads(r["payload"] or "{}")} for r in rows]
+
+
+ACTIVITY_KINDS = ("trade", "stop", "analyse", "dividend")
+
+
+def activity(store: Store, since: int | None = None, limit: int = 400) -> dict:
+    """Ce que les Chubbies ont fait aujourd'hui (achats, ventes, stops, analyses), pour que l'île le rejoue.
+
+    Sans `since` : toute la dernière journée connue. Avec `since` : seulement les nouveaux événements.
+    """
+    marks = ",".join("?" * len(ACTIVITY_KINDS))
+    if since is None:
+        live = store.get_meta("live")
+        day = (json.loads(live).get("day") if live else None) or store.db.execute(
+            f"SELECT MAX(day) AS d FROM events WHERE kind IN ({marks})", ACTIVITY_KINDS).fetchone()["d"]
+        rows = store.db.execute(f"SELECT * FROM events WHERE day = ? AND kind IN ({marks}) ORDER BY id DESC LIMIT ?",
+                                (day, *ACTIVITY_KINDS, limit)).fetchall()
+    else:
+        rows = store.db.execute(f"SELECT * FROM events WHERE id > ? AND kind IN ({marks}) ORDER BY id DESC LIMIT ?",
+                                (since, *ACTIVITY_KINDS, limit)).fetchall()
+        day = rows[0]["day"] if rows else None
+    last = store.db.execute("SELECT MAX(id) AS m FROM events").fetchone()["m"] or 0
+    return {"day": day, "last_id": last,
+            "events": [{"id": r["id"], "day": r["day"], "bot_id": r["bot_id"], "kind": r["kind"],
+                        **json.loads(r["payload"] or "{}")} for r in reversed(rows)]}

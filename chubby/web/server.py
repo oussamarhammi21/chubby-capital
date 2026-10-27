@@ -14,7 +14,7 @@ from ..store import Store
 from . import api
 
 STATIC = Path(__file__).parent / "static"
-PAGES = {"/": "index.html", "/ile": "carte.html", "/ile-3d": "ile.html", "/conseiller": "conseiller.html", "/chubby": "chubby.html"}
+PAGES = {"/": "index.html", "/ile": "zones.html", "/carte": "carte.html", "/ile-3d": "ile.html", "/conseiller": "conseiller.html", "/chubby": "chubby.html"}
 TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8",
          ".png": "image/png", ".svg": "image/svg+xml",
          ".webp": "image/webp"}
@@ -42,6 +42,9 @@ def make_handler(db_path: str, cfg: ArenaConfig, live=None):
                     from ..live import latest
                     payload = live(store) if live else latest(store)
                     return self._json(payload or {"ok": False, "error": "Pas encore de séance en direct."})
+                if path == "/api/activity":
+                    since = self.path.partition("since=")[2].split("&", 1)[0]
+                    return self._json(api.activity(store, int(since) if since.isdigit() else None))
                 if path == "/api/replay":
                     return self._json(api.replay(store, cfg))
                 if path.startswith("/api/bots/") and path.endswith("/fiche"):
