@@ -61,6 +61,9 @@ def test_activity_replays_the_last_day_then_only_what_is_new():
     new = api.activity(store, since=act["last_id"])
     assert [(e["ticker"], e["time"], e["intraday"]) for e in new["events"]] == [("AMD", "11:15", True)]
     assert api.activity(store, since=new["last_id"])["events"] == []
+    assert act["days"][0] == last_day and len(act["days"]) > 1
+    earlier = api.activity(store, day=act["days"][1])  # une journée passée, pour la traçabilité
+    assert earlier["day"] == act["days"][1] and all(e["day"] == act["days"][1] for e in earlier["events"])
 
 
 def test_server_serves_page_and_api(tmp_path):
@@ -80,6 +83,7 @@ def test_server_serves_page_and_api(tmp_path):
         assert "Chubby Capital" in urllib.request.urlopen(base + "/ile").read().decode()
         assert "Chubby Capital" in urllib.request.urlopen(base + "/carte").read().decode()
         assert "events" in json.loads(urllib.request.urlopen(base + "/api/activity?since=0").read())
+        assert json.loads(urllib.request.urlopen(base + "/api/activity?day=2000-01-03").read())["events"] == []
         assert len(urllib.request.urlopen(base + "/static/vendor/three.min.js").read()) > 500_000
         try:
             urllib.request.urlopen(base + "/static/../server.py")

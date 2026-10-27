@@ -40,8 +40,35 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 3px solid
 .tools { margin-left: auto; padding: 4px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 
 /* La mosaïque : une île par Chubby */
-#grid { flex: 1; overflow-y: auto; padding: 4px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 12px;
-  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); align-content: start; }
+#home { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 12px; min-height: 0;
+  padding: 4px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+#grid { overflow-y: auto; display: grid; gap: 12px; min-height: 0; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); align-content: start; }
+#board { padding: 14px; overflow: auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs button { min-height: 34px; padding: 0 10px; border: 0; border-radius: 10px; background: var(--soft); color: var(--muted); font: 800 12px var(--body); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); }
+.rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.rows button { width: 100%; display: grid; grid-template-columns: 22px 28px minmax(0, 1fr) auto; gap: 8px; align-items: center; text-align: left; border: 0; border-radius: 12px;
+  background: var(--soft); color: var(--ink); padding: 6px 8px; font: 700 13px var(--body); cursor: pointer; }
+.rows button:hover { background: rgba(61,214,245,0.14); }
+.rows .pos { font: 700 15px var(--display); text-align: center; color: var(--muted); }
+.rows .nm { min-width: 0; display: flex; flex-direction: column; }
+.rows .nm small { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rows .val { text-align: right; display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
+.rows .val small { color: var(--muted); font-size: 11px; }
+.ev { display: block !important; grid-template-columns: none !important; }
+.ev time { color: var(--muted); margin-right: 6px; font-variant-numeric: tabular-nums; }
+.ev .why { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.trace li { display: flex; flex-direction: column; gap: 3px; }
+.trace .top-line { display: flex; gap: 6px; align-items: baseline; }
+.trace .top-line b { flex: 1; }
+.trace .facts { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.mini { min-height: 30px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--accent); font: 800 12px var(--body); cursor: pointer; flex: none; }
+.mini:hover { background: rgba(61,214,245,0.14); }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.actions .btn { border: 2px solid var(--line); }
+.daypick { display: flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 800; color: var(--muted); }
+.daypick select { min-height: 34px; border-radius: 10px; border: 2px solid var(--line); background: #0E131E; color: var(--ink); font: 800 12px var(--body); padding: 0 6px; }
 .tile { position: relative; display: block; width: 100%; border-radius: 20px; overflow: hidden; cursor: pointer; border: 2px solid rgba(61,214,245,0.22);
   box-shadow: 0 8px 22px rgba(0,0,0,0.5); background: transparent; padding: 0; text-align: left; font: inherit; color: inherit; }
 .tile::before { content: ''; display: block; padding-top: 75%; } /* 4:3, comme la caméra de l'île */
@@ -84,7 +111,12 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
 .toast b { font: 700 17px var(--display); margin-right: 6px; }
 .msg { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 3; padding: 20px 24px; max-width: min(420px, 90vw); text-align: center; font-weight: 700; }
 
-@media (max-width: 999px) { #grid { --cols: 2; } }
+@media (max-width: 1279px) { #grid { --cols: 2; } }
+@media (max-width: 899px) {
+  #home { display: block; overflow-y: auto; }
+  #grid { overflow: visible; }
+  #board { margin-top: 12px; overflow: visible; }
+}
 @media (max-width: 599px) {
   #grid { --cols: 1; }
   .idx { display: none; }
@@ -116,7 +148,10 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
       <a class="btn" href="/">← Tableau</a>
     </div>
   </header>
-  <main id="grid" aria-label="Un quartier par Chubby"></main>
+  <section id="home">
+    <main id="grid" aria-label="Un quartier par Chubby"></main>
+    <aside id="board" class="panel" aria-label="Classement et ce qui s'est passé"></aside>
+  </section>
   <section id="focus" hidden>
     <div id="stage" aria-label="Le quartier du Chubby choisi">
       <div class="nav">
@@ -440,6 +475,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   function burst(pos, n) { if (reduceMotion) return; for (var i = 0; i < sparks.length && n > 0; i++) { var s = sparks[i]; if (s.life > 0) continue; s.m.position.copy(pos); s.v.set(rand(-1.4, 1.4), rand(2, 4), rand(-1.4, 1.4)); s.life = 1; s.m.visible = true; n--; } }
 
   // ---------- Données ----------
+  var days = [], today = null, dayCache = {}, shownDay = null, overview = null, boardTab = store('chubby-onglet') || 'jour', feedFilter = 'tout';
   var ready = false, live = null, liveById = {}, zones = [], byId = {}, lastEventId = null, dayEvents = {};
   var ORDER = ['tortue', 'flan', 'dumpling', 'mochi', 'muffin', 'jalapeno', 'jalapeno-v2', 'jalapeno-v3', 'matcha'];
   var showAI = store('chubby-ia') === '1';
@@ -502,20 +538,21 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
 
   function planEvent(z, e, replay) {
     var t = e.ticker, line = eventLine(e), time = e.time || (e.intraday ? '' : 'ce soir');
-    var pre = replay && e.time ? e.time + ' · ' : '';
+    var pre = replay ? '⏪ ' + (e.time ? e.time + ' · ' : '') : '';
+    if (replay) time = '⏪ ' + (e.day && e.day !== (live && live.day) ? frDay(e.day) + ' ' : '') + (e.time || time);
     var a = z.actor;
     if (e.kind === 'trade' && e.side === 'buy') {
       return [
         walk('screen'), pause(replay ? 1.6 : 2.6, { status: ['🔍', 'Analyse ' + short(t), time], lens: true, ticker: t, say: pre + (e.why || "J'ai repéré " + short(t) + '.') }),
         walk('stall'), pause(1.2, { status: ['🛒', 'Achète ' + (e.qty || '') + ' ' + short(t), time], coins: 'pay', say: pre + line, sayKind: 'trade', carry: t, sfx: 'trade' }),
-        walk('shelf'), pause(0.8, { drop: t, hop: true, done: function () { if (t) z.pendBuy[t] = Math.max(0, (z.pendBuy[t] || 1) - 1); } })
+        walk('shelf'), pause(0.8, { drop: t, hop: true, done: function () { if (t && !replay) z.pendBuy[t] = Math.max(0, (z.pendBuy[t] || 1) - 1); } })
       ];
     }
     if (e.kind === 'trade' || e.kind === 'stop') {
       var stop = e.kind === 'stop';
       return [
         walk('screen'), pause(replay ? 1.2 : 2.0, { status: [stop ? '🚨' : '🔍', (stop ? 'Stop touché sur ' : 'Analyse ') + short(t), time], lens: !stop, sweat: stop, ticker: t, say: stop ? pre + line : pre + (e.why || 'Il est temps de vendre ' + short(t) + '.') }),
-        walk('shelf'), pause(0.8, { take: t, carry: t, done: function () { if (t) z.pendSell[t] = Math.max(0, (z.pendSell[t] || 1) - 1); } }),
+        walk('shelf'), pause(0.8, { take: t, carry: t, done: function () { if (t && !replay) z.pendSell[t] = Math.max(0, (z.pendSell[t] || 1) - 1); } }),
         walk('stall'), pause(1.4, { status: ['💰', 'Vend ' + (e.qty || '') + ' ' + short(t), time], coins: 'earn', drop: null, say: stop ? null : pre + line, sayKind: 'trade', sfx: stop ? 'oops' : 'coin', uncarry: true }),
         walk('home'), pause(0.6, { status: ['🪙', "Range l'argent dans son coffre", time] })
       ];
@@ -591,9 +628,9 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     if (!z.step) {
       if (!z.steps.length) {
         var next = z.queue.shift();
-        z.fast = !!(next && next.replay && z.queue.length > 0);
+        z.fast = !!(next && next.replay && next.quick);
         z.steps = next ? planEvent(z, next.e, next.replay) : idleSteps(z);
-        z.idle = !next;
+        z.idle = !next; z.curReplay = !!(next && next.replay);
         if (next) z.current = next.e;
       }
       z.step = z.steps.shift(); startStep(z, z.step);
@@ -687,15 +724,15 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   }
   function setMode(m) {
     mode = m;
-    $('#grid').hidden = m !== 'mosaic'; $('#focus').hidden = m === 'mosaic';
+    $('#home').hidden = m !== 'mosaic'; $('#focus').hidden = m === 'mosaic';
     $('#b-all').setAttribute('aria-pressed', String(m === 'mosaic')); $('#b-world').setAttribute('aria-pressed', String(m === 'world'));
     $('#f-prev').hidden = $('#f-next').hidden = m !== 'focus';
     $('#stage').setAttribute('aria-label', m === 'world' ? 'Toute la ville' : current ? 'Le quartier de ' + current.name : '');
     if (m === 'world') { current = null; orbit.want.set(0, 0, 0); orbit.r = 40 + visibleZones().length * 6; orbit.el = 1.0; orbit.az = 0; orbit.target.copy(orbit.want); renderSide(); }
-    if (m === 'mosaic') { location.hash = ''; }
+    if (m === 'mosaic') { location.hash = ''; renderBoard(); }
   }
   function openFocus(z) {
-    current = z; setMode('focus'); location.hash = z.id;
+    current = z; shownDay = null; setMode('focus'); location.hash = z.id;
     orbit.want.copy(z.center).add(new THREE.Vector3(0, 0.6, 0.2)); orbit.target.copy(orbit.want); orbit.r = 17; orbit.el = 0.6; orbit.az = 0;
     renderSide(); if (z.say) say(z, z.say.text, z.say.kind);
   }
@@ -715,7 +752,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   $('#b-ai').onclick = function () {
     showAI = !showAI; store('chubby-ia', showAI ? '1' : '0'); this.setAttribute('aria-pressed', String(showAI));
     if (current && isAI(current.id) && !showAI) setMode('mosaic');
-    layout(); if (mode === 'world') setMode('world');
+    layout(); if (mode === 'world') setMode('world'); renderBoard();
   };
 
   // Glisser pour tourner, molette / pincement pour zoomer, double-clic pour recentrer ; clic sur un Chubby dans l'archipel.
@@ -749,11 +786,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   // ---------- Panneau du Chubby suivi ----------
   function renderSide() {
     var side = $('#side');
-    if (mode === 'world') {
-      side.innerHTML = '<h3>La ville des Chubbies</h3><p class="muted">Chaque quartier est un Chubby. Clique sur un quartier pour le suivre de près.</p><ul class="list">' +
-        visibleZones().map(function (z) { var l = liveById[z.id]; return '<li><b>' + esc(z.name) + '</b> ' + (l ? '<span class="' + C.cls(l.change) + '">' + pct(l.change) + '</span>' : '') + '<br>' + esc(z.status || '') + '</li>'; }).join('') + '</ul>';
-      return;
-    }
+    if (mode === 'world') { renderBoard(); return; }
     var z = current; if (!z) return;
     var l = liveById[z.id] || {};
     var radar = (l.radar || []).slice(0, 5).map(function (x) {
@@ -761,15 +794,112 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
       return '<li><b>' + C.link(x.ticker) + '</b> · ' + esc(x.label) + '<br><span class="muted">' + (x.crossed ? 'Franchi : si ça tient à la clôture, ' + esc(x.then) : 'À ' + Math.abs(x.distance * 100).toFixed(1).replace('.', ',') + ' % : ensuite, ' + esc(x.then)) + '</span><div class="gauge"><i style="width:' + (close * 100).toFixed(0) + '%"></i></div></li>';
     }).join('');
     var held = Object.keys(l.holdings || {}).map(function (t) { return '<li>' + C.link(t) + ' <span class="' + C.cls(l.holdings[t]) + '">' + pct(l.holdings[t]) + '</span></li>'; }).join('');
-    var day = z.journal.slice().reverse().map(function (e) { return '<li><time>' + esc(e.time || (e.intraday ? '' : 'soir')) + '</time>' + eventIcon(e) + ' ' + esc(eventLine(e)) + '</li>'; }).join('');
+    var dayKey = shownDay || today, evs = (dayCache[dayKey] || []).filter(function (e) { return e.bot_id === z.id; }).sort(byTime);
+    var count = function (f) { return evs.filter(f).length; };
+    var summary = count(function (e) { return e.kind === 'trade' && e.side === 'buy'; }) + ' achat(s) · ' + count(function (e) { return e.kind === 'trade' && e.side !== 'buy'; }) + ' vente(s) · ' +
+      count(function (e) { return e.kind === 'stop'; }) + ' stop(s) · ' + count(function (e) { return e.kind === 'analyse'; }) + ' analyse(s)';
+    var day = evs.slice().reverse().map(function (e) { return traceItem(e, true); }).join('');
+    var picker = days.length ? '<label class="daypick">Jour <select id="day-pick">' + days.map(function (d) { return '<option value="' + d + '"' + (d === dayKey ? ' selected' : '') + '>' + esc(frDay(d)) + (d === today ? ' (dernière séance)' : '') + '</option>'; }).join('') + '</select></label>' : '';
     side.innerHTML =
       '<div class="side-head">' + C.avatar(z.id, l.mood || 'calme', 48) + '<div><h2>' + esc(z.name) + '</h2><p>' + esc(z.personality) + '</p></div></div>' +
       '<dl class="stats"><div><dt>Valeur</dt><dd>' + (l.equity != null ? money(l.equity) : '—') + '</dd></div><div><dt>Aujourd’hui</dt><dd class="' + C.cls(l.change || 0) + '">' + (l.change != null ? pct(l.change) : '—') + '</dd></div><div><dt>Positions</dt><dd>' + Object.keys(l.holdings || {}).length + '</dd></div></dl>' +
       '<p class="now" id="side-now">' + esc(z.status || '') + (z.say ? '<br><span style="font-weight:700">« ' + esc(z.say.text) + ' »</span>' : '') + '</p>' +
-      '<div><h3>Sa journée</h3>' + (day ? '<ul class="list">' + day + '</ul>' : '<p class="muted">Aucun achat ni vente pour l’instant aujourd’hui. Il refait ses vérifications pendant la séance.</p>') + '</div>' +
+      '<div class="actions"><button class="btn" id="b-replay"' + (evs.some(replayable) ? '' : ' disabled') + '>⏪ Rejouer sa journée</button>' +
+      (z.queue.some(function (q) { return q.replay; }) || z.curReplay ? '<button class="btn" id="b-stop">⏹ Arrêter</button>' : '') +
+      '<button class="btn" id="b-csv"' + (evs.length ? '' : ' disabled') + '>⬇ Journal CSV</button></div>' +
+      '<div><h3>Sa journée</h3>' + picker + '<p class="muted">' + summary + '</p>' + (day ? '<ul class="list trace">' + day + '</ul>' : '<p class="muted">Rien ce jour-là. Pendant la séance, il refait ses vérifications toutes les 15 minutes.</p>') + '</div>' +
       '<div><h3>Ses seuils de décision</h3>' + (radar ? '<ul class="list">' + radar + '</ul>' : '<p class="muted">Aucun seuil proche.</p>') + '</div>' +
       '<div><h3>Dans son panier</h3>' + (held ? '<ul class="list">' + held + '</ul>' : '<p class="muted">Tout au cash.</p>') + '</div>' +
-      '<a class="btn" style="border:2px solid var(--line);justify-content:center" href="/chubby?id=' + encodeURIComponent(z.id) + '">Fiche complète</a>';
+      (l.thoughts && l.thoughts.length ? '<div><h3>Ce qu’il a en tête</h3><ul class="list">' + l.thoughts.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>' : '') +
+      '<a class="btn" style="border:2px solid var(--line);justify-content:center" href="/chubby?id=' + encodeURIComponent(z.id) + '">Fiche complète : tout son historique</a>';
+    $('#b-replay').onclick = function () { replay(z, evs); renderSide(); };
+    if ($('#b-stop')) $('#b-stop').onclick = function () { stopReplay(z); renderSide(); };
+    $('#b-csv').onclick = function () { downloadCSV(z.name + '-' + dayKey, evs); };
+    if ($('#day-pick')) $('#day-pick').onchange = function () { loadDay(this.value).then(renderSide); };
+    side.querySelectorAll('[data-replay]').forEach(function (b) { b.onclick = function () { var id = +b.dataset.replay; replay(z, evs.filter(function (e) { return e.id === id; })); }; });
+  }
+  // Une ligne de journal complète : heure, action, quantité, titre, prix, montant, raison.
+  function traceItem(e, withReplay) {
+    var kind = e.kind === 'trade' ? (e.side === 'buy' ? 'Achat' : 'Vente') : e.kind === 'stop' ? 'Stop touché' : e.kind === 'dividend' ? 'Dividende' : 'Analyse';
+    var facts = [];
+    if (e.qty != null) facts.push(num(e.qty) + ' × ' + C.link(e.ticker || ''));
+    else if (e.ticker) facts.push(C.link(e.ticker));
+    if (e.price != null) facts.push('prix ' + num(e.price) + ' $');
+    if (e.level != null) facts.push('seuil ' + num(e.level) + ' $');
+    var amount = e.value_cad != null ? e.value_cad : e.amount_cad;
+    if (amount != null) facts.push('montant ' + money(amount));
+    if (e.kind === 'analyse' && e.side) facts.push(e.side === 'buy' ? 'achat envisagé' : 'vente envisagée');
+    if (e.fees_cad) facts.push('frais ' + money(e.fees_cad));
+    var why = e.why || (e.kind === 'stop' ? 'Le cours a touché son ordre stop.' : e.kind === 'trade' && !e.intraday ? 'Décidé le soir, à la clôture.' : '');
+    return '<li><div class="top-line"><time>' + esc(e.time || (e.intraday ? '' : 'soir')) + '</time><b>' + eventIcon(e) + ' ' + kind + '</b>' +
+      (withReplay && replayable(e) ? '<button class="mini" data-replay="' + e.id + '">▶ Revoir</button>' : '') + '</div>' +
+      (facts.length ? '<span class="facts">' + facts.join(' · ') + '</span>' : '') + (why ? '<span>Pourquoi : ' + esc(why) + '</span>' : '') + '</li>';
+  }
+  function frDay(d) { return new Date(d + 'T12:00:00').toLocaleDateString('fr-CA', { weekday: 'short', day: 'numeric', month: 'short' }); }
+  function loadDay(d) {
+    shownDay = d === today ? null : d;
+    if (dayCache[d]) return Promise.resolve();
+    return getJSON('/api/activity?day=' + encodeURIComponent(d)).then(function (a) { dayCache[d] = (a && a.events) || []; });
+  }
+  function csvCell(v) { v = v == null ? '' : String(v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function downloadCSV(name, evs) {
+    var head = ['jour', 'heure', 'chubby', 'type', 'sens', 'titre', 'quantite', 'prix', 'montant_cad', 'raison'];
+    var rows = evs.map(function (e) {
+      return [e.day, e.time || (e.intraday ? '' : 'soir'), (byId[e.bot_id] || {}).name || e.bot_id, e.kind, e.side || e.direction || '', e.ticker || '', e.qty, e.price != null ? e.price : e.level,
+        e.value_cad != null ? e.value_cad : e.amount_cad, e.why || ''].map(csvCell).join(';');
+    });
+    var blob = new Blob(['\ufeff' + [head.join(';')].concat(rows).join('\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name.replace(/[^\w.-]+/g, '-') + '.csv'; a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  }
+
+  // ---------- Vue générale : classement et tout ce qui s'est passé ----------
+  function renderBoard() {
+    var el = mode === 'world' ? $('#side') : mode === 'mosaic' ? $('#board') : null;
+    if (!el) return;
+    var keep = el.scrollTop, t = live && live.trading;
+    var tabs = [['jour', 'Classement du jour'], ['saison', 'Saison'], ['fil', 'Ce qui s’est passé']];
+    var html = '<div class="tabs" role="tablist">' + tabs.map(function (x) { return '<button role="tab" data-tab="' + x[0] + '" aria-selected="' + (boardTab === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div>';
+    if (t) html += '<p class="muted">' + (t.checked_at ? 'Dernière vérification ' + esc(t.checked_at) : 'Pas encore de vérification aujourd’hui') + (t.every_min ? ' · toutes les ' + t.every_min + ' min' : '') + (t.problem ? ' · ⚠ ' + esc(t.problem) : '') + '</p>';
+    if (boardTab === 'jour') {
+      var order = visibleZones().slice().sort(function (a, b) { return ((liveById[b.id] || {}).change || 0) - ((liveById[a.id] || {}).change || 0); });
+      html += '<ul class="rows">' + order.map(function (z, i) {
+        var l = liveById[z.id] || {}, n = (dayCache[today] || []).filter(function (e) { return e.bot_id === z.id && (e.kind === 'trade' || e.kind === 'stop'); }).length;
+        return '<li><button data-bot="' + esc(z.id) + '"><span class="pos">' + (i + 1) + '</span>' + C.avatar(z.id, l.mood || 'calme', 28) +
+          '<span class="nm">' + esc(z.name) + '<small>' + esc(z.status || '') + '</small></span><span class="val"><b class="' + C.cls(l.change || 0) + '">' + (l.change != null ? pct(l.change) : '—') + '</b><small>' + (l.equity != null ? money(l.equity) : '') + ' · ' + n + ' ordre(s)</small></span></button></li>';
+      }).join('') + '</ul>';
+    } else if (boardTab === 'saison') {
+      var board = ((overview && overview.leaderboard) || []).filter(function (e) { return showAI || !isAI(e.id); });
+      html += overview && overview.season ? '<p class="muted">Depuis le ' + esc(frDay(overview.season.start)) + ' · ' + overview.season.sessions + ' séances</p>' : '';
+      html += '<ul class="rows">' + board.map(function (e, i) {
+        var move = e.rank_move > 0 ? ' ▲' + e.rank_move : e.rank_move < 0 ? ' ▼' + (-e.rank_move) : '';
+        return '<li><button data-bot="' + esc(e.id) + '"><span class="pos">' + (i + 1) + '</span>' + C.avatar(e.id, 'calme', 28) +
+          '<span class="nm">' + esc(e.name) + move + '<small>' + esc(e.personality) + '</small></span><span class="val"><b>' + e.score + ' pts</b><small>' + money(e.equity) + ' · ' + e.trades + ' trades</small></span></button></li>';
+      }).join('') + '</ul>';
+    } else {
+      var filters = [['tout', 'Tout'], ['ordres', 'Achats et ventes'], ['analyses', 'Analyses']];
+      var evs = (dayCache[today] || []).filter(function (e) {
+        var z = byId[e.bot_id]; if (!z || (!showAI && isAI(z.id))) return false;
+        return feedFilter === 'tout' || (feedFilter === 'ordres' ? e.kind !== 'analyse' : e.kind === 'analyse');
+      }).sort(byTime).reverse();
+      html += '<div class="tabs">' + filters.map(function (f) { return '<button data-filter="' + f[0] + '" aria-selected="' + (feedFilter === f[0]) + '">' + f[1] + '</button>'; }).join('') +
+        '<button data-csv="1">⬇ CSV</button></div>';
+      html += evs.length ? '<ul class="rows">' + evs.map(function (e) {
+        return '<li><button class="ev" data-bot="' + esc(e.bot_id) + '" data-ev="' + e.id + '"><time>' + esc(e.time || (e.intraday ? '' : 'soir')) + '</time><b>' + esc(byId[e.bot_id].name) + '</b> ' +
+          eventIcon(e) + ' ' + esc(eventLine(e)) + '</button></li>';
+      }).join('') + '</ul>' : '<p class="muted">Rien pour l’instant ce jour-là.</p>';
+    }
+    el.innerHTML = html; el.scrollTop = keep;
+    el.querySelectorAll('[data-tab]').forEach(function (b) { b.onclick = function () { boardTab = b.dataset.tab; store('chubby-onglet', boardTab); renderBoard(); }; });
+    el.querySelectorAll('[data-filter]').forEach(function (b) { b.onclick = function () { feedFilter = b.dataset.filter; renderBoard(); }; });
+    el.querySelectorAll('[data-csv]').forEach(function (b) { b.onclick = function () { downloadCSV('chubbies-' + today, dayCache[today] || []); }; });
+    el.querySelectorAll('[data-bot]').forEach(function (b) {
+      b.onclick = function () {
+        var z = byId[b.dataset.bot]; if (!z) return;
+        var id = +b.dataset.ev; openFocus(z);
+        if (id) replay(z, (dayCache[today] || []).filter(function (e) { return e.id === id; })); // clic sur un événement : il le rejoue
+      };
+    });
   }
   var sideTimer = 0;
 
@@ -779,6 +909,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     var before = liveById; live = lv; liveById = {};
     lv.bots.forEach(function (e) { liveById[e.id] = e; ensureZone(e); });
     if (zones.some(function (z) { return !z.group; })) layout();
+    if (today && lv.day && lv.day > today) { today = lv.day; dayCache[today] = dayCache[today] || []; if (days.indexOf(today) < 0) days.unshift(today); } // nouvelle séance
     $('#date').textContent = new Date(lv.day + 'T12:00:00').toLocaleDateString('fr-CA', { weekday: 'long', day: 'numeric', month: 'long' });
     $('#status').textContent = (lv.open ? '● En direct · ' : 'Bourse fermée · ') + lv.as_of;
     var idx = $('#idx'); idx.hidden = !(lv.indexes || []).length;
@@ -793,15 +924,15 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     hemi.intensity = 0.65 - night * 0.2; sun.intensity = 0.5 - night * 0.15;
     zones.forEach(function (z) { z.win.emissiveIntensity = 1 + night * 0.8; });
     if (S) S.setTempo(lv.open ? 78 : 66);
-    refreshTiles(); renderSide();
+    refreshTiles(); renderSide(); renderBoard();
   }
   // Dès qu'un ordre arrive, ses caisses sont réservées : un achat n'apparaît dans le panier qu'une fois rangé,
   // une vente y reste tant qu'il ne l'a pas emportée au marché.
-  function enqueue(z, e, replay) {
+  function enqueue(z, e, replay, quick) {
     var t = e.ticker;
-    if (t && e.kind === 'trade' && e.side === 'buy') z.pendBuy[t] = (z.pendBuy[t] || 0) + 1;
-    else if (t && (e.kind === 'trade' || e.kind === 'stop')) z.pendSell[t] = (z.pendSell[t] || 0) + 1;
-    z.queue.push({ e: e, replay: replay });
+    if (!replay && t && e.kind === 'trade' && e.side === 'buy') z.pendBuy[t] = (z.pendBuy[t] || 0) + 1;
+    else if (!replay && t && (e.kind === 'trade' || e.kind === 'stop')) z.pendSell[t] = (z.pendSell[t] || 0) + 1;
+    z.queue.push({ e: e, replay: replay, quick: quick });
     if (z.idle && z.step) { endStep(z, z.step); z.step = null; z.steps = []; } // un vrai ordre passe avant ses petites habitudes
   }
   function applyActivity(act, first) {
@@ -811,18 +942,28 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
       var z = byId[e.bot_id]; if (!z) return;
       if (z.journal.some(function (x) { return x.id === e.id; })) return;
       z.journal.push(e);
-      if (first) return;
-      enqueue(z, e, false);
-      if (e.kind === 'trade' || e.kind === 'stop') toast(z.name, eventLine(e));
+      if (!first) { // seulement ce qui arrive pendant qu'on regarde : à l'ouverture, on ne rejoue rien tout seul
+        enqueue(z, e, false);
+        if (e.kind === 'trade' || e.kind === 'stop') toast(z.name, eventLine(e));
+      }
     });
-    if (first) { // à l'ouverture de la page, chacun rejoue en accéléré ce qu'il a fait aujourd'hui (les 6 derniers gestes)
-      zones.forEach(function (z) {
-        z.journal.filter(function (e) { return e.kind !== 'analyse' || e.ticker; }).slice(-6).forEach(function (e) { enqueue(z, e, true); });
-        refreshCrates(z);
-      });
-    }
+    if (first) { days = act.days || []; today = act.day; dayCache[act.day] = act.events || []; zones.forEach(refreshCrates); }
+    else if (today && dayCache[today]) (act.events || []).forEach(function (e) { if (e.day === today && !dayCache[today].some(function (x) { return x.id === e.id; })) dayCache[today].push(e); });
     lastEventId = act.last_id;
-    renderSide();
+    renderSide(); renderBoard();
+  }
+  // Rejouer : toute sa journée (bouton) ou une seule action (bouton « Revoir » d'une ligne du journal)
+  function byTime(a, b) { var ta = a.time || (a.intraday ? '' : '99'), tb = b.time || (b.intraday ? '' : '99'); return ta < tb ? -1 : ta > tb ? 1 : a.id - b.id; }
+  function replayable(e) { return e.kind !== 'analyse' || e.ticker; }
+  function replay(z, events) {
+    z.queue = z.queue.filter(function (q) { return !q.replay; }); // un nouveau rejeu remplace l'ancien
+    events.filter(replayable).forEach(function (e, i, all) { enqueue(z, e, true, all.length > 8 && i < all.length - 8); });
+    if (z.step && (z.idle || z.curReplay)) { endStep(z, z.step); z.step = null; z.steps = []; } // jamais au milieu d'un vrai ordre
+    say(z, events.length > 1 ? 'Je vous rejoue ma journée !' : 'Je vous remontre ça.');
+  }
+  function stopReplay(z) {
+    z.queue = z.queue.filter(function (q) { return !q.replay; });
+    if (z.step) { endStep(z, z.step); z.step = null; z.steps = []; } z.actor.carry.visible = false; refreshCrates(z);
   }
   function getJSON(url) { return fetch(url).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }); }
   function pollLive() { if (!document.hidden) getJSON('/api/live').then(applyLive); }
@@ -895,17 +1036,18 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     var W = canvas.clientWidth, H = canvas.clientHeight;
     if (canvas.width !== Math.floor(W * renderer.getPixelRatio()) || canvas.height !== Math.floor(H * renderer.getPixelRatio())) renderer.setSize(W, H, false);
     renderer.setScissorTest(false); renderer.clear(); renderer.setScissorTest(true);
-    function draw(rect, cam) {
-      if (rect.bottom < 0 || rect.top > H || rect.width < 2 || rect.height < 2) return false;
-      var y = H - rect.bottom;
-      renderer.setViewport(rect.left, y, rect.width, rect.height); renderer.setScissor(rect.left, y, rect.width, rect.height);
+    function draw(rect, cam, clip) { // clip : la zone visible de la liste qui défile (rien ne déborde sous le bandeau)
+      var top = Math.max(rect.top, clip ? clip.top : 0), bottom = Math.min(rect.bottom, clip ? clip.bottom : H);
+      if (bottom - top < 2 || rect.width < 2 || rect.height < 2) return false;
+      renderer.setViewport(rect.left, H - rect.bottom, rect.width, rect.height); renderer.setScissor(rect.left, H - bottom, rect.width, bottom - top);
       cam.aspect = rect.width / rect.height; cam.updateProjectionMatrix(); renderer.render(scene, cam); return true;
     }
     if (mode === 'mosaic') {
+      var clip = (getComputedStyle($('#grid')).overflowY === 'visible' ? $('#home') : $('#grid')).getBoundingClientRect();
       visibleZones().forEach(function (z) {
         if (!z.tile) return;
         var r = z.tile.getBoundingClientRect();
-        if (draw(r, z.cam)) placeBubble(z, z.cam, r, z.tileEls.bubble, false);
+        if (draw(r, z.cam, clip)) placeBubble(z, z.cam, r, z.tileEls.bubble, false);
       });
     } else {
       if (current) { tmp.copy(current.actor.group.position); orbit.want.copy(current.center).lerp(tmp, 0.35).setY(0.6); }
@@ -921,6 +1063,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
 
   // ---------- Départ ----------
   getJSON('/api/overview').then(function (ov) {
+    overview = ov;
     (ov && ov.leaderboard || []).forEach(function (b) { ensureZone(b); });
     return getJSON('/api/live');
   }).then(function (lv) {
@@ -935,6 +1078,8 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     window.addEventListener('hashchange', function () { var id = decodeURIComponent(location.hash.slice(1)); if (id && byId[id] && current !== byId[id]) openFocus(byId[id]); });
     setInterval(pollLive, 60000);
     setInterval(pollActivity, 15000);
+    setInterval(function () { if (!document.hidden) getJSON('/api/overview').then(function (ov) { if (ov) { overview = ov; if (boardTab === 'saison') renderBoard(); } }); }, 300000);
+    setInterval(function () { if (!document.hidden && boardTab === 'jour') renderBoard(); }, 4000); // ce qu'ils font en ce moment
   });
   requestAnimationFrame(frame);
 })();

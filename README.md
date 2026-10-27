@@ -271,13 +271,18 @@ Chaque geste vient d'un vrai événement de la journée (`/api/activity` et `/ap
 - **entre deux** : il refait ce qu'il a vraiment en tête (seuil proche, stop qui approche, titre de sa watchlist qui bouge) ;
   bourse fermée, il dort chez lui.
 
-À l'ouverture de la page, chacun rejoue en accéléré ses derniers gestes du jour, puis suit la séance en direct
-(nouveaux ordres toutes les 15 secondes, cours toutes les minutes).
+La page montre la séance en direct (nouveaux ordres toutes les 15 secondes, cours toutes les minutes) : rien n'est
+rejoué tout seul quand tu reviens.
 
-- **Mosaïque** : tous les quartiers côte à côte, chacun avec sa caméra, ce qu'il fait et ce qu'il dit.
-- Clique sur un quartier pour le **suivre** : caméra libre (glisser, molette, double-clic), sa journée heure par heure,
-  ses seuils, son panier. Flèches ← → pour passer au suivant, Échap pour revenir. Lien direct : `/ile#muffin`.
-- **La ville** : tous les quartiers d'un coup d'œil.
+- **Mosaïque** : tous les quartiers côte à côte, chacun avec sa caméra, ce qu'il fait et ce qu'il dit. À droite,
+  le **classement du jour**, le **classement de la saison** et **ce qui s'est passé** (tous les achats, ventes, stops
+  et analyses de la journée, filtrables et exportables en CSV). Un clic sur un événement ouvre le Chubby et le rejoue.
+- Clique sur un quartier pour le **suivre** : caméra libre (glisser, molette, double-clic), ses seuils, son panier,
+  ce qu'il a en tête, et **sa journée** avec, pour chaque action, l'heure, la quantité, le prix, le montant et la
+  raison. Le bouton **⏪ Rejouer sa journée** la rejoue devant toi, « ▶ Revoir » rejoue une seule action, le menu
+  **Jour** remonte aux séances précédentes, et **⬇ Journal CSV** télécharge le tout. Flèches ← → pour passer au
+  suivant, Échap pour revenir. Lien direct : `/ile#muffin`.
+- **La ville** : tous les quartiers d'un coup d'œil, avec le même classement et le même fil d'événements.
 - **Versions IA** ajoute les quartiers des jumeaux coachés par Claude.
 
 L'ancienne grande île (avec le podium et le replay de la saison) reste sur http://localhost:8000/ile-3d, et la
