@@ -8,21 +8,23 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap">
 <style>
 :root {
-  --ink: #2A2838; --muted: #59566C; --panel: rgba(255, 255, 255, 0.86); --line: rgba(42, 40, 56, 0.12);
-  --accent: #5B47C2; --up: #1C7347; --down: #B13A2A; --sky: #CFE6F7;
+  /* Halloween : nuit violette, citrouille orange, toujours tout rond et mignon */
+  --ink: #F3ECFF; --muted: #B9AED3; --panel: rgba(31, 24, 50, 0.88); --line: rgba(255, 255, 255, 0.14);
+  --accent: #FF8A3D; --accent-ink: #24130A; --up: #7EE2A8; --down: #FF9A8E; --sky: #120E1E; --soft: rgba(255, 255, 255, 0.07);
   --display: 'Fredoka', 'Nunito', system-ui, sans-serif; --body: 'Nunito', system-ui, sans-serif;
-  color-scheme: light;
+  color-scheme: dark;
 }
 html, body { height: 100%; margin: 0; }
 [hidden] { display: none !important; }
-body { background: var(--sky); color: var(--ink); font-family: var(--body); overflow: hidden; }
+body { background: radial-gradient(ellipse at 70% -10%, #3A2766 0%, var(--sky) 60%) fixed;  color: var(--ink); font-family: var(--body); overflow: hidden; }
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
 #ui { position: fixed; inset: 0; z-index: 1; display: flex; flex-direction: column; }
 .up { color: var(--up); } .down { color: var(--down); }
-.panel { background: var(--panel); border-radius: 18px; border: 1px solid rgba(255,255,255,0.8); box-shadow: 0 8px 24px rgba(30,40,80,0.14); }
+.panel { background: var(--panel); border-radius: 18px; border: 1px solid rgba(255,138,61,0.18); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
 .btn { min-height: 40px; padding: 0 12px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); font: 800 13px var(--body); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn:hover { background: rgba(91,71,194,0.1); }
-.btn[aria-pressed="true"] { background: var(--accent); color: #fff; }
+.btn:hover { background: rgba(255,138,61,0.16); }
+.btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+select.btn option { background: #1F1832; color: var(--ink); }
 select.btn { border: 2px solid var(--line); }
 button:focus-visible, a:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
@@ -40,27 +42,27 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 3px solid
 /* La mosaïque : une île par Chubby */
 #grid { flex: 1; overflow-y: auto; padding: 4px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 12px;
   grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); align-content: start; }
-.tile { position: relative; display: block; width: 100%; border-radius: 20px; overflow: hidden; cursor: pointer; border: 3px solid rgba(255,255,255,0.85);
-  box-shadow: 0 8px 22px rgba(30,40,80,0.16); background: transparent; padding: 0; text-align: left; font: inherit; color: inherit; }
+.tile { position: relative; display: block; width: 100%; border-radius: 20px; overflow: hidden; cursor: pointer; border: 3px solid rgba(255,138,61,0.28);
+  box-shadow: 0 8px 22px rgba(0,0,0,0.45); background: transparent; padding: 0; text-align: left; font: inherit; color: inherit; }
 .tile::before { content: ''; display: block; padding-top: 75%; } /* 4:3, comme la caméra de l'île */
 .tile:hover { border-color: var(--accent); }
 .tile .head { position: absolute; left: 8px; right: 8px; top: 8px; display: flex; align-items: center; gap: 8px; pointer-events: none; }
-.tile .who { background: var(--panel); border-radius: 999px; padding: 3px 10px 3px 4px; display: flex; align-items: center; gap: 6px; font: 700 15px var(--display); box-shadow: 0 2px 8px rgba(30,40,80,0.14); }
+.tile .who { background: var(--panel); border-radius: 999px; padding: 3px 10px 3px 4px; display: flex; align-items: center; gap: 6px; font: 700 15px var(--display); box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
 .tile .who small { font: 800 13px var(--body); font-variant-numeric: tabular-nums; }
 .tile .doing { position: absolute; left: 8px; right: 8px; bottom: 8px; background: var(--panel); border-radius: 12px; padding: 6px 10px; font-size: 13px; font-weight: 800;
-  box-shadow: 0 2px 8px rgba(30,40,80,0.14); pointer-events: none; display: flex; gap: 8px; align-items: baseline; }
+  box-shadow: 0 2px 8px rgba(0,0,0,0.35); pointer-events: none; display: flex; gap: 8px; align-items: baseline; }
 .tile .doing span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile .doing time { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
-.bubble { position: absolute; left: 0; top: 0; max-width: min(240px, 70%); background: #fff; color: var(--ink); border-radius: 14px 14px 14px 4px; padding: 6px 10px;
-  font: 700 12px/1.35 var(--body); box-shadow: 0 4px 14px rgba(42,40,56,0.2); pointer-events: none; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.bubble { position: absolute; left: 0; top: 0; max-width: min(240px, 70%); background: #2C2246; color: var(--ink); border: 1px solid rgba(183,140,255,0.35); border-radius: 14px 14px 14px 4px; padding: 6px 10px;
+  font: 700 12px/1.35 var(--body); box-shadow: 0 4px 14px rgba(0,0,0,0.45); pointer-events: none; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .bubble.big { font-size: 14px; max-width: min(320px, 60%); -webkit-line-clamp: 6; }
-.bubble.trade { background: #FFF4CF; }
+.bubble.trade { background: #4A2A12; border-color: rgba(255,138,61,0.6); }
 
 /* Vue d'un seul Chubby (ou de toutes les îles) */
 #focus { flex: 1; display: grid; grid-template-columns: 1fr minmax(0, 360px); gap: 12px; padding: 4px 16px calc(16px + env(safe-area-inset-bottom, 0px)); min-height: 0; }
-#stage { position: relative; border-radius: 22px; overflow: hidden; touch-action: none; cursor: grab; border: 3px solid rgba(255,255,255,0.85); min-height: 0; }
+#stage { position: relative; border-radius: 22px; overflow: hidden; touch-action: none; cursor: grab; border: 3px solid rgba(255,138,61,0.28); min-height: 0; }
 #stage .nav { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; }
-#stage .nav .btn { background: var(--panel); min-width: 40px; justify-content: center; box-shadow: 0 2px 8px rgba(30,40,80,0.14); }
+#stage .nav .btn { background: var(--panel); min-width: 40px; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
 #stage .hint { position: absolute; left: 10px; bottom: 10px; background: var(--panel); border-radius: 10px; padding: 4px 10px; font-size: 12px; font-weight: 700; color: var(--muted); pointer-events: none; }
 #side { padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .side-head { display: flex; gap: 10px; align-items: center; }
@@ -68,14 +70,14 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 3px solid
 .side-head p { margin: 0; color: var(--muted); font-weight: 700; font-size: 13px; }
 h3 { margin: 0 0 6px; font: 600 15px var(--display); }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin: 0; }
-.stats div { background: rgba(42,40,56,0.05); border-radius: 12px; padding: 6px 8px; }
+.stats div { background: var(--soft); border-radius: 12px; padding: 6px 8px; }
 .stats dt { font-size: 11px; font-weight: 800; color: var(--muted); }
 .stats dd { margin: 0; font: 600 16px var(--display); font-variant-numeric: tabular-nums; }
-.now { margin: 0; background: #FFF4CF; border-radius: 12px; padding: 10px 12px; font-size: 14px; font-weight: 700; }
+.now { margin: 0; background: #3E2614; border: 1px solid rgba(255,138,61,0.35); border-radius: 12px; padding: 10px 12px; font-size: 14px; font-weight: 700; }
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; }
-.list li { background: rgba(42,40,56,0.05); border-radius: 10px; padding: 7px 9px; }
+.list li { background: var(--soft); border-radius: 10px; padding: 7px 9px; }
 .list time { color: var(--muted); margin-right: 6px; font-variant-numeric: tabular-nums; }
-.gauge { height: 6px; border-radius: 3px; background: rgba(42,40,56,0.1); margin-top: 5px; overflow: hidden; }
+.gauge { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.12); margin-top: 5px; overflow: hidden; }
 .gauge i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
 .muted { color: var(--muted); font-size: 12px; font-weight: 700; margin: 0; }
 .toast { position: fixed; left: 50%; top: 84px; transform: translateX(-50%); z-index: 3; padding: 10px 18px; text-align: center; pointer-events: none; max-width: calc(100vw - 32px); font-weight: 800; }
@@ -172,10 +174,11 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setClearColor(0x000000, 0);
   var scene = new THREE.Scene();
-  var DAY = new THREE.Color(0xBFE3FF), NIGHT = new THREE.Color(0x2E3866);
+  var DAY = new THREE.Color(0x2B1F4A), NIGHT = new THREE.Color(0x140E26); // séance : crépuscule violet ; bourse fermée : pleine nuit
   scene.background = DAY.clone(); scene.fog = new THREE.Fog(DAY.clone(), 45, 140);
-  var hemi = new THREE.HemisphereLight(0xFFFFFF, 0xA7C79A, 0.95); scene.add(hemi);
-  var sun = new THREE.DirectionalLight(0xFFF4E0, 0.85); sun.position.set(20, 40, 25); scene.add(sun);
+  var hemi = new THREE.HemisphereLight(0xB9A8FF, 0x3A2A3A, 0.85); scene.add(hemi);
+  var sun = new THREE.DirectionalLight(0xCFDCFF, 0.65); sun.position.set(-20, 40, 25); scene.add(sun); // clair de lune
+  var glow = new THREE.DirectionalLight(0xFF9A4A, 0.25); glow.position.set(25, 8, 30); scene.add(glow); // reflet des citrouilles
 
   var matCache = {};
   function mat(c, o) {
@@ -209,10 +212,16 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
     fragmentShader: 'uniform float time; uniform float night; varying vec3 vW;' +
       'void main(){ float wave = sin(vW.x * 0.35 + time * 1.1) * sin(vW.z * 0.31 - time * 0.9) * 0.5 + 0.5;' +
-      'vec3 c = mix(vec3(0.20, 0.55, 0.78), vec3(0.42, 0.82, 0.90), wave * 0.35) + wave * 0.04;' +
-      'gl_FragColor = vec4(mix(c, vec3(0.10, 0.16, 0.32), night * 0.7), 1.0); }'
+      'vec3 c = mix(vec3(0.09, 0.10, 0.24), vec3(0.20, 0.17, 0.38), wave * 0.5) + wave * 0.03;' +
+      'gl_FragColor = vec4(mix(c, vec3(0.05, 0.05, 0.13), night * 0.6), 1.0); }'
   });
   var sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), seaMat); sea.rotation.x = -Math.PI / 2; sea.position.y = -1.1; scene.add(sea);
+  // La lune et les étoiles
+  var moon = new THREE.Mesh(new THREE.SphereGeometry(16, 32, 20), new THREE.MeshBasicMaterial({ color: 0xFFF1C1, fog: false })); moon.position.set(-60, 70, -230); scene.add(moon);
+  var starGeo = new THREE.BufferGeometry(), starPos = [];
+  for (var si = 0; si < 500; si++) { var sa = Math.random() * Math.PI * 2, sh = 0.15 + Math.random() * 0.8; starPos.push(Math.cos(sa) * 300 * Math.cos(sh), 300 * Math.sin(sh), Math.sin(sa) * 300 * Math.cos(sh)); }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+  scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xFFF6DA, size: 1.6, fog: false })));
 
   // ---------- Une île ----------
   // Repères de l'île (le devant regarde la caméra, vers +z) : la maison au fond à gauche, l'écran d'analyse au fond
@@ -223,7 +232,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   };
   var FACE = { home: Math.PI, screen: Math.PI, stall: Math.PI / 2, shelf: -Math.PI / 2 };
   var ISLAND = 8.4, SPACING = 24;
-  var trunkMat = mat(0x9A7457), leafA = mat(0x7CC46F), leafB = mat(0x9ED696);
+  var trunkMat = mat(0x4A3328), leafA = mat(0xE07A2E), leafB = mat(0x7B4FA8); // arbres d'automne, orange et violets
   var sphere = new THREE.SphereGeometry(1, 18, 14), crateGeo = new THREE.BoxGeometry(0.8, 0.62, 0.8);
 
   function buildHome(id, g) { // la maison de chaque personnalité (reprise de l'île d'origine)
@@ -276,13 +285,37 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     return crateMats[key];
   }
 
+  var pumpkinMat = mat(0xF08A2B, { emissive: 0x7A2E00, emissiveIntensity: 0.55, roughness: 0.55 }), stemMat = mat(0x4E7A3A);
+  var faceTex = canvasTex(128, 96, function (c) { // yeux triangulaires et sourire de citrouille, qui brillent
+    c.fillStyle = '#FFD45A'; c.beginPath(); c.moveTo(22, 40); c.lineTo(44, 40); c.lineTo(33, 18); c.fill();
+    c.beginPath(); c.moveTo(84, 40); c.lineTo(106, 40); c.lineTo(95, 18); c.fill();
+    c.beginPath(); c.moveTo(24, 56); c.quadraticCurveTo(64, 96, 104, 56); c.lineTo(88, 62); c.lineTo(78, 54); c.lineTo(64, 64); c.lineTo(50, 54); c.lineTo(40, 62); c.closePath(); c.fill();
+  });
+  var faceMat = new THREE.MeshBasicMaterial({ map: faceTex, transparent: true, depthWrite: false });
+  function pumpkin(x, zz, s) {
+    var g = new THREE.Group(); g.position.set(x, 0, zz); g.scale.setScalar(s);
+    [-0.22, 0, 0.22].forEach(function (dx) { var b = mesh(sphere, pumpkinMat, dx, 0.36, 0); b.scale.set(0.34, 0.36, 0.42); g.add(b); });
+    g.add(mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.22, 8), stemMat, 0, 0.78, 0));
+    var f = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.46), faceMat); f.position.set(0, 0.38, 0.43); g.add(f);
+    return g;
+  }
+  var ghostMat = new THREE.MeshStandardMaterial({ color: 0xF4F0FF, emissive: 0x8E7BEF, emissiveIntensity: 0.35, transparent: true, opacity: 0.85, roughness: 0.4 });
+  function ghost() {
+    var g = new THREE.Group(), b = new THREE.Group(); g.add(b);
+    var head = mesh(sphere, ghostMat, 0, 0.5, 0); head.scale.setScalar(0.5); b.add(head);
+    var tail = mesh(new THREE.ConeGeometry(0.5, 0.8, 20, 1, true), ghostMat, 0, 0.1, 0); tail.rotation.x = Math.PI; b.add(tail);
+    [-0.16, 0.16].forEach(function (x) { var e = mesh(eyeGeo, eyeMat, x, 0.58, 0.44); e.scale.set(0.9, 1.3, 0.6); b.add(e); });
+    var o = mesh(sphere, eyeMat, 0, 0.4, 0.47); o.scale.set(0.06, 0.08, 0.03); b.add(o);
+    g.userData.phase = Math.random() * 6.28;
+    return g;
+  }
   function buildIsland(z) {
     var g = new THREE.Group(); g.position.copy(z.center); scene.add(g); z.group = g;
     var L = C.look(z.id), base = new THREE.Color(L.base), light = new THREE.Color(L.light);
-    g.add(mesh(new THREE.CylinderGeometry(ISLAND, ISLAND - 1.6, 3.2, 48), mat(0xB8A48F, { roughness: 0.9 }), 0, -1.75, 0));
-    g.add(mesh(new THREE.CylinderGeometry(ISLAND + 0.9, ISLAND + 1.5, 0.6, 48), mat(0xF1DDAE), 0, -0.85, 0));
-    g.add(mesh(new THREE.CylinderGeometry(ISLAND, ISLAND, 0.4, 48), mat(0x9BD38A), 0, -0.2, 0));
-    var plaza = mesh(new THREE.CylinderGeometry(4.6, 4.6, 0.06, 40), mat(base.clone().lerp(new THREE.Color(0xF3EBDD), 0.55).getHex()), 0, 0.02, 0.2); g.add(plaza);
+    g.add(mesh(new THREE.CylinderGeometry(ISLAND, ISLAND - 1.6, 3.2, 48), mat(0x4A4258, { roughness: 0.9 }), 0, -1.75, 0));
+    g.add(mesh(new THREE.CylinderGeometry(ISLAND + 0.9, ISLAND + 1.5, 0.6, 48), mat(0x5E5064), 0, -0.85, 0));
+    g.add(mesh(new THREE.CylinderGeometry(ISLAND, ISLAND, 0.4, 48), mat(0x3F5A43), 0, -0.2, 0));
+    var plaza = mesh(new THREE.CylinderGeometry(4.6, 4.6, 0.06, 40), mat(base.clone().lerp(new THREE.Color(0x3A2F55), 0.6).getHex()), 0, 0.02, 0.2); g.add(plaza);
     // Maison et coffre
     var home = new THREE.Group(); home.position.set(-3.9, 0, -4.4); buildHome(kindOf(z.id), home); g.add(home);
     var winMat = mat(0xFFF3C4, { emissive: 0xFFC766, emissiveIntensity: 0 }); z.win = winMat;
@@ -320,6 +353,9 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
       var t2 = mesh(sphere, leafA, 0.45, 2.35, 0.2); t2.scale.setScalar(0.65); tr.add(t2);
       g.add(tr);
     });
+    // Citrouilles qui brillent et un petit fantôme qui fait le tour de l'île
+    [[-6.2, 6.0, 0.9], [5.4, 6.4, 1.1], [7.0, 2.2, 0.75], [-7.0, 1.6, 0.8]].forEach(function (q) { g.add(pumpkin(q[0], q[1], q[2])); });
+    z.ghost = ghost(); g.add(z.ghost);
     // Le panneau à son nom (vu dans l'archipel)
     var ns = sign(z.name, 3.2, L.dark); ns.position.set(0, 0.75, ISLAND - 0.2); ns.rotation.x = -0.35; g.add(ns);
   }
@@ -332,9 +368,10 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   var blushMat = new THREE.MeshBasicMaterial({ color: 0xF48C8C, transparent: true, opacity: 0.55 });
   var coinGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.06, 20), coinMat = mat(0xE9B730, { metalness: 0.55, roughness: 0.3 });
   var shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.16, depthWrite: false });
-  var zzzMat = new THREE.SpriteMaterial({ map: canvasTex(128, 64, function (c) { c.fillStyle = '#5B47C2'; c.font = '700 44px Fredoka, sans-serif'; c.fillText('Zzz', 18, 48); }), transparent: true, depthWrite: false });
+  var zzzMat = new THREE.SpriteMaterial({ map: canvasTex(128, 64, function (c) { c.fillStyle = '#FFB36B'; c.font = '700 44px Fredoka, sans-serif'; c.fillText('Zzz', 18, 48); }), transparent: true, depthWrite: false });
   var lensMat = mat(0xBFE8FF, { transparent: true, opacity: 0.6, roughness: 0.1 });
   var CHUBBY = 1.25;
+  var hatMat = mat(0x3A2458, { roughness: 0.6 }), hatBandMat = mat(0xFF8A3D, { emissive: 0x7A2E00, emissiveIntensity: 0.4 });
 
   function makeChubby(fullId) {
     var id = kindOf(fullId), color = new THREE.Color(C.look(fullId).base).getHex(), sy = SY[id] || 1;
@@ -356,12 +393,19 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     if (id === 'mochi') {
       [-0.78, 0.78].forEach(function (x) { var n = mesh(sphere, bodyMat, x, 0.7, 0); n.scale.set(0.3, 0.22, 0.25); body.add(n); });
     }
-    if (isAI(fullId)) { body.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8), mat(0x8E7BEF), 0, 1.78, 0)); var ant = mesh(sphere, mat(0xB8A9FF), 0, 2.03, 0); ant.scale.setScalar(0.09); body.add(ant); }
+    if (isAI(fullId)) { body.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8), mat(0x8E7BEF), 0.42, 2.1, 0)); var ant = mesh(sphere, mat(0xB8A9FF, { emissive: 0x8E7BEF, emissiveIntensity: 0.6 }), 0.42, 2.35, 0); ant.scale.setScalar(0.09); body.add(ant); }
+    // Le chapeau de sorcière d'Halloween, un peu de travers
+    var hat = new THREE.Group(); hat.position.set(0.04, 1.5, 0); hat.rotation.z = -0.18;
+    hat.add(mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.05, 28), hatMat, 0, 0, 0));
+    hat.add(mesh(new THREE.ConeGeometry(0.4, 0.95, 24), hatMat, 0, 0.5, 0));
+    hat.add(mesh(new THREE.CylinderGeometry(0.405, 0.42, 0.1, 24), hatBandMat, 0, 0.1, 0));
+    var tip = mesh(new THREE.ConeGeometry(0.12, 0.3, 12), hatMat, 0.12, 1.0, 0); tip.rotation.z = -0.9; hat.add(tip);
+    body.add(hat);
     body.scale.set(1, sy, 1);
     var shadow = new THREE.Mesh(new THREE.CircleGeometry(0.7, 24), shadowMat); shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.04; g.add(shadow);
     var sweat = mesh(sphere, mat(0x8FC3EA, { roughness: 0.2 }), 0.52, 1.35, 0.45); sweat.scale.set(0.07, 0.11, 0.07); sweat.visible = false; g.add(sweat);
-    var zzz = new THREE.Sprite(zzzMat); zzz.position.set(0.5, 2.0, 0); zzz.scale.set(1, 0.5, 1); zzz.visible = false; g.add(zzz);
-    var carry = new THREE.Mesh(crateGeo, crateMat('?', null)); carry.position.set(0, 1.95 * sy, 0.1); carry.visible = false; g.add(carry);
+    var zzz = new THREE.Sprite(zzzMat); zzz.position.set(0.6, 2.6, 0); zzz.scale.set(1, 0.5, 1); zzz.visible = false; g.add(zzz);
+    var carry = new THREE.Mesh(crateGeo, crateMat('?', null)); carry.position.set(0, 2.75 * sy, 0.1); carry.visible = false; g.add(carry);
     var lens = new THREE.Group(); lens.position.set(0.55, 1.05, 0.62); lens.visible = false; g.add(lens); // la loupe quand il analyse
     var ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.04, 8, 24), mat(0x3C3A4A)); lens.add(ring);
     lens.add(new THREE.Mesh(new THREE.CircleGeometry(0.19, 20), lensMat));
@@ -574,7 +618,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   function drawScreen(z) {
     var cv = z.screenTex.userData.cv, c = cv.getContext('2d'), W = cv.width, H = cv.height, l = liveById[z.id] || {};
     c.fillStyle = '#16152A'; c.fillRect(0, 0, W, H);
-    c.fillStyle = '#B8A9FF'; c.font = '700 30px Fredoka, sans-serif'; c.textBaseline = 'middle';
+    c.fillStyle = '#FFB36B'; c.font = '700 30px Fredoka, sans-serif'; c.textBaseline = 'middle';
     c.fillText('Ce que je surveille', 20, 30);
     c.fillStyle = '#8E8AA3'; c.font = '700 20px Nunito, sans-serif'; c.textAlign = 'right'; c.fillText(live && live.as_of ? live.as_of : '', W - 20, 30); c.textAlign = 'left';
     var rows = (l.radar || []).slice(0, 4).map(function (x) { return { t: x.ticker, last: x.last, sub: x.label, dist: x.distance, crossed: x.crossed }; });
@@ -732,8 +776,8 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     });
     var night = lv.open ? 0 : 0.55;
     scene.background.copy(DAY).lerp(NIGHT, night); scene.fog.color.copy(scene.background); seaMat.uniforms.night.value = night;
-    hemi.intensity = 0.95 - night * 0.4; sun.intensity = 0.85 - night * 0.5;
-    zones.forEach(function (z) { z.win.emissiveIntensity = night * 1.6; });
+    hemi.intensity = 0.85 - night * 0.3; sun.intensity = 0.65 - night * 0.2;
+    zones.forEach(function (z) { z.win.emissiveIntensity = 0.9 + night * 0.9; });
     if (S) S.setTempo(lv.open ? 78 : 66);
     refreshTiles(); renderSide();
   }
@@ -802,14 +846,14 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     a.mouth.rotation.z = worried ? 0 : Math.PI; a.mouth.position.y = worried ? 0.68 : 0.76;
     if (a.talk > 0) { a.talk -= dt; a.mouth.scale.set(1.1, 0.5 + Math.abs(Math.sin(t * 19)) * 1.4, 1); } else a.mouth.scale.setScalar(mood === 'calme' || a.sleeping ? 0.7 : 1);
     a.sweat.visible = worried; if (worried) a.sweat.position.y = 1.35 - ((t * 0.6) % 1) * 0.35;
-    a.zzz.visible = !!a.sleeping; if (a.sleeping) a.zzz.position.y = 2.0 + Math.sin(t * 1.5) * 0.12;
+    a.zzz.visible = !!a.sleeping; if (a.sleeping) a.zzz.position.y = 2.6 + Math.sin(t * 1.5) * 0.12;
     if (a.lens.visible) a.lens.rotation.z = Math.sin(t * 3) * 0.15;
-    if (a.carry.visible) a.carry.position.y = 1.95 * a.sy + Math.sin(t * 8) * 0.03;
+    if (a.carry.visible) a.carry.position.y = 2.75 * a.sy + Math.sin(t * 8) * 0.03;
   }
   function placeBubble(z, cam, rect, el, big) {
     var s = z.say;
     if (!s || performance.now() > s.until) { if (!el.hidden) el.hidden = true; return; }
-    tmp.copy(z.actor.group.position); tmp.y += 2.6 * CHUBBY; tmp.project(cam);
+    tmp.copy(z.actor.group.position); tmp.y += 3.1 * CHUBBY; tmp.project(cam);
     if (el.textContent !== s.text) { el.textContent = s.text; }
     el.className = 'bubble' + (big ? ' big' : '') + (s.kind === 'trade' ? ' trade' : '');
     el.hidden = false;
@@ -825,6 +869,12 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     seaMat.uniforms.time.value = t;
     // Même si l'ordinateur rame, les Chubbies avancent au rythme de la vraie horloge (par petits pas).
     zones.forEach(function (z) { if (!z.actor || !z.group.visible) return; if (ready) for (var left = real; left > 0; left -= 0.05) runSteps(z, Math.min(left, 0.05)); animateActor(z, dt, t); });
+    zones.forEach(function (z) { // le fantôme flotte autour de l'île
+      if (!z.ghost || !z.group.visible) return;
+      var gp = z.ghost.userData.phase + (reduceMotion ? 0 : t * 0.25);
+      z.ghost.position.set(Math.sin(gp) * 6.8, 2.4 + (reduceMotion ? 0 : Math.sin(t * 1.7 + gp) * 0.3), Math.cos(gp) * 5.6 - 0.6);
+      z.ghost.rotation.y = gp + Math.PI / 2;
+    });
     flying.forEach(function (f) {
       if (!f.on) return; f.t += dt * 1.4; if (f.t < 0) return;
       if (f.t >= 1) { f.on = false; f.t = -1; f.m.visible = false; return; }
