@@ -3,28 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Chubby Capital · les îles</title>
+<title>Chubby Capital · la ville</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap">
 <style>
 :root {
-  /* Halloween : nuit violette, citrouille orange, toujours tout rond et mignon */
-  --ink: #F3ECFF; --muted: #B9AED3; --panel: rgba(31, 24, 50, 0.88); --line: rgba(255, 255, 255, 0.14);
-  --accent: #FF8A3D; --accent-ink: #24130A; --up: #7EE2A8; --down: #FF9A8E; --sky: #120E1E; --soft: rgba(255, 255, 255, 0.07);
+  /* Centre-ville la nuit : bleu nuit, néon cyan, fenêtres ambrées */
+  --ink: #E8EEF7; --muted: #9AA7BD; --panel: rgba(13, 18, 29, 0.88); --line: rgba(255, 255, 255, 0.14);
+  --accent: #3DD6F5; --accent-ink: #04141A; --up: #5BE3A0; --down: #FF7B7B; --sky: #070A12; --soft: rgba(255, 255, 255, 0.06);
   --display: 'Fredoka', 'Nunito', system-ui, sans-serif; --body: 'Nunito', system-ui, sans-serif;
   color-scheme: dark;
 }
 html, body { height: 100%; margin: 0; }
 [hidden] { display: none !important; }
-body { background: radial-gradient(ellipse at 70% -10%, #3A2766 0%, var(--sky) 60%) fixed;  color: var(--ink); font-family: var(--body); overflow: hidden; }
+body { background: radial-gradient(ellipse at 50% -20%, #1B2742 0%, var(--sky) 65%) fixed; color: var(--ink); font-family: var(--body); overflow: hidden; }
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; z-index: 0; }
 #ui { position: fixed; inset: 0; z-index: 1; display: flex; flex-direction: column; }
 .up { color: var(--up); } .down { color: var(--down); }
-.panel { background: var(--panel); border-radius: 18px; border: 1px solid rgba(255,138,61,0.18); box-shadow: 0 8px 24px rgba(0,0,0,0.4); }
+.panel { background: var(--panel); border-radius: 18px; border: 1px solid rgba(61,214,245,0.16); box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
 .btn { min-height: 40px; padding: 0 12px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); font: 800 13px var(--body); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; }
-.btn:hover { background: rgba(255,138,61,0.16); }
+.btn:hover { background: rgba(61,214,245,0.14); }
 .btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
-select.btn option { background: #1F1832; color: var(--ink); }
+select.btn option { background: #0E131E; color: var(--ink); }
 select.btn { border: 2px solid var(--line); }
 button:focus-visible, a:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
@@ -42,27 +42,27 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 3px solid
 /* La mosaïque : une île par Chubby */
 #grid { flex: 1; overflow-y: auto; padding: 4px 16px calc(16px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 12px;
   grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); align-content: start; }
-.tile { position: relative; display: block; width: 100%; border-radius: 20px; overflow: hidden; cursor: pointer; border: 3px solid rgba(255,138,61,0.28);
-  box-shadow: 0 8px 22px rgba(0,0,0,0.45); background: transparent; padding: 0; text-align: left; font: inherit; color: inherit; }
+.tile { position: relative; display: block; width: 100%; border-radius: 20px; overflow: hidden; cursor: pointer; border: 2px solid rgba(61,214,245,0.22);
+  box-shadow: 0 8px 22px rgba(0,0,0,0.5); background: transparent; padding: 0; text-align: left; font: inherit; color: inherit; }
 .tile::before { content: ''; display: block; padding-top: 75%; } /* 4:3, comme la caméra de l'île */
 .tile:hover { border-color: var(--accent); }
 .tile .head { position: absolute; left: 8px; right: 8px; top: 8px; display: flex; align-items: center; gap: 8px; pointer-events: none; }
-.tile .who { background: var(--panel); border-radius: 999px; padding: 3px 10px 3px 4px; display: flex; align-items: center; gap: 6px; font: 700 15px var(--display); box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
+.tile .who { background: var(--panel); border-radius: 999px; padding: 3px 10px 3px 4px; display: flex; align-items: center; gap: 6px; font: 700 15px var(--display); box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 .tile .who small { font: 800 13px var(--body); font-variant-numeric: tabular-nums; }
 .tile .doing { position: absolute; left: 8px; right: 8px; bottom: 8px; background: var(--panel); border-radius: 12px; padding: 6px 10px; font-size: 13px; font-weight: 800;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.35); pointer-events: none; display: flex; gap: 8px; align-items: baseline; }
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4); pointer-events: none; display: flex; gap: 8px; align-items: baseline; }
 .tile .doing span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tile .doing time { color: var(--muted); font-variant-numeric: tabular-nums; flex: none; }
-.bubble { position: absolute; left: 0; top: 0; max-width: min(240px, 70%); background: #2C2246; color: var(--ink); border: 1px solid rgba(183,140,255,0.35); border-radius: 14px 14px 14px 4px; padding: 6px 10px;
-  font: 700 12px/1.35 var(--body); box-shadow: 0 4px 14px rgba(0,0,0,0.45); pointer-events: none; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.bubble { position: absolute; left: 0; top: 0; max-width: min(240px, 70%); background: #141B2B; color: var(--ink); border: 1px solid rgba(61,214,245,0.3); border-radius: 14px 14px 14px 4px; padding: 6px 10px;
+  font: 700 12px/1.35 var(--body); box-shadow: 0 4px 14px rgba(0,0,0,0.5); pointer-events: none; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
 .bubble.big { font-size: 14px; max-width: min(320px, 60%); -webkit-line-clamp: 6; }
-.bubble.trade { background: #4A2A12; border-color: rgba(255,138,61,0.6); }
+.bubble.trade { background: #2A2210; border-color: rgba(255,181,71,0.65); }
 
 /* Vue d'un seul Chubby (ou de toutes les îles) */
 #focus { flex: 1; display: grid; grid-template-columns: 1fr minmax(0, 360px); gap: 12px; padding: 4px 16px calc(16px + env(safe-area-inset-bottom, 0px)); min-height: 0; }
-#stage { position: relative; border-radius: 22px; overflow: hidden; touch-action: none; cursor: grab; border: 3px solid rgba(255,138,61,0.28); min-height: 0; }
+#stage { position: relative; border-radius: 22px; overflow: hidden; touch-action: none; cursor: grab; border: 2px solid rgba(61,214,245,0.22); min-height: 0; }
 #stage .nav { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; }
-#stage .nav .btn { background: var(--panel); min-width: 40px; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
+#stage .nav .btn { background: var(--panel); min-width: 40px; justify-content: center; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
 #stage .hint { position: absolute; left: 10px; bottom: 10px; background: var(--panel); border-radius: 10px; padding: 4px 10px; font-size: 12px; font-weight: 700; color: var(--muted); pointer-events: none; }
 #side { padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .side-head { display: flex; gap: 10px; align-items: center; }
@@ -73,7 +73,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
 .stats div { background: var(--soft); border-radius: 12px; padding: 6px 8px; }
 .stats dt { font-size: 11px; font-weight: 800; color: var(--muted); }
 .stats dd { margin: 0; font: 600 16px var(--display); font-variant-numeric: tabular-nums; }
-.now { margin: 0; background: #3E2614; border: 1px solid rgba(255,138,61,0.35); border-radius: 12px; padding: 10px 12px; font-size: 14px; font-weight: 700; }
+.now { margin: 0; background: #0F2230; border: 1px solid rgba(61,214,245,0.35); border-radius: 12px; padding: 10px 12px; font-size: 14px; font-weight: 700; }
 .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; }
 .list li { background: var(--soft); border-radius: 10px; padding: 7px 9px; }
 .list time { color: var(--muted); margin-right: 6px; font-variant-numeric: tabular-nums; }
@@ -105,8 +105,8 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     <div class="clock panel" role="status"><b id="date">—</b><span id="status">Chargement…</span></div>
     <div class="idx panel" id="idx" hidden></div>
     <div class="tools panel">
-      <button class="btn" id="b-all" aria-pressed="true" title="Une île par Chubby, côte à côte">▦ Mosaïque</button>
-      <button class="btn" id="b-world" aria-pressed="false" title="Toutes les îles d'un seul coup d'œil">🗺 Archipel</button>
+      <button class="btn" id="b-all" aria-pressed="true" title="Un quartier par Chubby, côte à côte">▦ Mosaïque</button>
+      <button class="btn" id="b-world" aria-pressed="false" title="Toute la ville d'un seul coup d'œil">🏙 La ville</button>
       <button class="btn" id="b-ai" aria-pressed="false" title="Montrer aussi les jumeaux coachés par Claude">🤖 Versions IA</button>
       <button class="btn" id="b-sound" aria-pressed="false">🔇 Son</button>
       <select class="btn" id="s-voice" aria-label="Voix des Chubbies">
@@ -116,11 +116,11 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
       <a class="btn" href="/">← Tableau</a>
     </div>
   </header>
-  <main id="grid" aria-label="Une île par Chubby"></main>
+  <main id="grid" aria-label="Un quartier par Chubby"></main>
   <section id="focus" hidden>
-    <div id="stage" aria-label="L'île du Chubby choisi">
+    <div id="stage" aria-label="Le quartier du Chubby choisi">
       <div class="nav">
-        <button class="btn" id="f-back">← Toutes les îles</button>
+        <button class="btn" id="f-back">← Tous les quartiers</button>
         <button class="btn" id="f-prev" aria-label="Chubby précédent">‹</button>
         <button class="btn" id="f-next" aria-label="Chubby suivant">›</button>
       </div>
@@ -174,11 +174,12 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.setClearColor(0x000000, 0);
   var scene = new THREE.Scene();
-  var DAY = new THREE.Color(0x2B1F4A), NIGHT = new THREE.Color(0x140E26); // séance : crépuscule violet ; bourse fermée : pleine nuit
-  scene.background = DAY.clone(); scene.fog = new THREE.Fog(DAY.clone(), 45, 140);
-  var hemi = new THREE.HemisphereLight(0xB9A8FF, 0x3A2A3A, 0.85); scene.add(hemi);
-  var sun = new THREE.DirectionalLight(0xCFDCFF, 0.65); sun.position.set(-20, 40, 25); scene.add(sun); // clair de lune
-  var glow = new THREE.DirectionalLight(0xFF9A4A, 0.25); glow.position.set(25, 8, 30); scene.add(glow); // reflet des citrouilles
+  // La ville la nuit : brume bleu nuit, lune froide, lumière ambrée des lampadaires
+  var DAY = new THREE.Color(0x111A2C), NIGHT = new THREE.Color(0x070A12); // séance : soir ; bourse fermée : nuit noire
+  scene.background = DAY.clone(); scene.fog = new THREE.Fog(DAY.clone(), 40, 190);
+  var hemi = new THREE.HemisphereLight(0x9DB4FF, 0x1A1A22, 0.65); scene.add(hemi);
+  var sun = new THREE.DirectionalLight(0xA8C0FF, 0.5); sun.position.set(-20, 40, 25); scene.add(sun);
+  var street = new THREE.DirectionalLight(0xFFB547, 0.35); street.position.set(25, 6, 30); scene.add(street);
 
   var matCache = {};
   function mat(c, o) {
@@ -195,33 +196,71 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     var t = new THREE.CanvasTexture(cv); t.anisotropy = 4; t.userData = { cv: cv }; return t;
   }
   function round(c, x, y, w, h, r) { c.beginPath(); if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); }
-  function sign(text, w, color) {
+  function sign(text, w, color) { // enseigne au néon
     var g = new THREE.Group();
     var tex = canvasTex(512, 128, function (c, W, H) {
-      c.fillStyle = color || '#8A5A3C'; c.fillRect(0, 0, W, H);
-      c.fillStyle = '#FFF6E6'; c.font = '700 60px Fredoka, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, W / 2, H / 2 + 4);
+      c.fillStyle = '#0B0F1A'; c.fillRect(0, 0, W, H);
+      c.strokeStyle = color || '#3DD6F5'; c.lineWidth = 6; c.shadowColor = color || '#3DD6F5'; c.shadowBlur = 18; c.strokeRect(10, 10, W - 20, H - 20);
+      c.fillStyle = '#FFFFFF'; c.font = '700 60px Fredoka, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, W / 2, H / 2 + 4);
     });
-    g.add(mesh(new THREE.BoxGeometry(w, w / 4, 0.1), mat(0x6E4630)));
+    g.add(mesh(new THREE.BoxGeometry(w, w / 4, 0.1), mat(0x1A1F2A)));
     var f = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.95, w / 4 * 0.88), new THREE.MeshBasicMaterial({ map: tex })); f.position.z = 0.06; g.add(f);
     return g;
   }
 
-  // La mer, commune à toutes les îles
+  // Le sol de la ville : rues en asphalte mouillé entre les pâtés de maisons, lignes jaunes, reflets qui bougent
   var seaMat = new THREE.ShaderMaterial({
     uniforms: { time: { value: 0 }, night: { value: 0 } },
     vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }',
     fragmentShader: 'uniform float time; uniform float night; varying vec3 vW;' +
-      'void main(){ float wave = sin(vW.x * 0.35 + time * 1.1) * sin(vW.z * 0.31 - time * 0.9) * 0.5 + 0.5;' +
-      'vec3 c = mix(vec3(0.09, 0.10, 0.24), vec3(0.20, 0.17, 0.38), wave * 0.5) + wave * 0.03;' +
-      'gl_FragColor = vec4(mix(c, vec3(0.05, 0.05, 0.13), night * 0.6), 1.0); }'
+      'void main(){ vec2 p = vW.xz; vec2 d = abs(mod(p, 24.0) - 12.0); float m = min(d.x, d.y);' +
+      'float road = step(m, 3.6); float lane = step(m, 0.09) * step(1.4, mod(p.x + p.y, 3.0));' +
+      'vec3 c = mix(vec3(0.10, 0.11, 0.14), vec3(0.055, 0.06, 0.08), road) + lane * road * vec3(0.55, 0.40, 0.10);' +
+      'float sheen = pow(sin(p.x * 0.21 + time * 0.3) * sin(p.y * 0.17 - time * 0.2) * 0.5 + 0.5, 6.0) * road;' +
+      'c += sheen * vec3(0.10, 0.22, 0.30);' +
+      'float far = smoothstep(60.0, 220.0, length(p)); c = mix(c, vec3(0.04, 0.05, 0.08), far);' +
+      'gl_FragColor = vec4(c * (1.0 - night * 0.35), 1.0); }'
   });
-  var sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), seaMat); sea.rotation.x = -Math.PI / 2; sea.position.y = -1.1; scene.add(sea);
-  // La lune et les étoiles
-  var moon = new THREE.Mesh(new THREE.SphereGeometry(16, 32, 20), new THREE.MeshBasicMaterial({ color: 0xFFF1C1, fog: false })); moon.position.set(-60, 70, -230); scene.add(moon);
-  var starGeo = new THREE.BufferGeometry(), starPos = [];
-  for (var si = 0; si < 500; si++) { var sa = Math.random() * Math.PI * 2, sh = 0.15 + Math.random() * 0.8; starPos.push(Math.cos(sa) * 300 * Math.cos(sh), 300 * Math.sin(sh), Math.sin(sa) * 300 * Math.cos(sh)); }
-  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
-  scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xFFF6DA, size: 1.6, fog: false })));
+  var sea = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), seaMat); sea.rotation.x = -Math.PI / 2; sea.position.y = -0.4; scene.add(sea);
+  // Les gratte-ciel tout autour, avec leurs fenêtres allumées
+  function windowsTex(seed) {
+    return canvasTex(64, 128, function (c, W, H) {
+      c.fillStyle = '#0C111C'; c.fillRect(0, 0, W, H);
+      for (var y = 4; y < H; y += 8) for (var x = 4; x < W; x += 10) {
+        var r = Math.abs(Math.sin(x * 12.9 + y * 78.2 + seed * 37.7) * 43758.5) % 1;
+        c.fillStyle = r > 0.82 ? '#FFC970' : r > 0.74 ? '#7FDFF5' : r > 0.62 ? '#2A3448' : '#151C2A'; c.fillRect(x, y, 6, 4);
+      }
+    });
+  }
+  var towerMats = [0, 1, 2, 3, 4].map(function (k) { var t = windowsTex(k + 1); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(2 + k % 2, 3 + k); return new THREE.MeshBasicMaterial({ map: t }); });
+  var roofMat = new THREE.MeshBasicMaterial({ color: 0x0A0E17 }), beaconMat = new THREE.MeshBasicMaterial({ color: 0xFF4D5E });
+  var towers = new THREE.Group(); scene.add(towers);
+  function tower(x, z, w, h, k) {
+    var m = towerMats[k % towerMats.length], t = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), [m, m, roofMat, roofMat, m, m]);
+    t.position.set(x, h / 2 - 0.4, z); towers.add(t);
+    if (h > 40) towers.add(mesh(new THREE.SphereGeometry(0.35, 8, 6), beaconMat, x, h, z));
+  }
+  function buildSkyline(radius, cells) {
+    towers.clear();
+    // Les pâtés de maisons libres autour des quartiers se remplissent d'immeubles : on est en plein centre-ville.
+    var xs = cells.map(function (c) { return c[0]; }), zs = cells.map(function (c) { return c[1]; }), k = 0;
+    for (var cx = Math.min.apply(null, xs) - 2; cx <= Math.max.apply(null, xs) + 2; cx++) {
+      for (var cz = Math.min.apply(null, zs) - 2; cz <= Math.max.apply(null, zs) + 1; cz++) {
+        if (cells.some(function (c) { return c[0] === cx && c[1] === cz; })) continue;
+        [[-4.2, -4.2], [4.2, -4.2], [-4.2, 4.2], [4.2, 4.2]].forEach(function (q, j) {
+          k++; if ((cx * 7 + cz * 13 + j * 5) % 4 === 0) return; // quelques trous entre les immeubles
+          tower(cx * SPACING + q[0], cz * SPACING + q[1], 6.5 + (k % 3), 12 + ((k * 37) % 11) * 4.5, k);
+        });
+      }
+    }
+    for (var i = 0; i < 70; i++) {
+      var a = i / 70 * Math.PI * 2 + Math.sin(i * 3.7) * 0.04, r = radius + 14 + (i * 37 % 5) * 9;
+      var w = 7 + (i * 13 % 6), h = 22 + (i * 29 % 9) * 9, m = towerMats[i % towerMats.length];
+      var t = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), [m, m, roofMat, roofMat, m, m]);
+      t.position.set(Math.sin(a) * r, h / 2 - 0.4, Math.cos(a) * r); t.rotation.y = a; towers.add(t);
+      if (h > 70) towers.add(mesh(new THREE.SphereGeometry(0.6, 8, 6), beaconMat, t.position.x, h + 0.2, t.position.z));
+    }
+  }
 
   // ---------- Une île ----------
   // Repères de l'île (le devant regarde la caméra, vers +z) : la maison au fond à gauche, l'écran d'analyse au fond
@@ -232,7 +271,9 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   };
   var FACE = { home: Math.PI, screen: Math.PI, stall: Math.PI / 2, shelf: -Math.PI / 2 };
   var ISLAND = 8.4, SPACING = 24;
-  var trunkMat = mat(0x4A3328), leafA = mat(0xE07A2E), leafB = mat(0x7B4FA8); // arbres d'automne, orange et violets
+  var poleMat = mat(0x262B36, { metalness: 0.4 }), bulbMat = new THREE.MeshBasicMaterial({ color: 0xFFD9A0 });
+  var planterMat = mat(0x2A2F3A), bushMat = mat(0x24443A);
+  var poolMat = new THREE.MeshBasicMaterial({ color: 0xFFB547, transparent: true, opacity: 0.16, depthWrite: false, blending: THREE.AdditiveBlending }); // flaque de lumière sous les lampadaires
   var sphere = new THREE.SphereGeometry(1, 18, 14), crateGeo = new THREE.BoxGeometry(0.8, 0.62, 0.8);
 
   function buildHome(id, g) { // la maison de chaque personnalité (reprise de l'île d'origine)
@@ -285,40 +326,17 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     return crateMats[key];
   }
 
-  var pumpkinMat = mat(0xF08A2B, { emissive: 0x7A2E00, emissiveIntensity: 0.55, roughness: 0.55 }), stemMat = mat(0x4E7A3A);
-  var faceTex = canvasTex(128, 96, function (c) { // yeux triangulaires et sourire de citrouille, qui brillent
-    c.fillStyle = '#FFD45A'; c.beginPath(); c.moveTo(22, 40); c.lineTo(44, 40); c.lineTo(33, 18); c.fill();
-    c.beginPath(); c.moveTo(84, 40); c.lineTo(106, 40); c.lineTo(95, 18); c.fill();
-    c.beginPath(); c.moveTo(24, 56); c.quadraticCurveTo(64, 96, 104, 56); c.lineTo(88, 62); c.lineTo(78, 54); c.lineTo(64, 64); c.lineTo(50, 54); c.lineTo(40, 62); c.closePath(); c.fill();
-  });
-  var faceMat = new THREE.MeshBasicMaterial({ map: faceTex, transparent: true, depthWrite: false });
-  function pumpkin(x, zz, s) {
-    var g = new THREE.Group(); g.position.set(x, 0, zz); g.scale.setScalar(s);
-    [-0.22, 0, 0.22].forEach(function (dx) { var b = mesh(sphere, pumpkinMat, dx, 0.36, 0); b.scale.set(0.34, 0.36, 0.42); g.add(b); });
-    g.add(mesh(new THREE.CylinderGeometry(0.05, 0.07, 0.22, 8), stemMat, 0, 0.78, 0));
-    var f = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.46), faceMat); f.position.set(0, 0.38, 0.43); g.add(f);
-    return g;
-  }
-  var ghostMat = new THREE.MeshStandardMaterial({ color: 0xF4F0FF, emissive: 0x8E7BEF, emissiveIntensity: 0.35, transparent: true, opacity: 0.85, roughness: 0.4 });
-  function ghost() {
-    var g = new THREE.Group(), b = new THREE.Group(); g.add(b);
-    var head = mesh(sphere, ghostMat, 0, 0.5, 0); head.scale.setScalar(0.5); b.add(head);
-    var tail = mesh(new THREE.ConeGeometry(0.5, 0.8, 20, 1, true), ghostMat, 0, 0.1, 0); tail.rotation.x = Math.PI; b.add(tail);
-    [-0.16, 0.16].forEach(function (x) { var e = mesh(eyeGeo, eyeMat, x, 0.58, 0.44); e.scale.set(0.9, 1.3, 0.6); b.add(e); });
-    var o = mesh(sphere, eyeMat, 0, 0.4, 0.47); o.scale.set(0.06, 0.08, 0.03); b.add(o);
-    g.userData.phase = Math.random() * 6.28;
-    return g;
-  }
   function buildIsland(z) {
     var g = new THREE.Group(); g.position.copy(z.center); scene.add(g); z.group = g;
     var L = C.look(z.id), base = new THREE.Color(L.base), light = new THREE.Color(L.light);
-    g.add(mesh(new THREE.CylinderGeometry(ISLAND, ISLAND - 1.6, 3.2, 48), mat(0x4A4258, { roughness: 0.9 }), 0, -1.75, 0));
-    g.add(mesh(new THREE.CylinderGeometry(ISLAND + 0.9, ISLAND + 1.5, 0.6, 48), mat(0x5E5064), 0, -0.85, 0));
-    g.add(mesh(new THREE.CylinderGeometry(ISLAND, ISLAND, 0.4, 48), mat(0x3F5A43), 0, -0.2, 0));
-    var plaza = mesh(new THREE.CylinderGeometry(4.6, 4.6, 0.06, 40), mat(base.clone().lerp(new THREE.Color(0x3A2F55), 0.6).getHex()), 0, 0.02, 0.2); g.add(plaza);
+    // Son pâté de maisons : trottoir, dalles sombres, une place cerclée de néon à sa couleur
+    g.add(mesh(new THREE.BoxGeometry(2 * ISLAND + 0.6, 0.4, 2 * ISLAND + 0.6), mat(0x2C313C, { roughness: 0.9 }), 0, -0.2, 0));
+    g.add(mesh(new THREE.BoxGeometry(2 * ISLAND - 0.2, 0.06, 2 * ISLAND - 0.2), mat(0x181D27, { roughness: 0.85 }), 0, 0.01, 0));
+    var plaza = mesh(new THREE.CylinderGeometry(4.6, 4.6, 0.06, 40), mat(base.clone().lerp(new THREE.Color(0x1A2030), 0.78).getHex(), { roughness: 0.4 }), 0, 0.04, 0.2); g.add(plaza);
+    var neon = new THREE.Mesh(new THREE.TorusGeometry(4.6, 0.06, 6, 72), new THREE.MeshBasicMaterial({ color: base.clone().lerp(new THREE.Color(0xFFFFFF), 0.15) })); neon.rotation.x = Math.PI / 2; neon.position.set(0, 0.08, 0.2); g.add(neon);
     // Maison et coffre
     var home = new THREE.Group(); home.position.set(-3.9, 0, -4.4); buildHome(kindOf(z.id), home); g.add(home);
-    var winMat = mat(0xFFF3C4, { emissive: 0xFFC766, emissiveIntensity: 0 }); z.win = winMat;
+    var winMat = mat(0xFFF3C4, { emissive: 0xFFC766, emissiveIntensity: 1 }); z.win = winMat;
     g.add(mesh(new THREE.BoxGeometry(0.5, 0.4, 0.05), winMat, -3.0, 0.9, -3.35));
     var chest = new THREE.Group(); chest.position.set(-1.4, 0, -4.1); g.add(chest); z.chest = chest;
     chest.add(mesh(new THREE.BoxGeometry(1.1, 0.6, 0.7), mat(0x8A5A3C), 0, 0.3, 0));
@@ -336,28 +354,30 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     st.add(mesh(new THREE.BoxGeometry(1.3, 1.0, 3.0), mat(0xF7F2EA), 0, 0.5, 0));
     st.add(mesh(new THREE.BoxGeometry(1.4, 0.1, 3.1), mat(0xA27B5C), 0, 1.03, 0));
     [-1.4, 1.4].forEach(function (zz) { st.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.6, 8), mat(0x8A5A3C), 0.5, 1.3, zz)); });
-    for (var a = 0; a < 5; a++) { var aw = mesh(new THREE.BoxGeometry(1.8, 0.08, 0.62), mat(a % 2 ? 0xFFFFFF : base.getHex()), 0.1, 2.6, -1.24 + a * 0.62); aw.rotation.z = 0.3; st.add(aw); }
-    var ms = sign('Marché', 1.8, '#2F5FA8'); ms.position.set(0.1, 3.05, 0); ms.rotation.y = -Math.PI / 2; st.add(ms);
+    for (var a = 0; a < 5; a++) { var aw = mesh(new THREE.BoxGeometry(1.8, 0.08, 0.62), mat(a % 2 ? 0x2A3040 : base.getHex()), 0.1, 2.6, -1.24 + a * 0.62); aw.rotation.z = 0.3; st.add(aw); }
+    var ms = sign('Marché', 1.8, '#3DD6F5'); ms.position.set(0.1, 3.05, 0); ms.rotation.y = -Math.PI / 2; st.add(ms);
     z.counter = new THREE.Vector3(4.6, 1.39, 2.3);
     // Le panier : une étagère où il range une caisse par position
     var sh = new THREE.Group(); sh.position.set(-4.7, 0, 2.3); g.add(sh);
     sh.add(mesh(new THREE.BoxGeometry(1.8, 0.24, 3.6), mat(0xA27B5C), 0, 0.12, 0));
-    var ps = sign('Panier', 1.6, '#6E4630'); ps.position.set(-0.6, 2.1, 0); ps.rotation.y = Math.PI / 2; sh.add(ps);
+    var ps = sign('Panier', 1.6, '#FFB547'); ps.position.set(-0.6, 2.1, 0); ps.rotation.y = Math.PI / 2; sh.add(ps);
     sh.add(mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.9, 8), mat(0x6E4630), -0.6, 0.95, 0));
     z.crates = {}; z.shelf = sh;
-    // Arbres au bord
-    [[-6.6, 4.6], [6.4, -1.0], [-6.8, -1.4], [6.0, 5.4], [0.8, -6.3]].forEach(function (q, k) {
-      var tr = new THREE.Group(); tr.position.set(q[0], 0, q[1]); tr.scale.setScalar(0.85 + (k % 3) * 0.12);
-      tr.add(mesh(new THREE.CylinderGeometry(0.18, 0.25, 1.3, 8), trunkMat, 0, 0.65, 0));
-      var t1 = mesh(sphere, k % 2 ? leafA : leafB, 0, 1.9, 0); t1.scale.setScalar(1.0); tr.add(t1);
-      var t2 = mesh(sphere, leafA, 0.45, 2.35, 0.2); t2.scale.setScalar(0.65); tr.add(t2);
-      g.add(tr);
+    // Lampadaires aux coins et quelques bacs de verdure
+    [[-7.4, 7.4], [7.4, 7.4], [-7.4, -7.4], [7.4, -7.4], [7.4, 0.2]].forEach(function (q) {
+      var lp = new THREE.Group(), side = q[0] < 0 ? 1 : -1; lp.position.set(q[0], 0, q[1]);
+      lp.add(mesh(new THREE.CylinderGeometry(0.07, 0.1, 3.6, 8), poleMat, 0, 1.8, 0));
+      lp.add(mesh(new THREE.BoxGeometry(0.7, 0.08, 0.16), poleMat, side * 0.3, 3.6, 0));
+      var bulb = mesh(sphere, bulbMat, side * 0.55, 3.5, 0); bulb.scale.set(0.18, 0.1, 0.12); lp.add(bulb);
+      var pool = new THREE.Mesh(new THREE.CircleGeometry(1.6, 24), poolMat); pool.rotation.x = -Math.PI / 2; pool.position.set(side * 0.55, 0.05, 0); lp.add(pool);
+      g.add(lp);
     });
-    // Citrouilles qui brillent et un petit fantôme qui fait le tour de l'île
-    [[-6.2, 6.0, 0.9], [5.4, 6.4, 1.1], [7.0, 2.2, 0.75], [-7.0, 1.6, 0.8]].forEach(function (q) { g.add(pumpkin(q[0], q[1], q[2])); });
-    z.ghost = ghost(); g.add(z.ghost);
+    [[-6.6, -5.6], [0.8, -6.6], [6.4, -1.8]].forEach(function (q) {
+      g.add(mesh(new THREE.BoxGeometry(1.4, 0.5, 0.8), planterMat, q[0], 0.25, q[1]));
+      var b = mesh(sphere, bushMat, q[0], 0.7, q[1]); b.scale.set(0.65, 0.4, 0.38); g.add(b);
+    });
     // Le panneau à son nom (vu dans l'archipel)
-    var ns = sign(z.name, 3.2, L.dark); ns.position.set(0, 0.75, ISLAND - 0.2); ns.rotation.x = -0.35; g.add(ns);
+    var ns = sign(z.name, 3.2, L.base); ns.position.set(0, 0.75, ISLAND - 0.2); ns.rotation.x = -0.35; g.add(ns);
   }
 
   // ---------- Les Chubbies ----------
@@ -368,10 +388,9 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   var blushMat = new THREE.MeshBasicMaterial({ color: 0xF48C8C, transparent: true, opacity: 0.55 });
   var coinGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.06, 20), coinMat = mat(0xE9B730, { metalness: 0.55, roughness: 0.3 });
   var shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.16, depthWrite: false });
-  var zzzMat = new THREE.SpriteMaterial({ map: canvasTex(128, 64, function (c) { c.fillStyle = '#FFB36B'; c.font = '700 44px Fredoka, sans-serif'; c.fillText('Zzz', 18, 48); }), transparent: true, depthWrite: false });
+  var zzzMat = new THREE.SpriteMaterial({ map: canvasTex(128, 64, function (c) { c.fillStyle = '#3DD6F5'; c.font = '700 44px Fredoka, sans-serif'; c.fillText('Zzz', 18, 48); }), transparent: true, depthWrite: false });
   var lensMat = mat(0xBFE8FF, { transparent: true, opacity: 0.6, roughness: 0.1 });
   var CHUBBY = 1.25;
-  var hatMat = mat(0x3A2458, { roughness: 0.6 }), hatBandMat = mat(0xFF8A3D, { emissive: 0x7A2E00, emissiveIntensity: 0.4 });
 
   function makeChubby(fullId) {
     var id = kindOf(fullId), color = new THREE.Color(C.look(fullId).base).getHex(), sy = SY[id] || 1;
@@ -393,19 +412,12 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     if (id === 'mochi') {
       [-0.78, 0.78].forEach(function (x) { var n = mesh(sphere, bodyMat, x, 0.7, 0); n.scale.set(0.3, 0.22, 0.25); body.add(n); });
     }
-    if (isAI(fullId)) { body.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8), mat(0x8E7BEF), 0.42, 2.1, 0)); var ant = mesh(sphere, mat(0xB8A9FF, { emissive: 0x8E7BEF, emissiveIntensity: 0.6 }), 0.42, 2.35, 0); ant.scale.setScalar(0.09); body.add(ant); }
-    // Le chapeau de sorcière d'Halloween, un peu de travers
-    var hat = new THREE.Group(); hat.position.set(0.04, 1.5, 0); hat.rotation.z = -0.18;
-    hat.add(mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.05, 28), hatMat, 0, 0, 0));
-    hat.add(mesh(new THREE.ConeGeometry(0.4, 0.95, 24), hatMat, 0, 0.5, 0));
-    hat.add(mesh(new THREE.CylinderGeometry(0.405, 0.42, 0.1, 24), hatBandMat, 0, 0.1, 0));
-    var tip = mesh(new THREE.ConeGeometry(0.12, 0.3, 12), hatMat, 0.12, 1.0, 0); tip.rotation.z = -0.9; hat.add(tip);
-    body.add(hat);
+    if (isAI(fullId)) { body.add(mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.45, 8), mat(0x8E7BEF), 0, 1.78, 0)); var ant = mesh(sphere, mat(0xB8A9FF), 0, 2.03, 0); ant.scale.setScalar(0.09); body.add(ant); }
     body.scale.set(1, sy, 1);
     var shadow = new THREE.Mesh(new THREE.CircleGeometry(0.7, 24), shadowMat); shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.04; g.add(shadow);
     var sweat = mesh(sphere, mat(0x8FC3EA, { roughness: 0.2 }), 0.52, 1.35, 0.45); sweat.scale.set(0.07, 0.11, 0.07); sweat.visible = false; g.add(sweat);
-    var zzz = new THREE.Sprite(zzzMat); zzz.position.set(0.6, 2.6, 0); zzz.scale.set(1, 0.5, 1); zzz.visible = false; g.add(zzz);
-    var carry = new THREE.Mesh(crateGeo, crateMat('?', null)); carry.position.set(0, 2.75 * sy, 0.1); carry.visible = false; g.add(carry);
+    var zzz = new THREE.Sprite(zzzMat); zzz.position.set(0.5, 2.0, 0); zzz.scale.set(1, 0.5, 1); zzz.visible = false; g.add(zzz);
+    var carry = new THREE.Mesh(crateGeo, crateMat('?', null)); carry.position.set(0, 1.95 * sy, 0.1); carry.visible = false; g.add(carry);
     var lens = new THREE.Group(); lens.position.set(0.55, 1.05, 0.62); lens.visible = false; g.add(lens); // la loupe quand il analyse
     var ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.04, 8, 24), mat(0x3C3A4A)); lens.add(ring);
     lens.add(new THREE.Mesh(new THREE.CircleGeometry(0.19, 20), lensMat));
@@ -448,13 +460,15 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     zones.forEach(function (z) {
       var i = vis.indexOf(z);
       var shown = i >= 0;
-      var c = shown ? new THREE.Vector3((i % cols - (cols - 1) / 2) * SPACING, 0, (Math.floor(i / cols) - (Math.ceil(vis.length / cols) - 1) / 2) * SPACING) : new THREE.Vector3(9999, 0, 9999);
+      // Toujours sur un multiple de SPACING : chaque pâté de maisons tombe entre les rues dessinées au sol.
+      var c = shown ? new THREE.Vector3((i % cols - Math.floor((cols - 1) / 2)) * SPACING, 0, (Math.floor(i / cols) - Math.floor((Math.ceil(vis.length / cols) - 1) / 2)) * SPACING) : new THREE.Vector3(9999, 0, 9999);
       if (!z.group) { z.center = c; buildIsland(z); buildActor(z); }
       else { var d = c.clone().sub(z.center); z.center = c; z.group.position.copy(c); z.actor.group.position.add(d); }
       z.group.visible = z.actor.group.visible = shown;
       if (!z.cam) z.cam = new THREE.PerspectiveCamera(42, 4 / 3, 0.5, 220);
       z.cam.position.set(c.x, 8.6, c.z + 13.6); z.cam.lookAt(c.x, 0.6, c.z - 0.6);
     });
+    buildSkyline(Math.max(30, cols * SPACING * 0.75) + 2 * SPACING, vis.map(function (z) { return [Math.round(z.center.x / SPACING), Math.round(z.center.z / SPACING)]; }));
     buildTiles();
   }
   function buildActor(z) {
@@ -618,7 +632,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   function drawScreen(z) {
     var cv = z.screenTex.userData.cv, c = cv.getContext('2d'), W = cv.width, H = cv.height, l = liveById[z.id] || {};
     c.fillStyle = '#16152A'; c.fillRect(0, 0, W, H);
-    c.fillStyle = '#FFB36B'; c.font = '700 30px Fredoka, sans-serif'; c.textBaseline = 'middle';
+    c.fillStyle = '#3DD6F5'; c.font = '700 30px Fredoka, sans-serif'; c.textBaseline = 'middle';
     c.fillText('Ce que je surveille', 20, 30);
     c.fillStyle = '#8E8AA3'; c.font = '700 20px Nunito, sans-serif'; c.textAlign = 'right'; c.fillText(live && live.as_of ? live.as_of : '', W - 20, 30); c.textAlign = 'left';
     var rows = (l.radar || []).slice(0, 4).map(function (x) { return { t: x.ticker, last: x.last, sub: x.label, dist: x.distance, crossed: x.crossed }; });
@@ -652,7 +666,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     var grid = $('#grid'); grid.innerHTML = '';
     visibleZones().forEach(function (z) {
       var b = document.createElement('button'); b.className = 'tile'; b.type = 'button';
-      b.setAttribute('aria-label', 'Voir l’île de ' + z.name);
+      b.setAttribute('aria-label', 'Voir le quartier de ' + z.name);
       b.innerHTML = '<div class="head"><span class="who"><span class="av"></span><span class="nm"></span><small></small></span></div>' +
         '<div class="bubble" hidden></div><div class="doing"><time></time><span></span></div>';
       b.onclick = function () { openFocus(z); };
@@ -676,7 +690,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     $('#grid').hidden = m !== 'mosaic'; $('#focus').hidden = m === 'mosaic';
     $('#b-all').setAttribute('aria-pressed', String(m === 'mosaic')); $('#b-world').setAttribute('aria-pressed', String(m === 'world'));
     $('#f-prev').hidden = $('#f-next').hidden = m !== 'focus';
-    $('#stage').setAttribute('aria-label', m === 'world' ? 'Toutes les îles' : current ? 'L’île de ' + current.name : '');
+    $('#stage').setAttribute('aria-label', m === 'world' ? 'Toute la ville' : current ? 'Le quartier de ' + current.name : '');
     if (m === 'world') { current = null; orbit.want.set(0, 0, 0); orbit.r = 40 + visibleZones().length * 6; orbit.el = 1.0; orbit.az = 0; orbit.target.copy(orbit.want); renderSide(); }
     if (m === 'mosaic') { location.hash = ''; }
   }
@@ -736,7 +750,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   function renderSide() {
     var side = $('#side');
     if (mode === 'world') {
-      side.innerHTML = '<h3>L’archipel des Chubbies</h3><p class="muted">Chaque île est un Chubby. Clique sur une île pour la suivre de près.</p><ul class="list">' +
+      side.innerHTML = '<h3>La ville des Chubbies</h3><p class="muted">Chaque quartier est un Chubby. Clique sur un quartier pour le suivre de près.</p><ul class="list">' +
         visibleZones().map(function (z) { var l = liveById[z.id]; return '<li><b>' + esc(z.name) + '</b> ' + (l ? '<span class="' + C.cls(l.change) + '">' + pct(l.change) + '</span>' : '') + '<br>' + esc(z.status || '') + '</li>'; }).join('') + '</ul>';
       return;
     }
@@ -774,10 +788,10 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
       var now = liveById[z.id], old = before[z.id];
       if (now && old && now.stops && (now.stops.some(function (x) { return x.hit; }) && !(old.stops || []).some(function (x) { return x.hit; }))) say(z, now.reaction);
     });
-    var night = lv.open ? 0 : 0.55;
+    var night = lv.open ? 0 : 0.7;
     scene.background.copy(DAY).lerp(NIGHT, night); scene.fog.color.copy(scene.background); seaMat.uniforms.night.value = night;
-    hemi.intensity = 0.85 - night * 0.3; sun.intensity = 0.65 - night * 0.2;
-    zones.forEach(function (z) { z.win.emissiveIntensity = 0.9 + night * 0.9; });
+    hemi.intensity = 0.65 - night * 0.2; sun.intensity = 0.5 - night * 0.15;
+    zones.forEach(function (z) { z.win.emissiveIntensity = 1 + night * 0.8; });
     if (S) S.setTempo(lv.open ? 78 : 66);
     refreshTiles(); renderSide();
   }
@@ -846,14 +860,14 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     a.mouth.rotation.z = worried ? 0 : Math.PI; a.mouth.position.y = worried ? 0.68 : 0.76;
     if (a.talk > 0) { a.talk -= dt; a.mouth.scale.set(1.1, 0.5 + Math.abs(Math.sin(t * 19)) * 1.4, 1); } else a.mouth.scale.setScalar(mood === 'calme' || a.sleeping ? 0.7 : 1);
     a.sweat.visible = worried; if (worried) a.sweat.position.y = 1.35 - ((t * 0.6) % 1) * 0.35;
-    a.zzz.visible = !!a.sleeping; if (a.sleeping) a.zzz.position.y = 2.6 + Math.sin(t * 1.5) * 0.12;
+    a.zzz.visible = !!a.sleeping; if (a.sleeping) a.zzz.position.y = 2.0 + Math.sin(t * 1.5) * 0.12;
     if (a.lens.visible) a.lens.rotation.z = Math.sin(t * 3) * 0.15;
-    if (a.carry.visible) a.carry.position.y = 2.75 * a.sy + Math.sin(t * 8) * 0.03;
+    if (a.carry.visible) a.carry.position.y = 1.95 * a.sy + Math.sin(t * 8) * 0.03;
   }
   function placeBubble(z, cam, rect, el, big) {
     var s = z.say;
     if (!s || performance.now() > s.until) { if (!el.hidden) el.hidden = true; return; }
-    tmp.copy(z.actor.group.position); tmp.y += 3.1 * CHUBBY; tmp.project(cam);
+    tmp.copy(z.actor.group.position); tmp.y += 2.6 * CHUBBY; tmp.project(cam);
     if (el.textContent !== s.text) { el.textContent = s.text; }
     el.className = 'bubble' + (big ? ' big' : '') + (s.kind === 'trade' ? ' trade' : '');
     el.hidden = false;
@@ -869,12 +883,6 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     seaMat.uniforms.time.value = t;
     // Même si l'ordinateur rame, les Chubbies avancent au rythme de la vraie horloge (par petits pas).
     zones.forEach(function (z) { if (!z.actor || !z.group.visible) return; if (ready) for (var left = real; left > 0; left -= 0.05) runSteps(z, Math.min(left, 0.05)); animateActor(z, dt, t); });
-    zones.forEach(function (z) { // le fantôme flotte autour de l'île
-      if (!z.ghost || !z.group.visible) return;
-      var gp = z.ghost.userData.phase + (reduceMotion ? 0 : t * 0.25);
-      z.ghost.position.set(Math.sin(gp) * 6.8, 2.4 + (reduceMotion ? 0 : Math.sin(t * 1.7 + gp) * 0.3), Math.cos(gp) * 5.6 - 0.6);
-      z.ghost.rotation.y = gp + Math.PI / 2;
-    });
     flying.forEach(function (f) {
       if (!f.on) return; f.t += dt * 1.4; if (f.t < 0) return;
       if (f.t >= 1) { f.on = false; f.t = -1; f.m.visible = false; return; }

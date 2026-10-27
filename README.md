@@ -237,11 +237,12 @@ Plus bas, tout ce qu'il faut pour le comprendre :
 
 L'historique se filtre par type, et s'exporte en CSV pour Excel ou Google Sheets.
 
-### Les îles des Chubbies (3D)
+### La ville des Chubbies (3D)
 
-Bouton « Voir l'île », ou http://localhost:8000/ile. Chaque Chubby vit sur **sa propre île** : sa maison et son
-coffre de pièces, son **écran d'analyse** (ses seuils de décision et sa watchlist, le titre qu'il regarde
-surligné), le **marché** où il achète et vend, et son **panier** où il range une caisse par position.
+Bouton « Voir l'île », ou http://localhost:8000/ile. Ambiance centre-ville la nuit : chaque Chubby a **son propre
+pâté de maisons**, entre des rues mouillées et des gratte-ciel aux fenêtres allumées. On y trouve sa maison et son
+coffre de pièces, son **écran d'analyse** (ses seuils de décision et sa watchlist, le titre qu'il regarde surligné),
+le **marché** où il achète et vend, et son **panier** où il range une caisse par position.
 
 Chaque geste vient d'un vrai événement de la journée (`/api/activity` et `/api/live`) :
 
@@ -254,11 +255,11 @@ Chaque geste vient d'un vrai événement de la journée (`/api/activity` et `/ap
 À l'ouverture de la page, chacun rejoue en accéléré ses derniers gestes du jour, puis suit la séance en direct
 (nouveaux ordres toutes les 15 secondes, cours toutes les minutes).
 
-- **Mosaïque** : toutes les îles côte à côte, chacune avec sa caméra, ce qu'il fait et ce qu'il dit.
-- Clique sur une île pour la **suivre** : caméra libre (glisser, molette, double-clic), sa journée heure par heure,
+- **Mosaïque** : tous les quartiers côte à côte, chacun avec sa caméra, ce qu'il fait et ce qu'il dit.
+- Clique sur un quartier pour le **suivre** : caméra libre (glisser, molette, double-clic), sa journée heure par heure,
   ses seuils, son panier. Flèches ← → pour passer au suivant, Échap pour revenir. Lien direct : `/ile#muffin`.
-- **Archipel** : toutes les îles d'un coup d'œil.
-- **Versions IA** ajoute les îles des jumeaux coachés par Claude.
+- **La ville** : tous les quartiers d'un coup d'œil.
+- **Versions IA** ajoute les quartiers des jumeaux coachés par Claude.
 
 L'ancienne grande île (avec le podium et le replay de la saison) reste sur http://localhost:8000/ile-3d, et la
 carte illustrée sur http://localhost:8000/carte.
