@@ -43,8 +43,11 @@ def make_handler(db_path: str, cfg: ArenaConfig, live=None):
                     payload = live(store) if live else latest(store)
                     return self._json(payload or {"ok": False, "error": "Pas encore de séance en direct."})
                 if path == "/api/activity":
-                    since = self.path.partition("since=")[2].split("&", 1)[0]
-                    return self._json(api.activity(store, int(since) if since.isdigit() else None))
+                    from urllib.parse import parse_qs, urlsplit
+                    q = {k: v[0] for k, v in parse_qs(urlsplit(self.path).query).items()}
+                    since, day = q.get("since", ""), q.get("day", "")
+                    return self._json(api.activity(store, int(since) if since.isdigit() else None,
+                                                   day=day if len(day) == 10 and day[4] == day[7] == "-" else None))
                 if path == "/api/replay":
                     return self._json(api.replay(store, cfg))
                 if path.startswith("/api/bots/") and path.endswith("/fiche"):
