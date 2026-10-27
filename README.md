@@ -54,6 +54,7 @@ l'ouverture suivante. Mais **pendant la bourse** (9 h 30 à 16 h, heure de Toron
 ([`chubby/live.py`](chubby/live.py)) :
 
 - leur capital est recalculé sur les vrais cours, par barres de 5 minutes ;
+- les ordres décidés la veille au soir sont comptés au premier cours de la séance (l'arène ne les inscrit que le soir, au prix d'ouverture) ;
 - on voit le titre qui les fait le plus bouger ;
 - chacun **réagit selon sa personnalité** : Tortue ne bouge pas, Muffin flaire une aubaine, Jalapeño panique, Matcha prend des notes pour son prochain entraînement.
 
