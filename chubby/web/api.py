@@ -149,7 +149,8 @@ def advice(store: Store, cfg: ArenaConfig, profile: dict, csv_text: str, price_o
 
 
 def events(store: Store, limit: int = 50) -> list[dict]:
-    rows = store.db.execute("SELECT * FROM events WHERE kind != 'leader' ORDER BY id DESC LIMIT ?",
+    # Les « analyse » (toutes les 15 minutes) noieraient le reste : elles ont leur propre fil (/api/activity).
+    rows = store.db.execute("SELECT * FROM events WHERE kind NOT IN ('leader', 'analyse') ORDER BY id DESC LIMIT ?",
                             (limit,)).fetchall()
     return [{"id": r["id"], "day": r["day"], "bot_id": r["bot_id"], "kind": r["kind"],
              **json.loads(r["payload"] or "{}")} for r in rows]
