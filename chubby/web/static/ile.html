@@ -145,7 +145,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       <dl class="stats">
         <div><dt>Capital</dt><dd id="c-val"></dd></div>
         <div><dt id="c-day-label">Ce jour-là</dt><dd id="c-day"></dd></div>
-        <div><dt>Saison</dt><dd id="c-season"></dd></div>
+        <div><dt>Depuis le début</dt><dd id="c-season"></dd></div>
         <div><dt>Score</dt><dd id="c-score"></dd></div>
         <div><dt>Rang</dt><dd id="c-rank"></dd></div>
         <div><dt>Agressivité</dt><dd id="c-aggr"></dd></div>
@@ -1002,7 +1002,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       e.btn.className = 'rank' + (selected === b ? ' sel' : '');
       e.pos.textContent = r + 1;
       e.nm.innerHTML = ''; e.nm.appendChild(document.createTextNode(b.name)); var sm = document.createElement('small'); sm.textContent = money(valueOf(b)); e.nm.appendChild(sm);
-      e.s.textContent = sc == null ? '—' : sc; e.d.textContent = pct(d); e.d.className = cls(d);
+      e.s.textContent = sc == null ? '—' : sc; e.d.textContent = pct(d) + (liveMode ? ' auj.' : ' ce jour'); e.d.className = cls(d);
       e.btn.setAttribute('aria-label', (r + 1) + 'e, ' + b.name + ', ' + pct(d) + ' ce jour-là');
       if (ol.children[r] !== e.li) ol.insertBefore(e.li, ol.children[r] || null);
     });

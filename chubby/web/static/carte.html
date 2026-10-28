@@ -550,11 +550,12 @@ body.relief .hint { display: block; } body.relief.nopanels .hint { display: none
     var b = sel; if (!b) return;
     var f = fiches[b], s = (shown().filter(function (x) { return x.id === b; })[0]) || {}, lb = live && live.bots.filter(function (x) { return x.id === b; })[0];
     var name = (f && f.name) || s.name || b, h = '';
+    var eq = lb ? lb.equity : f ? f.equity : null, season = eq == null ? null : eq / ((replay && replay.starting_cash) || 10000) - 1; // même capital que la ligne « Capital »
     h += '<div class="who">' + C.avatar(b, s.mood || 'calme', 56) + '<div><b>' + esc(name) + '</b><small>' + esc(f ? f.personality : '') + '</small>' +
       (f ? '<small>' + f.rank + (f.rank === 1 ? 'er' : 'e') + ' au classement · score ' + f.score + '</small>' : '') + '</div><button id="hear" title="L\'entendre" aria-label="L\'entendre">🗣</button><button id="close" aria-label="Fermer la fiche" style="margin-left:4px">✕</button></div>';
     h += '<div class="kpis"><div><small>Capital</small><b>' + (lb ? C.money(lb.equity) : f ? C.money(f.equity) : '—') + '</b></div>' +
       '<div><small>' + (mode === 'live' ? "Aujourd'hui" : 'Ce jour-là') + '</small><b class="' + C.cls(s.change || 0) + '">' + pct(s.change) + '</b></div>' +
-      '<div><small>Saison</small><b class="' + C.cls(f ? f.metrics.total_return : 0) + '">' + (f ? pct(f.metrics.total_return) : '—') + '</b></div></div>';
+      '<div><small>Depuis le début</small><b class="' + C.cls(season || 0) + '">' + pct(season) + '</b></div></div>';
     // Ce qu'il surveille : ses seuils et ses stops, la jauge se remplit à mesure que le prix s'en approche.
     var gauges = [];
     if (lb) {

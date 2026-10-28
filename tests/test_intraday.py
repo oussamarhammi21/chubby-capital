@@ -243,6 +243,12 @@ def test_capital_is_the_same_in_every_view(setup):
         values = {live[bot_id]["equity"], board[bot_id]["equity"], detail["equity"], report["equity"]}
         assert len(values) == 1, (bot_id, values)
         assert detail["cash"] == report["cash"] == round(store.load_account(bot_id).cash, 2)
+        # Le % « depuis le début » vient du même capital, partout : pas celui d'une autre période.
+        season = report["equity"] / report["starting_cash"] - 1
+        assert board[bot_id]["metrics"]["total_return"] == pytest.approx(season, abs=1e-6)
+        assert report["metrics"]["total_return"] == pytest.approx(season, abs=1e-6)
+        assert detail["metrics"]["total_return"] == pytest.approx(season, abs=1e-6)
+        assert report["day_change"] == pytest.approx(live[bot_id]["change"], abs=1e-4)
     g = api.bot_detail(store, cfg, "gourmand")
     assert g["positions"][0]["value_cad"] and g["equity"] == pytest.approx(g["cash"] + g["positions"][0]["value_cad"], abs=0.02)
 

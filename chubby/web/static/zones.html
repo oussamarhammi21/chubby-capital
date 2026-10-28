@@ -720,7 +720,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
       if (!z.tileEls) return;
       var l = liveById[z.id], ch = l ? l.change : null, mood = l ? l.mood : 'calme';
       if (z.tileEls.mood !== mood) { z.tileEls.av.innerHTML = C.avatar(z.id, mood, 26); z.tileEls.mood = mood; }
-      z.tileEls.ch.textContent = ch == null ? '' : pct(ch); z.tileEls.ch.className = ch == null ? '' : C.cls(ch);
+      z.tileEls.ch.textContent = ch == null ? '' : pct(ch) + ' auj.'; z.tileEls.ch.className = ch == null ? '' : C.cls(ch);
       z.tileEls.doing.textContent = z.status || '…'; z.tileEls.time.textContent = z.statusTime || '';
     });
   }
@@ -804,7 +804,8 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     var picker = days.length ? '<label class="daypick">Jour <select id="day-pick">' + days.map(function (d) { return '<option value="' + d + '"' + (d === dayKey ? ' selected' : '') + '>' + esc(frDay(d)) + (d === today ? ' (dernière séance)' : '') + '</option>'; }).join('') + '</select></label>' : '';
     side.innerHTML =
       '<div class="side-head">' + C.avatar(z.id, l.mood || 'calme', 48) + '<div><h2>' + esc(z.name) + '</h2><p>' + esc(z.personality) + '</p></div></div>' +
-      '<dl class="stats"><div><dt>Valeur</dt><dd>' + (l.equity != null ? money(l.equity) : '—') + '</dd></div><div><dt>Aujourd’hui</dt><dd class="' + C.cls(l.change || 0) + '">' + (l.change != null ? pct(l.change) : '—') + '</dd></div><div><dt>Positions</dt><dd>' + Object.keys(l.holdings || {}).length + '</dd></div></dl>' +
+      '<dl class="stats"><div><dt>Valeur</dt><dd>' + (l.equity != null ? money(l.equity) : '—') + '</dd></div><div><dt>Aujourd’hui</dt><dd class="' + C.cls(l.change || 0) + '">' + (l.change != null ? pct(l.change) : '—') + '</dd></div>' +
+      (seasonPct(z.id) != null ? '<div><dt>Depuis le début</dt><dd class="' + C.cls(seasonPct(z.id)) + '">' + pct(seasonPct(z.id)) + '</dd></div>' : '') + '<div><dt>Positions</dt><dd>' + Object.keys(l.holdings || {}).length + '</dd></div></dl>' +
       '<p class="now" id="side-now">' + esc(z.status || '') + (z.say ? '<br><span style="font-weight:700">« ' + esc(z.say.text) + ' »</span>' : '') + '</p>' +
       '<div class="actions"><button class="btn" id="b-replay"' + (evs.some(replayable) ? '' : ' disabled') + '>⏪ Rejouer sa journée</button>' +
       (z.queue.some(function (q) { return q.replay; }) || z.curReplay ? '<button class="btn" id="b-stop">⏹ Arrêter</button>' : '') +
@@ -856,6 +857,12 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   }
 
   // ---------- Vue générale : classement et tout ce qui s'est passé ----------
+  // % depuis le début de la saison (10 000 $), avec le capital du direct quand il est plus récent.
+  function seasonPct(id) {
+    var e = ((overview && overview.leaderboard) || []).filter(function (x) { return x.id === id; })[0], l = liveById[id];
+    var start = (overview && overview.starting_cash) || 10000, eq = l && l.equity != null ? l.equity : e ? e.equity : null;
+    return eq == null ? null : eq / start - 1;
+  }
   function renderBoard() {
     var el = mode === 'world' ? $('#side') : mode === 'mosaic' ? $('#board') : null;
     if (!el) return;
@@ -868,7 +875,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
       html += '<ul class="rows">' + order.map(function (z, i) {
         var l = liveById[z.id] || {}, n = (dayCache[today] || []).filter(function (e) { return e.bot_id === z.id && (e.kind === 'trade' || e.kind === 'stop'); }).length;
         return '<li><button data-bot="' + esc(z.id) + '"><span class="pos">' + (i + 1) + '</span>' + C.avatar(z.id, l.mood || 'calme', 28) +
-          '<span class="nm">' + esc(z.name) + '<small>' + esc(z.status || '') + '</small></span><span class="val"><b class="' + C.cls(l.change || 0) + '">' + (l.change != null ? pct(l.change) : '—') + '</b><small>' + (l.equity != null ? money(l.equity) : '') + ' · ' + n + ' ordre(s)</small></span></button></li>';
+          '<span class="nm">' + esc(z.name) + '<small>' + esc(z.status || '') + '</small></span><span class="val"><b class="' + C.cls(l.change || 0) + '">' + (l.change != null ? pct(l.change) : '—') + '</b><small>aujourd’hui · ' + (l.equity != null ? money(l.equity) : '') + ' · ' + n + ' ordre(s)</small></span></button></li>';
       }).join('') + '</ul>';
     } else if (boardTab === 'saison') {
       var board = ((overview && overview.leaderboard) || []).filter(function (e) { return showAI || !isAI(e.id); });
@@ -876,7 +883,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
       html += '<ul class="rows">' + board.map(function (e, i) {
         var move = e.rank_move > 0 ? ' ▲' + e.rank_move : e.rank_move < 0 ? ' ▼' + (-e.rank_move) : '';
         return '<li><button data-bot="' + esc(e.id) + '"><span class="pos">' + (i + 1) + '</span>' + C.avatar(e.id, 'calme', 28) +
-          '<span class="nm">' + esc(e.name) + move + '<small>' + esc(e.personality) + '</small></span><span class="val"><b>' + e.score + ' pts</b><small>' + money(e.equity) + ' · ' + e.trades + ' trades</small></span></button></li>';
+          '<span class="nm">' + esc(e.name) + move + '<small>' + esc(e.personality) + '</small></span><span class="val"><b class="' + C.cls(seasonPct(e.id) || 0) + '">' + pct(seasonPct(e.id)) + '</b><small>depuis le début · ' + money(e.equity) + ' · ' + e.score + ' pts</small></span></button></li>';
       }).join('') + '</ul>';
     } else {
       var filters = [['tout', 'Tout'], ['ordres', 'Achats et ventes'], ['analyses', 'Analyses']];
