@@ -217,3 +217,41 @@ def test_live_value_ignores_a_close_value_written_during_the_session(setup):
     live = pulse(store, fetch=lambda tickers: session(data, today, dip, "10:20"), now=at(today, "10:20"))
     g = next(e for e in live["bots"] if e["id"] == "gourmand")
     assert abs(g["change"]) < 0.01 and not g["settled"]
+
+
+def test_capital_is_the_same_in_every_view(setup):
+    """Tableau, classement, fiche, direct et ville : une seule valeur, recalculée dès qu'un ordre passe."""
+    from chubby.capital import current, version
+    from chubby.config import ArenaConfig
+    from chubby.live import latest
+    from chubby.report import bot_report
+    from chubby.web import api
+
+    data, today, store, trader = setup
+    dip = {"NVDA": [0.0] * 6 + [-0.05]}
+    before = version(store)
+    for hhmm in ("10:00", "10:15"):
+        trader.step(store, at(today, hhmm), bars=session(data, today, dip, hhmm))  # achète NVDA, puis le direct suit
+    assert version(store) != before  # les pages voient le changement et se rafraîchissent
+
+    cfg = ArenaConfig()
+    live = {e["id"]: e for e in latest(store)["bots"]}
+    board = {e["id"]: e for e in api.overview(store, cfg)["leaderboard"]}
+    for bot_id in ("gourmand", "tortue"):
+        detail, report = api.bot_detail(store, cfg, bot_id), bot_report(store, cfg, bot_id)
+        values = {live[bot_id]["equity"], board[bot_id]["equity"], detail["equity"], report["equity"]}
+        assert len(values) == 1, (bot_id, values)
+        assert detail["cash"] == report["cash"] == round(store.load_account(bot_id).cash, 2)
+    g = api.bot_detail(store, cfg, "gourmand")
+    assert g["positions"][0]["value_cad"] and g["equity"] == pytest.approx(g["cash"] + g["positions"][0]["value_cad"], abs=0.02)
+
+    # Un ordre passé après le dernier calcul du direct : le capital repart du compte, sans attendre.
+    acct = store.load_account("tortue")
+    from chubby.broker import PaperBroker
+    from chubby.intraday import overlay
+    fill = PaperBroker(cfg, overlay(data, session(data, today, dip, "10:15"))).buy(acct, "XIC.TO", 1, today)
+    store.add_trade("tortue", today, fill, time="10:20")
+    store.save_account(acct)
+    now = current(store)["tortue"]
+    assert now["cash"] == round(acct.cash, 2) and now["equity"] == pytest.approx(live["tortue"]["equity"], abs=1)
+    assert now["equity"] != live["tortue"]["equity"] or fill.value_cad == 0  # recalculé, pas recopié

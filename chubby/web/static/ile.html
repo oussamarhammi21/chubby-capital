@@ -1247,7 +1247,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     startDay(d.days.length - 1); // on rejoue la dernière séance
     // Pendant la bourse, l'île s'ouvre directement sur la vraie séance.
     fetch('/api/live').then(function (r) { return r.ok ? r.json() : null; }).then(function (lv) { applyLive(lv); if (lv && lv.ok && lv.open) setLive(true); }).catch(function () {});
-    setInterval(pollLive, 60000);
+    setInterval(pollLive, 60000); if (window.Chubby && Chubby.watch) Chubby.watch(pollLive);
   }).catch(function () { message('Impossible de charger l’arène. Le serveur « chubby web » tourne-t-il toujours ?'); });
 })();
 </script>

@@ -768,6 +768,7 @@ body.relief .hint { display: block; } body.relief.nopanels .hint { display: none
   });
   loadLive(true);
   setInterval(function () { if (!document.hidden) loadLive(false); }, 60000);
+  if (window.Chubby && Chubby.watch) Chubby.watch(function () { loadLive(false); });
 })();
 </script>
 </body>

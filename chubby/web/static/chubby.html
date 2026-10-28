@@ -214,11 +214,11 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
   function liveBot() { return live && live.ok && live.bots ? live.bots.filter(function (b) { return b.id === report.id; })[0] : null; }
 
   function renderValue(r) {
-    var lb = liveBot();
-    if (lb && !lb.settled) {
-      $('#value').textContent = money(lb.equity);
-      $('#value-sub').innerHTML = '<span class="' + cls(lb.change_cad) + '">' + signedMoney(lb.change_cad) + ' (' + pct(lb.change, 2) + ')</span> <span class="muted">' +
-        (live.open ? 'aujourd’hui, en direct à ' : 'séance du ' + esc(live.day) + ', à ') + esc(live.as_of) + '</span>';
+    // Le capital vient du serveur, calculé au même endroit pour toutes les vues (tableau, classement, ville).
+    if (r.live) {
+      $('#value').textContent = money(r.equity);
+      $('#value-sub').innerHTML = '<span class="' + cls(r.change_cad) + '">' + signedMoney(r.change_cad || 0) + ' (' + pct(r.day_change || 0, 2) + ')</span> <span class="muted">' +
+        (live && live.open ? 'aujourd’hui, en direct à ' : 'séance du ') + esc(String(r.as_of || '').split(' ').pop()) + '</span>';
     } else {
       $('#value').textContent = money(r.equity);
       var c = r.day_change;
@@ -481,9 +481,12 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
   fetch('/api/overview').then(function (r) { return r.json(); }).then(function (ov) {
     $('#pick').innerHTML = ov.leaderboard.map(function (e) { return '<option value="' + esc(e.id) + '"' + (e.id === id ? ' selected' : '') + '>' + esc(e.name) + '</option>'; }).join('');
   }).catch(function () {});
-  fetch('/api/bots/' + encodeURIComponent(id) + '/fiche').then(function (r) { if (!r.ok) throw new Error(r.status === 404 ? 'Chubby inconnu' : 'le serveur a répondu ' + r.status); return r.json(); }).then(function (r) {
-    report = r; renderHead(r); renderValue(r); renderRanges(); renderCurves(r); renderPending(r); renderPositions(r); renderWatch(r); renderActivity(r); renderTrips(r); renderMonthly(r); renderFilters(); renderDays();
-  }).catch(function (err) { var el = $('#error'); el.hidden = false; el.textContent = 'Impossible de charger la fiche : ' + err.message + '.'; });
+  function loadReport() {
+    return fetch('/api/bots/' + encodeURIComponent(id) + '/fiche').then(function (r) { if (!r.ok) throw new Error(r.status === 404 ? 'Chubby inconnu' : 'le serveur a répondu ' + r.status); return r.json(); }).then(function (r) {
+      report = r; renderHead(r); renderValue(r); renderRanges(); renderCurves(r); renderPending(r); renderPositions(r); renderWatch(r); renderActivity(r); renderTrips(r); renderMonthly(r); renderFilters(); renderDays();
+    }).catch(function (err) { var el = $('#error'); el.hidden = false; el.textContent = 'Impossible de charger la fiche : ' + err.message + '.'; });
+  }
+  loadReport();
   window.addEventListener('resize', function () { if (report) renderCurves(report); });
   // Pendant la bourse : la valeur, les positions et la watchlist suivent les vrais cours.
   function loadLive() {
@@ -492,6 +495,7 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
     }).catch(function () {});
   }
   loadLive(); setInterval(loadLive, 60000);
+  Chubby.watch(function () { loadReport(); loadLive(); }); // un ordre, un cours : la fiche suit, comme les autres vues
 })();
 </script>
 </body>

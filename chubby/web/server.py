@@ -36,6 +36,9 @@ def make_handler(db_path: str, cfg: ArenaConfig, live=None):
                 store = Store(db_path)  # une connexion par requête : l'arène peut écrire en même temps
                 if path == "/api/overview":
                     return self._json(api.overview(store, cfg))
+                if path == "/api/version":
+                    from ..capital import version
+                    return self._json({"version": version(store)})
                 if path == "/api/equity":
                     return self._json(api.equity_curves(store))
                 if path == "/api/live":

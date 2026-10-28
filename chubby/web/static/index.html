@@ -451,6 +451,7 @@ td.r, th.r { text-align: right; }
   load(); loadLive();
   setInterval(load, 60000);
   setInterval(loadLive, 60000);
+  Chubby.watch(function () { load(); loadLive(); }); // un ordre, un cours : tout se met à jour ensemble
 })();
 </script>
 </body>

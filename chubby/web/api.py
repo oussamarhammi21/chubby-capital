@@ -6,6 +6,7 @@ import json
 from dataclasses import asdict
 
 from ..bots import bot_class
+from .. import capital
 from ..config import ArenaConfig
 from ..scoring import metrics, score
 from ..store import Store
@@ -24,6 +25,7 @@ def overview(store: Store, cfg: ArenaConfig) -> dict:
                         " FROM events WHERE kind = 'fee' GROUP BY bot_id"):
         costs.setdefault(r["bot_id"], [0, 0.0])[1] += r["fees"]
     board = []
+    now = capital.current(store, cfg.starting_cash)
     for bot in _bots(store):
         eq = store.equity_series(bot["id"])
         if eq.empty:
@@ -34,9 +36,10 @@ def overview(store: Store, cfg: ArenaConfig) -> dict:
         n, fees = costs.get(bot["id"], [0, 0.0])
         board.append({
             "id": bot["id"], "name": bot["name"], "personality": bot["personality"],
-            "equity": round(float(eq.iloc[-1]), 2),
-            "day_change": float(eq.iloc[-1] / eq.iloc[-2] - 1) if len(eq) > 1 else 0.0,
-            "score": score(m), "metrics": asdict(m), "trades": n, "fees": round(fees, 2),
+            "equity": now[bot["id"]]["equity"], "cash": now[bot["id"]]["cash"],
+            "day_change": now[bot["id"]]["day_change"] or 0.0, "as_of": now[bot["id"]]["as_of"],
+            "live": now[bot["id"]]["live"],
+            "score": score(m), "metrics": {**asdict(m), "total_return": now[bot["id"]]["equity"] / cfg.starting_cash - 1}, "trades": n, "fees": round(fees, 2),
             "xp": bot["xp"], "level": bot["xp"] // 200 + 1, "aggressiveness": bot["aggressiveness"],
             "rank_move": (last_two[1]["rank"] - last_two[0]["rank"]) if len(last_two) == 2 else 0,
         })
@@ -67,7 +70,8 @@ def bot_detail(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
     if bot is None:
         return None
     last = db.execute("SELECT * FROM snapshots WHERE bot_id = ? ORDER BY day DESC LIMIT 1", (bot_id,)).fetchone()
-    values = json.loads(last["holdings"] or "{}") if last else {}
+    now = capital.current(store, cfg.starting_cash).get(bot_id)
+    values = now["values"] if now else {}
     real = store.real_option_quotes(last["day"]) if last else {}
     positions = [{"ticker": r["ticker"], "qty": r["qty"], "cost_cad": round(r["qty"] * r["avg_cost_cad"], 2),
                   "value_cad": values.get(r["ticker"]), "opened_on": r["opened_on"], "real_price": r["ticker"] in real}
@@ -81,9 +85,12 @@ def bot_detail(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
         "params": params, "ai": bool(cls and cls.ai),
         "id": bot_id, "name": bot["name"], "personality": bot["personality"],
         "xp": bot["xp"], "level": bot["xp"] // 200 + 1, "aggressiveness": bot["aggressiveness"],
-        "cash": round(last["cash"], 2) if last else cfg.starting_cash,
-        "equity": round(last["equity"], 2) if last else cfg.starting_cash,
-        "metrics": asdict(metrics(eq, cfg.starting_cash, cfg.cash_rate)) if not eq.empty else None,
+        "cash": now["cash"] if now else cfg.starting_cash,
+        "equity": now["equity"] if now else cfg.starting_cash,
+        "day_change": now["day_change"] if now else None, "as_of": now["as_of"] if now else None,
+        "metrics": {**asdict(metrics(eq, cfg.starting_cash, cfg.cash_rate)),
+                    "total_return": (now["equity"] if now else cfg.starting_cash) / cfg.starting_cash - 1}
+        if not eq.empty else None,
         "positions": sorted(positions, key=lambda p: -(p["value_cad"] or 0)),
         "trades": [dict(r) for r in db.execute(
             "SELECT day, ticker, side, qty, price, currency, fees_cad, value_cad FROM trades"
