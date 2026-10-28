@@ -226,7 +226,10 @@ def bot_report(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
     acct = store.load_account(bot_id)
     fx = lambda t: usdcad if currency_of(t) == "USD" else 1.0  # noqa: E731
     stops = cls().stops(acct.positions, params, fx) if cls else {}
-    equity = last["equity"] if last else cfg.starting_cash
+    from .capital import current
+    now = current(store, cfg.starting_cash).get(bot_id)  # la même valeur que le tableau, le classement et la ville
+    equity = now["equity"] if now else cfg.starting_cash
+    values = now["values"] if now else values
     positions = []
     for t, p in sorted(acct.positions.items()):
         value = values.get(t)
@@ -238,7 +241,7 @@ def bot_report(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
             "gain": round((value - cost) / abs(cost), 4) if value is not None and cost else None,
             # variation de la dernière séance, si la position était déjà là la veille (à quantité égale)
             "day_change": round((value - before[t]) / abs(before[t]), 4)
-            if value is not None and before.get(t) and p.opened_on < last["day"] else None,
+            if value is not None and before.get(t) and last and p.opened_on < last["day"] and not (now and now["live"]) else None,
             "unit_cost": round(p.avg_cost_cad / (fx(t) * (opt.MULTIPLIER if opt.is_option(t) else 1)), 2),
             "currency": currency_of(t),
             "stop": {"level": stops[t][0], "direction": stops[t][1]} if t in stops else None,
@@ -279,8 +282,11 @@ def bot_report(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
         "universe": len(cls.universe) if cls else 0,
         "params": [{"name": n, "value": spec.clamp(params.get(n, spec.default)), "default": spec.default,
                     "low": spec.low, "high": spec.high, "help": spec.help} for n, spec in (cls.params.items() if cls else [])],
-        "equity": round(equity, 2), "cash": round(last["cash"], 2) if last else cfg.starting_cash,
-        "score": score(m) if m else None, "metrics": asdict(m) if m else None,
+        "equity": round(equity, 2), "cash": now["cash"] if now else cfg.starting_cash,
+        "live": bool(now and now["live"]), "as_of": now["as_of"] if now else None,
+        "change_cad": now["change_cad"] if now else None,
+        "score": score(m) if m else None,
+        "metrics": {**asdict(m), "total_return": equity / cfg.starting_cash - 1} if m else None,
         "rank": last["rank"] if last else None,
         "curve": {"days": [str(d.date()) for d in eq.index], "equity": [round(float(v), 2) for v in eq],
                   "drawdown": [round(float(v), 4) for v in (eq / peak - 1)] if not eq.empty else [],
@@ -289,7 +295,7 @@ def bot_report(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
                   if twin and not twin_eq.empty else None},
         "positions": positions, "stats": stats, "pending": pending_orders(store, bot_id),
         "watchlist": store.get_watchlist(bot_id),
-        "day_change": round(last["equity"] / snaps[1]["equity"] - 1, 4) if len(snaps) > 1 and snaps[1]["equity"] else None,
+        "day_change": now["day_change"] if now and (now["live"] or len(snaps) > 1) else None,
         "activity": _activity(store, bot_id),
         "round_trips": closed[::-1],
         "open_trips": [{"ticker": s["ticker"], "start": s["start"], "cash_cad": round(s["cash"], 2)} for s in still_open.values()],

@@ -74,5 +74,21 @@
     st.textContent = '.tk-link{color:inherit;text-decoration:underline dotted;text-underline-offset:3px;cursor:pointer}.tk-link:hover{color:#6C5CE7;text-decoration-style:solid}';
     document.head.appendChild(st);
   }
-  window.Chubby = { link: link, LOOK: LOOK, look: look, avatar: avatar, baseId: baseId, isAI: isAI, pretty: pretty, esc: esc, money: money, pct: pct, cls: cls };
+  // Toutes les pages se rafraîchissent dès que quelque chose change (un ordre, un stop, un nouveau cours, la séance du
+  // soir) : le serveur donne une « version » qui change à chaque fois. On la regarde toutes les 10 secondes.
+  var watchers = [], seen = null;
+  function checkVersion() {
+    if (document.hidden) return;
+    fetch('/api/version').then(function (r) { return r.ok ? r.json() : null; }).then(function (v) {
+      if (!v) return;
+      var changed = seen !== null && v.version !== seen;
+      seen = v.version;
+      if (changed) watchers.forEach(function (cb) { try { cb(); } catch (e) { /* une vue en erreur ne bloque pas les autres */ } });
+    }).catch(function () {});
+  }
+  function watch(cb) {
+    if (!watchers.length) { checkVersion(); setInterval(checkVersion, 10000); document.addEventListener('visibilitychange', checkVersion); }
+    watchers.push(cb);
+  }
+  window.Chubby = { watch: watch, link: link, LOOK: LOOK, look: look, avatar: avatar, baseId: baseId, isAI: isAI, pretty: pretty, esc: esc, money: money, pct: pct, cls: cls };
 })();

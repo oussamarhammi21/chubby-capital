@@ -159,6 +159,7 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
     """Calcule la séance en direct de chaque Chubby et la garde dans la base (clé « live »)."""
     now = (now or datetime.now(TORONTO)).astimezone(TORONTO)
     bots = store.db.execute("SELECT id, name, personality FROM bots ORDER BY id").fetchall()
+    trade_id = store.db.execute("SELECT MAX(id) AS n FROM trades").fetchone()["n"] or 0  # ordres déjà comptés ici
     accounts = {b["id"]: store.load_account(b["id"]) for b in bots}
     stocks = {t for a in accounts.values() for t in a.positions if not opt.is_option(t)}
     stocks |= {r["ticker"] for r in store.db.execute("SELECT DISTINCT ticker FROM trades WHERE day = ? AND time IS NOT NULL",
@@ -207,7 +208,7 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
         held = json.loads(base_row["holdings"] or "{}") if base_row else {}
         # Les ordres passés en direct changent le cash et les quantités en cours de journée : la courbe en tient compte.
         curve, qty_paths, traded_unit = _intraday_paths(store, b["id"], str(day), session, held_acct)
-        movers = []
+        movers, held_now = [], []
         for t, qty in qty_paths.items():
             usd = currency_of(t) == "USD"
             now_qty = float(qty.iloc[-1])
@@ -231,6 +232,8 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
                 change = (now_value / last - 1) if quote and last else None
                 impact = now_value - last if quote else 0.0
             curve = curve + value
+            if now_qty:
+                held_now.append({"ticker": t, "qty": now_qty, "value_cad": round(float(value.iloc[-1]), 2)})
             if change is not None and now_qty:
                 movers.append({"ticker": t, "name": opt.describe(t) if opt.is_option(t) else t,
                                "change": round(change, 4), "impact_cad": round(impact, 2)})
@@ -268,6 +271,7 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
             "holdings": holdings_live, "watch": quotes,
             "curve": [round(float(v) / base - 1, 5) if base else 0.0 for v in curve],
             "settled": today_row is not None,
+            "cash": round(float(held_acct.cash), 2), "positions": held_now,
         })
     out_bots.sort(key=lambda e: -e["change"])
     indexes = []
@@ -282,7 +286,7 @@ def pulse(store: Store, fetch=yahoo_bars, chains=None, now: datetime | None = No
         market.append({"ticker": t, "last": round(last, 2), "change": round(last / prev[t] - 1, 4)})
     market.sort(key=lambda m: -abs(m["change"]))
     payload = {
-        "ok": True, "time": now.isoformat(timespec="minutes"), "day": str(day), "market": market[:60],
+        "ok": True, "time": now.isoformat(timespec="minutes"), "day": str(day), "market": market[:60], "trade_id": trade_id,
         "as_of": session.index[-1].strftime("%H:%M"), "open": market_open(now) and day == now.date(),
         "usdcad": round(float(fx.iloc[-1]), 4), "times": [t.strftime("%H:%M") for t in session.index],
         "indexes": indexes, "bots": out_bots,

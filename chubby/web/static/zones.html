@@ -1086,6 +1086,10 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     window.addEventListener('hashchange', function () { var id = decodeURIComponent(location.hash.slice(1)); if (id && byId[id] && current !== byId[id]) openFocus(byId[id]); });
     setInterval(pollLive, 60000);
     setInterval(pollActivity, 15000);
+    Chubby.watch(function () { // un ordre, un cours : le capital et le classement se mettent à jour partout ensemble
+      pollLive(); pollActivity();
+      getJSON('/api/overview').then(function (ov) { if (ov) { overview = ov; renderBoard(); } });
+    });
     setInterval(function () { if (!document.hidden) getJSON('/api/overview').then(function (ov) { if (ov) { overview = ov; if (boardTab === 'saison') renderBoard(); } }); }, 300000);
     setInterval(function () { if (!document.hidden && boardTab === 'jour') renderBoard(); }, 4000); // ce qu'ils font en ce moment
   });

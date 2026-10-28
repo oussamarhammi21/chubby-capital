@@ -152,6 +152,11 @@ class SessionTrader:
                 self._play(store, arena, bot, day, day_index, session, at_open, at_now, time)
             except Exception:
                 log.exception("%s n'a pas pu analyser la séance", bot.name)
+        try:  # le direct repart tout de suite des comptes à jour : toutes les vues montrent le même capital
+            from .live import pulse
+            pulse(store, fetch=lambda tickers: bars, chains=chains, now=now)
+        except Exception:
+            log.exception("Direct impossible après l'analyse")
         return self._status(store, now, None, time)
 
     def _catch_up(self, arena: Arena, day: pd.Timestamp) -> str | None:
