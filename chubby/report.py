@@ -282,6 +282,7 @@ def bot_report(store: Store, cfg: ArenaConfig, bot_id: str) -> dict | None:
         "universe": len(cls.universe) if cls else 0,
         "params": [{"name": n, "value": spec.clamp(params.get(n, spec.default)), "default": spec.default,
                     "low": spec.low, "high": spec.high, "help": spec.help} for n, spec in (cls.params.items() if cls else [])],
+        "starting_cash": cfg.starting_cash,
         "equity": round(equity, 2), "cash": now["cash"] if now else cfg.starting_cash,
         "live": bool(now and now["live"]), "as_of": now["as_of"] if now else None,
         "change_cad": now["change_cad"] if now else None,

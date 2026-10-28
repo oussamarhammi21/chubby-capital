@@ -48,7 +48,7 @@ h2 { margin: 0 0 14px; font: 600 24px var(--display); }
 .who b { font: 700 19px var(--display); }
 .who small { display: block; color: var(--muted); font-size: 13px; font-weight: 700; }
 .tag { font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,0.08); margin-left: 6px; vertical-align: 2px; }
-.nums { display: grid; grid-template-columns: repeat(5, minmax(78px, auto)); gap: 4px 18px; font-variant-numeric: tabular-nums; }
+.nums { display: grid; grid-template-columns: repeat(6, minmax(78px, auto)); gap: 4px 18px; font-variant-numeric: tabular-nums; }
 .nums div { display: flex; flex-direction: column; }
 .nums small { color: var(--muted); font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; }
 .nums span { font: 600 17px var(--display); }
@@ -221,7 +221,7 @@ td.r, th.r { text-align: right; }
       b.className = 'step'; b.type = 'button';
       b.innerHTML = avatar(e.id, i === 0 ? 'content' : moodOf(e), i === 0 ? 150 : 120, e.name + ', ' + (i + 1) + 'e') +
         '<div class="block" style="height:' + heights[i] + 'px;border-top-color:' + L.base + '"><span class="n" style="color:' + L.base + '">' + (i + 1) + '</span>' +
-        '<span class="nm">' + esc(e.name) + '</span><span class="' + cls(e.metrics.total_return) + '">' + pct(e.metrics.total_return) + '</span></div>';
+        '<span class="nm">' + esc(e.name) + '</span><span class="' + cls(e.metrics.total_return) + '" title="Depuis le début de la saison">' + pct(e.metrics.total_return) + '</span></div>';
       b.addEventListener('click', function () { openBot(e.id); });
       el.appendChild(b);
     });
@@ -241,7 +241,8 @@ td.r, th.r { text-align: right; }
         '<div class="who"><b>' + esc(e.name) + '</b><span class="tag">' + MOOD_LABEL[mood] + '</span><small>' + esc(e.personality) + ' · niv. ' + e.level + '</small></div>' +
         '<div class="nums">' +
         '<div><small>Capital</small><span>' + money(e.equity) + '</span></div>' +
-        '<div><small>Saison</small><span class="' + cls(m.total_return) + '">' + pct(m.total_return) + '</span></div>' +
+        '<div><small>Aujourd’hui</small><span class="' + cls(e.day_change) + '">' + pct(e.day_change || 0, 2) + '</span></div>' +
+        '<div><small>Depuis le début</small><span class="' + cls(m.total_return) + '">' + pct(m.total_return) + '</span></div>' +
         '<div><small>Pire baisse</small><span>' + pct(m.max_drawdown) + '</span></div>' +
         '<div><small>Frais</small><span>' + money(e.fees) + '</span></div>' +
         '<div><small>Score</small><span>' + e.score + '</span></div></div>';
@@ -420,7 +421,8 @@ td.r, th.r { text-align: right; }
         '<div class="stats">' +
         '<div><small>Capital</small><span>' + money(d.equity) + '</span></div>' +
         '<div><small>Cash</small><span>' + money(d.cash) + '</span></div>' +
-        '<div><small>Saison</small><span class="' + cls(m.total_return) + '">' + pct(m.total_return) + '</span></div>' +
+        '<div><small>Aujourd’hui</small><span class="' + cls(d.day_change || 0) + '">' + (d.day_change == null ? '—' : pct(d.day_change, 2)) + '</span></div>' +
+        '<div><small>Depuis le début</small><span class="' + cls(m.total_return) + '">' + pct(m.total_return) + '</span></div>' +
         '<div><small>Pire baisse</small><span>' + pct(m.max_drawdown) + '</span></div>' +
         '<div><small>Sharpe</small><span>' + m.sharpe.toFixed(2).replace('.', ',') + '</span></div>' +
         '<div><small>Semaines +</small><span>' + Math.round(m.regularity * 100) + ' %</span></div>' +

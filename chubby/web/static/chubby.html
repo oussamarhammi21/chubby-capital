@@ -207,23 +207,40 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
   function signedMoney(v) { return (v >= 0 ? '+' : '−') + money(Math.abs(v)); }
   var id = new URLSearchParams(location.search).get('id') || 'tortue';
   var report = null, live = null, filter = 'tout', shown = 25, range = 'TOUT';
-  var RANGES = [['1S', 5], ['1M', 21], ['3M', 63], ['AAJ', 'ytd'], ['1A', 252], ['TOUT', 0]];
+  var RANGES = [['1J', 1], ['1S', 5], ['1M', 21], ['3M', 63], ['AAJ', 'ytd'], ['1A', 252], ['TOUT', 0]];
 
   function tile(label, value, extra, klass) { return '<div><small>' + label + '</small><span class="' + (klass || '') + '">' + value + '</span>' + (extra ? '<em>' + extra + '</em>' : '') + '</div>'; }
 
   function liveBot() { return live && live.ok && live.bots ? live.bots.filter(function (b) { return b.id === report.id; })[0] : null; }
 
+  // La courbe des séances, plus le capital d'aujourd'hui (le même chiffre que partout ailleurs).
+  function fullCurve(r) {
+    var c = r.curve, days = c.days.slice(), eq = c.equity.slice(), dd = c.drawdown.slice(),
+        twin = c.twin ? c.twin.equity.slice() : null, today = String(r.as_of || '').split(' ')[0];
+    if (r.equity != null && days.length) {
+      if (today && today > days[days.length - 1]) { days.push(today); eq.push(r.equity); dd.push(null); if (twin) twin.push(null); }
+      else eq[eq.length - 1] = r.equity;
+      var peak = Math.max.apply(null, eq.concat([r.starting_cash || 10000]));
+      dd[dd.length - 1] = r.equity / peak - 1;
+    }
+    return { days: days, equity: eq, drawdown: dd, twin: c.twin ? { name: c.twin.name, equity: twin } : null };
+  }
+  function rangeLabel(r) {
+    var hour = String(r.as_of || '').split(' ')[1];
+    return { '1J': r.live ? (live && live.open ? 'aujourd’hui, en direct' + (hour ? ' à ' + hour : '') : 'séance du ' + String(r.as_of || '').split(' ')[0]) : 'dernière séance',
+             '1S': 'sur 1 semaine', '1M': 'sur 1 mois', '3M': 'sur 3 mois', 'AAJ': 'depuis le 1er janvier', '1A': 'sur 1 an',
+             'TOUT': 'depuis le début (' + money(r.starting_cash || 10000) + ')' }[range];
+  }
   function renderValue(r) {
     // Le capital vient du serveur, calculé au même endroit pour toutes les vues (tableau, classement, ville).
-    if (r.live) {
-      $('#value').textContent = money(r.equity);
-      $('#value-sub').innerHTML = '<span class="' + cls(r.change_cad) + '">' + signedMoney(r.change_cad || 0) + ' (' + pct(r.day_change || 0, 2) + ')</span> <span class="muted">' +
-        (live && live.open ? 'aujourd’hui, en direct à ' : 'séance du ') + esc(String(r.as_of || '').split(' ').pop()) + '</span>';
-    } else {
-      $('#value').textContent = money(r.equity);
-      var c = r.day_change;
-      $('#value-sub').innerHTML = c == null ? '<span class="muted">première séance</span>' : '<span class="' + cls(c) + '">' + pct(c, 2) + '</span> <span class="muted">dernière séance (' + esc(r.curve.days[r.curve.days.length - 1]) + ')</span>';
-    }
+    // Le % suit la période choisie sous la valeur : jour, semaine, mois… ou depuis le début.
+    $('#value').textContent = money(r.equity);
+    var c = fullCurve(r), k = c.days.length ? sliceStart(c.days) : 0, x = RANGES.filter(function (q) { return q[0] === range; })[0][1];
+    var start = r.starting_cash || 10000;
+    var base = k === 0 && (x === 0 || x === 'ytd' || c.days.length - 1 < x) ? start : c.equity[k];
+    if (range === '1J' && c.days.length < 2) base = start;
+    var diff = r.equity - base, p = base ? r.equity / base - 1 : 0;
+    $('#value-sub').innerHTML = '<span class="' + cls(diff) + '">' + signedMoney(diff) + ' (' + pct(p, 2) + ')</span> <span class="muted">' + esc(rangeLabel(r)) + '</span>';
     $('#cash').textContent = money(r.cash);
     $('#cash-sub').textContent = r.account + '. Le cash rapporte des intérêts chaque jour.';
   }
@@ -281,9 +298,9 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
   function renderRanges() {
     $('#ranges').innerHTML = '';
     RANGES.forEach(function (x) {
-      var b = document.createElement('button'); b.type = 'button'; b.textContent = x[0] === 'AAJ' ? 'Cette année' : x[0];
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = { '1J': 'Jour', 'AAJ': 'Cette année', 'TOUT': 'Tout' }[x[0]] || x[0];
       b.setAttribute('aria-pressed', String(range === x[0]));
-      b.addEventListener('click', function () { range = x[0]; renderRanges(); renderCurves(report); });
+      b.addEventListener('click', function () { range = x[0]; renderRanges(); renderValue(report); renderCurves(report); });
       $('#ranges').appendChild(b);
     });
   }
@@ -294,7 +311,7 @@ details.act dd { margin: 0; text-align: right; font-weight: 700; font-variant-nu
     return Math.max(0, days.length - 1 - x);
   }
   function renderCurves(r) {
-    var full = r.curve, k = full.days.length ? sliceStart(full.days) : 0;
+    var full = fullCurve(r), k = full.days.length ? sliceStart(full.days) : 0;
     var c = { days: full.days.slice(k), equity: full.equity.slice(k), drawdown: full.drawdown.slice(k),
               twin: full.twin ? { name: full.twin.name, equity: full.twin.equity.slice(k) } : null };
     var color = look(r.id).base, series = [{ values: c.equity, color: color }];
