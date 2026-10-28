@@ -117,11 +117,25 @@ class SessionTrader:
         if not self.due(now):
             return None
         self.last = now
+        store = store or Store(self.db_path)
+        if not self._claim(store, now):
+            return None
         try:
-            return self.step(store or Store(self.db_path), now)
+            return self.step(store, now)
         except Exception:
             log.exception("Analyse en séance impossible")
             return None
+
+    def _claim(self, store: Store, now: datetime) -> bool:
+        """Deux programmes ouverts en même temps (deux fenêtres `chubby web`) ne doivent pas trader deux fois :
+        le premier qui inscrit l'heure de son analyse la fait, l'autre attend la suivante."""
+        store.commit()
+        last = store.get_meta("intraday_claim")
+        if last and 0 <= (now - datetime.fromisoformat(last)).total_seconds() < self.every - 60:
+            return False
+        store.set_meta("intraday_claim", now.isoformat())
+        store.commit()
+        return True
 
     # --- Une vérification -------------------------------------------------
 
@@ -194,11 +208,12 @@ class SessionTrader:
         row = store.bot_row(bot.id)
         ctx = BotContext(day, at_now, broker_now, acct, row["aggressiveness"], day_index, store.get_params(bot.id),
                          intraday=True)
+        crashed = False
         try:
             decision = bot.decide(ctx)
         except Exception:
             log.exception("%s a planté pendant la séance", bot.name)
-            decision = None
+            decision, crashed = None, True
         frozen = traded | stale | {t for t in acct.positions if opt.is_option(t) and opt.parse(t)[0] in stale}
         if decision is not None:
             targets, trades = hold_frozen(decision, frozen, ctx.weights)
@@ -210,7 +225,7 @@ class SessionTrader:
         signature = [list(x) for x in sorted({(f.ticker, f.side) for f in plan})]
         if not signature:
             self.intents.pop(bot.id, None)
-            self._idle(store, bot, day, time)
+            self._idle(store, bot, ctx, time, crashed)
         elif self._confirms(bot.id, signature, time):
             fills = apply(broker_now, acct, targets, trades, day)
             self._record(store, bot, day, fills, time, why)
@@ -233,13 +248,39 @@ class SessionTrader:
         return bool(prev) and prev["signature"] == signature and \
             0 < _minutes(time) - _minutes(prev["time"]) <= 2 * self.every // 60 + 5
 
-    def _idle(self, store: Store, bot: Bot, day, time: str):
+    def _idle(self, store: Store, bot: Bot, ctx: BotContext, time: str, crashed: bool = False):
+        """Rien à faire : il le dit (au plus une fois par heure), avec ce qu'il guette et à quelle distance il est d'agir."""
         minutes = _minutes(time)
-        if minutes - self.idle_noted.get(bot.id, -10_000) < IDLE_NOTE_EVERY:
+        if not crashed and minutes - self.idle_noted.get(bot.id, -10_000) < IDLE_NOTE_EVERY:
             return
         self.idle_noted[bot.id] = minutes
-        store.event(day, bot.id, "analyse", time=time, intraday=True,
-                    why="J'ai refait mon analyse avec les cours du moment : rien à faire pour l'instant.")
+        if crashed:
+            why = "Mon analyse a échoué cette fois-ci (une donnée manquait) : je réessaie dans 15 minutes."
+        else:
+            why = "J'ai refait mon analyse avec les cours du moment : rien à faire pour l'instant." + self._closest(bot, ctx)
+        store.event(ctx.day, bot.id, "analyse", time=time, intraday=True, why=why)
+
+    @staticmethod
+    def _closest(bot: Bot, ctx: BotContext) -> str:
+        """Le seuil de décision le plus proche du cours actuel, en clair : ce qui le ferait agir."""
+        try:
+            items = bot.watchlist(ctx)
+        except Exception:
+            return ""
+        best = None
+        for ticker, why, *rest in items:
+            trig = rest[0] if rest else None
+            px = ctx.price(ticker)
+            if not trig or not px:
+                continue
+            gap = trig["level"] / px - 1
+            if best is None or abs(gap) < abs(best[0]):
+                best = (gap, ticker, trig)
+        if best is None:
+            return " Mes positions me conviennent."
+        gap, ticker, trig = best
+        return french(f" Le plus proche : {ticker} est à {abs(gap) * 100:.1f} % de mon {trig['label']} "
+                      f"({trig['level']:.2f}) ; s'il y arrive, {trig['then']}.")
 
     def _stops(self, store: Store, bot: Bot, acct, broker: PaperBroker, day, session: pd.DataFrame, time: str):
         """Un stop se déclenche dès que le cours le franchit depuis l'achat : exécuté au seuil (ou au cours, s'il a sauté)."""

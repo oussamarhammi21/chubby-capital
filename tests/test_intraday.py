@@ -1,5 +1,6 @@
 """Les Chubbies tradent pendant la séance : ouverture, confirmation, stops, et ce que le direct en montre."""
 
+import json
 from datetime import datetime
 
 import pandas as pd
@@ -255,3 +256,27 @@ def test_capital_is_the_same_in_every_view(setup):
     now = current(store)["tortue"]
     assert now["cash"] == round(acct.cash, 2) and now["equity"] == pytest.approx(live["tortue"]["equity"], abs=1)
     assert now["equity"] != live["tortue"]["equity"] or fill.value_cad == 0  # recalculé, pas recopié
+
+
+def test_two_open_programs_do_not_trade_twice(setup):
+    data, today, store, _ = setup
+    bars = session(data, today, {}, "10:00")
+    clock = [at(today, "10:00")]
+    a, b = (SessionTrader(":memory:", Arena(store, data, [Tortue()]).cfg, [Tortue()], load_daily=lambda t: data,
+                          fetch=lambda tickers: bars, clock=lambda: clock[0]) for _ in range(2))
+    assert a(store) is not None and b(store) is None  # le deuxième programme laisse faire le premier
+    clock[0] = at(today, "10:15")
+    assert b(store) is not None
+
+
+def test_idle_note_says_what_would_make_it_act(setup):
+    data, today, store, trader = setup
+    trader.step(store, at(today, "10:00"), bars=session(data, today, {}, "10:00"))
+    notes = [json.loads(r["payload"])["why"] for r in store.db.execute(
+        "SELECT payload FROM events WHERE kind = 'analyse' AND bot_id = 'tortue'")]
+    assert notes and "rien à faire" in notes[0] and "conviennent" in notes[0]
+    from chubby.broker import Account, PaperBroker
+    now = overlay(data, session(data, today, {}, "10:00"))
+    ctx = BotContext(today, now, PaperBroker(trader.cfg, now), Account("muffin", 10_000.0), 1.0, 0, {}, intraday=True)
+    line = SessionTrader._closest(Muffin(), ctx)  # Muffin guette des seuils de RSI : il dit lequel est le plus proche
+    assert "Le plus proche" in line and "RSI" in line
