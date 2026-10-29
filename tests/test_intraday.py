@@ -286,3 +286,29 @@ def test_idle_note_says_what_would_make_it_act(setup):
     ctx = BotContext(today, now, PaperBroker(trader.cfg, now), Account("muffin", 10_000.0), 1.0, 0, {}, intraday=True)
     line = SessionTrader._closest(Muffin(), ctx)  # Muffin guette des seuils de RSI : il dit lequel est le plus proche
     assert "Le plus proche" in line and "RSI" in line
+
+
+def test_a_crossed_threshold_acts_at_the_next_check_not_at_the_close():
+    """Jalapeño détient un call SPY : quand SPY passe sous le seuil de sa watchlist, il vend dès la vérification suivante."""
+    from chubby.bots.chubbies import Jalapeno
+
+    data = fake_market(300, seed=7)
+    days, store, bots = data.trading_days(), Store(":memory:"), [Jalapeno()]
+    Arena(store, data, bots).run(days[-3], days[-2])
+    store.set_params("jalapeno", {"stop": 0.7})  # le stop de secours plus loin : c'est le seuil de la watchlist qu'on teste
+    today, held = days[-1], next(iter(store.load_account("jalapeno").positions))
+    items = store.get_watchlist("jalapeno")["items"]
+    assert len({i["ticker"] for i in items}) == len(items)  # un titre, une seule ligne
+    spy = next(i for i in items if i["ticker"] == "SPY")
+    sell = next(t for t in spy["triggers"] if t["action"] == "sell")
+    assert spy["held"] and "il vend son call SPY" in sell["then"]
+    assert all(not i["triggers"] for i in items if i["ticker"] in ("IWM", "SMH"))  # une position à la fois : rien à guetter
+
+    trader = SessionTrader(":memory:", Arena(store, data, bots).cfg, bots, load_daily=lambda d: data)
+    path = {"SPY": [0.0, sell["level"] / data.price("SPY", days[-2]) - 1.003]}  # juste sous le seuil
+    sold = lambda: store.db.execute("SELECT time FROM trades WHERE bot_id = 'jalapeno' AND day = ? AND ticker = ?",  # noqa: E731
+                                    (str(today.date()), held)).fetchall()
+    trader.step(store, at(today, "10:00"), bars=session(data, today, path, "10:00"))
+    assert not sold()  # franchi une fois : il attend la confirmation
+    trader.step(store, at(today, "10:15"), bars=session(data, today, path, "10:15"))
+    assert [r["time"] for r in sold()] == ["10:15"]  # confirmé : vendu tout de suite, pas ce soir

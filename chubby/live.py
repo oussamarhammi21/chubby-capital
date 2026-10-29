@@ -339,20 +339,25 @@ def _intent_line(intent: dict) -> str:
 
 
 def _radar(watch: dict | None, session: pd.DataFrame) -> list[dict]:
-    """Ses seuils de décision contre le vrai cours : à quelle distance il est d'agir ce soir."""
+    """Ses seuils de décision contre le vrai cours : à quelle distance il est d'agir.
+
+    Ceux qui le feraient agir passent devant ; ceux qui ne changeraient rien pour l'instant (« none ») restent
+    visibles, à la fin, sans alerte."""
     out = []
     for item in (watch or {}).get("items", []):
-        trig, t = item.get("trigger"), item["ticker"]
-        if not trig or t not in session or not session[t].notna().any():
+        t = item["ticker"]
+        trigs = item.get("triggers") or ([item["trigger"]] if item.get("trigger") else [])
+        if not trigs or t not in session or not session[t].notna().any():
             continue
         prices = session[t].dropna()
         last = float(prices.iloc[-1])
-        below = trig["direction"] == "below"
-        crossed = last <= trig["level"] if below else last >= trig["level"]
-        touched = float(prices.min()) <= trig["level"] if below else float(prices.max()) >= trig["level"]
-        out.append({"ticker": t, "last": round(last, 2), "distance": round(trig["level"] / last - 1, 4),
-                    "crossed": bool(crossed), "touched": bool(touched), **trig})
-    return sorted(out, key=lambda x: (not x["crossed"], abs(x["distance"])))
+        for trig in trigs:
+            below = trig["direction"] == "below"
+            crossed = last <= trig["level"] if below else last >= trig["level"]
+            touched = float(prices.min()) <= trig["level"] if below else float(prices.max()) >= trig["level"]
+            out.append({"ticker": t, "last": round(last, 2), "distance": round(trig["level"] / last - 1, 4),
+                        "crossed": bool(crossed), "touched": bool(touched), "action": "trade", "at_close": False, **trig})
+    return sorted(out, key=lambda x: (x["action"] == "none", not x["crossed"], abs(x["distance"])))
 
 
 def _signed(v: float) -> str:
@@ -447,21 +452,31 @@ def _pct(v: float) -> str:
 
 
 def _radar_line(x: dict) -> str:
+    """Un seuil en clair : où en est le cours, et ce qu'il fera (ou pas) s'il le franchit."""
+    if x.get("action") == "none":
+        if x["crossed"]:
+            return french(f"{x['ticker']} a franchi mon {x['label']} ({x['level']:.2f}), mais ça ne change rien pour moi : {x['then']}.")
+        return french(f"{x['ticker']} est à {_pct(x['distance'])} de mon {x['label']} ({x['level']:.2f}) : même là, {x['then']}.")
+    if x.get("at_close"):
+        when = "si ça tient à la clôture"
+    else:
+        when = "si c'est toujours le cas à ma prochaine vérification (dans 15 minutes au plus)"
     if x["crossed"]:
-        return french(f"{x['ticker']} a franchi mon {x['label']} ({x['level']:.2f}) : si ça tient à la clôture, {x['then']}.")
+        return french(f"{x['ticker']} a franchi mon {x['label']} ({x['level']:.2f}) : {when}, {x['then']}.")
     return french(f"{x['ticker']} est à {_pct(x['distance'])} de mon {x['label']} ({x['level']:.2f}). "
-                  f"S'il y arrive à la clôture, {x['then']}.")
+                  f"S'il le franchit, {x['then']}" + (" à la clôture." if x.get("at_close") else " (après une vérification de confirmation)."))
 
 
 def _radar_reaction(radar: list[dict]) -> str | None:
-    hot = next((x for x in radar if x["crossed"] or abs(x["distance"]) < 0.015), None)
+    hot = next((x for x in radar if x.get("action") != "none" and (x["crossed"] or abs(x["distance"]) < 0.015)), None)
     return _radar_line(hot) if hot else None
 
 
 def _thoughts(stops: list[dict], radar: list[dict]) -> list[str]:
     """Ce qu'il a en tête en ce moment : ses stops proches et ses seuils les plus proches, du plus urgent au moins urgent."""
     lines = [_stop_reaction([x]) for x in stops if x["hit"] or abs(x["distance"] or 1) < STOP_WATCH]
-    close = [x for x in radar if x["crossed"] or abs(x["distance"]) < 0.05] or radar[:1]  # les plus proches d'agir
+    acting = [x for x in radar if x.get("action") != "none"]
+    close = [x for x in acting if x["crossed"] or abs(x["distance"]) < 0.05] or acting[:1]  # les plus proches d'agir
     lines += [_radar_line(x) for x in close[:3]]
     return [line for line in lines if line][:4]
 
