@@ -128,7 +128,7 @@ class Bot(ABC):
                 "action": action, "at_close": at_close}
 
     def stops(self, positions: dict, params: dict[str, float], fx) -> dict[str, tuple[float, str]]:
-        """Ordres stop laissés chez le courtier : {ticker: (prix de déclenchement, "below" ou "above")}.
+        """Stop-loss laissés chez le courtier : {ticker: (prix de déclenchement, "below" ou "above")}.
 
         Le prix est dans la devise du titre ; fx(ticker) donne le cours en CAD de cette devise.
         Ils ne dépendent que du coût d'achat et des réglages : rien du futur.

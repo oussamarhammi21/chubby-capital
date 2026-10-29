@@ -38,7 +38,7 @@ def _print_board(arena: Arena):
                         " FROM events WHERE kind = 'fee' GROUP BY bot_id"):
         n, fees = costs.get(r["bot_id"], (0, 0.0))
         costs[r["bot_id"]] = (n, fees + r["fees"])  # le forfait mensuel compte aussi
-    print(f"\n{'#':>2}  {'Chubby':<15} {'Capital':>12} {'Saison':>8} {'Pire baisse':>12} {'Sharpe':>7}"
+    print(f"\n{'#':>2}  {'Chubby':<15} {'Capital':>12} {'Saison':>8} {'Max drawdown':>12} {'Sharpe':>7}"
           f" {'Trades':>7} {'Frais':>9} {'Score':>6}")
     for i, e in enumerate(arena.leaderboard(), 1):
         m = e["metrics"]

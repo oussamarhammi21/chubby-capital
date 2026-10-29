@@ -31,13 +31,13 @@ class Tortue(Bot):
     rules = [
         "Met {canada:.0%} dans l'indice canadien (XIC, ~220 sociétés du TSX) et le reste dans le S&P 500 (VFV, 500 grandes sociétés américaines).",
         "Garde environ 2 % en cash. Réinvestit les dividendes quand ils s'accumulent.",
-        "Ne rééquilibre que si un poids s'éloigne de plus de 10 points de sa cible. Sinon, elle ne fait rien : c'est le groupe témoin de l'arène.",
+        "Ne rebalance que si un poids s'éloigne de plus de 10 points de sa cible. Sinon, elle ne fait rien : c'est le groupe témoin de l'arène.",
     ]
 
     def watchlist(self, ctx):
         invested, canada = ctx.invest_fraction(0.98), self.p(ctx, "canada")
         targets = {"XIC.TO": invested * canada, "VFV.TO": invested * (1 - canada)}
-        return [(t, f"poids {ctx.weights.get(t, 0.0):.0%} pour une cible de {w:.0%} ; rééquilibre à 10 points d'écart")
+        return [(t, f"poids {ctx.weights.get(t, 0.0):.0%} pour une cible de {w:.0%} ; rebalance à 10 points d'écart")
                 for t, w in targets.items()]
 
     def decide(self, ctx: BotContext) -> Decision:
@@ -64,7 +64,7 @@ class Flan(Bot):
     rules = [
         "Choisit parmi 16 grands payeurs de dividendes (banques, pipelines, télécoms, services publics, Coca-Cola, P&G…).",
         "Rendement des 12 derniers mois entre {min_yield:.1%} et {max_yield:.1%} : au-delà, le dividende risque d'être coupé.",
-        "Écarte un titre qui vaut moins de 90 % de sa moyenne 200 jours (une société en chute libre).",
+        "Écarte un titre qui vaut moins de 90 % de sa SMA 200 (une société en chute libre).",
         "Garde les {holdings:.0f} meilleurs rendements à parts égales, et revoit sa liste le premier jour de chaque mois.",
         "Les dividendes de ses quelques titres américains subissent une retenue de 15 % (dans un CELI).",
     ]
@@ -88,7 +88,7 @@ class Flan(Bot):
                 why, trig = "rendement trop beau pour être vrai", self.trigger(ttm / hi, "above", f"rendement raisonnable ({hi:.1%})",
                                                                               "il redevient éligible (il achète au début du mois)", action="none", at_close=True)
             elif px <= 0.9 * sma200:
-                why, trig = "sous sa moyenne 200 jours", self.trigger(0.9 * sma200, "above", "seuil de 90 % de la moyenne 200 jours",
+                why, trig = "sous sa SMA 200", self.trigger(0.9 * sma200, "above", "seuil de 90 % de la SMA 200",
                                                                      "il redevient éligible (il achète au début du mois)", action="none", at_close=True)
             else:
                 why, trig = "éligible, pas dans son top", None
@@ -126,7 +126,7 @@ class Dumpling(Bot):
     params = {
         "bonds": Param(0.28, 0.10, 0.50, "part en obligations (ZAG)"),
         "gold": Param(0.05, 0.0, 0.15, "part en or (CGL)"),
-        "drift": Param(0.05, 0.03, 0.10, "écart toléré avant de rééquilibrer"),
+        "drift": Param(0.05, 0.03, 0.10, "écart toléré avant de rebalancer"),
     }
     rules = [
         "Mélange fixe : actions canadiennes (VCN), américaines (VFV), internationales (XEF) et émergentes (XEC), "
@@ -143,7 +143,7 @@ class Dumpling(Bot):
         return {t: w * scale for t, w in mix.items() if w > 0}
 
     def watchlist(self, ctx):
-        return [(t, f"poids {ctx.weights.get(t, 0.0):.0%} pour une cible de {w:.0%} ; rééquilibre à {self.p(ctx, 'drift'):.0%} d'écart")
+        return [(t, f"poids {ctx.weights.get(t, 0.0):.0%} pour une cible de {w:.0%} ; rebalance à {self.p(ctx, 'drift'):.0%} d'écart")
                 for t, w in self._targets(ctx).items()]
 
     def decide(self, ctx: BotContext) -> Decision:
@@ -154,30 +154,30 @@ class Dumpling(Bot):
         targets = {t: w * scale for t, w in mix.items() if w > 0}
         drift = max(abs(ctx.weights.get(t, 0.0) - targets.get(t, 0.0)) for t in self.universe)
         if not ctx.account.positions or drift > self.p(ctx, "drift") or ctx.has_idle_cash(scale):
-            return Decision(targets, [f"Mes poids ont dérivé de {drift:.0%}, je rééquilibre."])
+            return Decision(targets, [f"Mes poids ont dérivé de {drift:.0%}, je rebalance."])
         return Decision(None)
 
 
 class Mochi(Bot):
-    """Suit la tendance : garde les titres les plus forts sur 3 mois, coupe ce qui casse.
+    """Suit le trend : garde les titres les plus forts sur 3 mois, coupe ce qui casse.
 
     Pour limiter les frais, un titre détenu reste tant qu'il est dans le top 10 :
     Mochi ne remplace que ce qui décroche vraiment.
     """
 
-    id, name, personality = "mochi", "Mochi", "Chasseur de tendance · momentum"
+    id, name, personality = "mochi", "Mochi", "Chasseur de trend · momentum"
     universe = BROAD
     params = {
         "holdings": Param(5, 3, 8, "nombre de titres visés", integer=True),
         "keep_rank": Param(10, 6, 15, "un titre détenu reste tant qu'il est dans ce top", integer=True),
-        "lookback": Param(63, 42, 126, "période de mesure de la tendance, en séances", integer=True),
+        "lookback": Param(63, 42, 126, "période de mesure du trend, en séances", integer=True),
     }
     rules = [
         "Chaque semaine, classe 100 grandes sociétés canadiennes et américaines selon leur hausse des {lookback:.0f} dernières séances.",
-        "Ne retient que celles au-dessus de leur moyenne 50 jours, et vise les {holdings:.0f} plus fortes.",
+        "Ne retient que celles au-dessus de leur SMA 50, et vise les {holdings:.0f} plus fortes.",
         "Garde un titre tant qu'il reste dans le top {keep_rank:.0f}, pour ne pas payer des frais à chaque petite variation.",
-        "Chaque soir, vend un titre qui passe 3 % sous sa moyenne 50 jours : la tendance est cassée.",
-        "Pendant la séance, il vérifie toutes les 15 minutes : il coupe une tendance qui casse sans attendre le soir, "
+        "Chaque soir, vend un titre qui passe 3 % sous sa SMA 50 : le trend est cassé.",
+        "Pendant la séance, il vérifie toutes les 15 minutes : il coupe un trend qui casse sans attendre le soir, "
         "et place le cash qui dort sur les titres les plus forts du moment.",
     ]
 
@@ -193,10 +193,10 @@ class Mochi(Bot):
 
     def watchlist(self, ctx):
         lookback = int(self.p(ctx, "lookback"))
-        held = [(t, "détenu : il le garde tant que la tendance tient",
-                 self.trigger(ind.cross_level(ctx.closes(t, 60), 50, 0.97), "below", "seuil de sortie (3 % sous la moyenne 50 jours)",
+        held = [(t, "détenu : il le garde tant que le trend tient",
+                 self.trigger(ind.cross_level(ctx.closes(t, 60), 50, 0.97), "below", "seuil de sortie (3 % sous la SMA 50)",
                               "il le vend", held=True, action="sell")) for t in ctx.account.positions]
-        watched = [(t, f"{i}e du classement : {r:+.0%} sur {lookback} séances, au-dessus de sa moyenne 50 jours")
+        watched = [(t, f"{i}e du classement : {r:+.0%} sur {lookback} séances, au-dessus de sa SMA 50")
                    for i, (r, t) in enumerate(self._ranking(ctx), 1) if t not in ctx.account.positions][:8]
         return held + watched
 
@@ -211,7 +211,7 @@ class Mochi(Bot):
         weights = dict(ctx.weights)
         room = max(0.0, ctx.invest_fraction(0.96) - sum(weights.values()))
         weights.update({t: room / len(new) for t in new})
-        return Decision(weights, [f"Du cash dort : j'ajoute {', '.join(new)}, parmi les tendances les plus fortes du moment."])
+        return Decision(weights, [f"Du cash dort : j'ajoute {', '.join(new)}, parmi les trends les plus forts du moment."])
 
     def decide(self, ctx: BotContext) -> Decision:
         held = set(ctx.account.positions)
@@ -230,7 +230,7 @@ class Mochi(Bot):
             if not broken:
                 return Decision(None)
             keep = {t: w for t, w in ctx.weights.items() if t not in broken}
-            return Decision(keep, [f"{', '.join(sorted(broken))} casse sa moyenne 50 jours, je coupe."])
+            return Decision(keep, [f"{', '.join(sorted(broken))} casse sa SMA 50, je coupe."])
         keep_rank = int(self.p(ctx, "keep_rank"))
         order = [t for _, t in self._ranking(ctx)]
         kept = [t for t in order[:keep_rank] if t in held and t not in broken]
@@ -238,7 +238,7 @@ class Mochi(Bot):
         if set(kept + new) == held:
             return Decision(None)
         if not kept and not new:
-            return Decision({}, ["Aucune tendance claire. Je reste au cash."])
+            return Decision({}, ["Aucun trend clair. Je reste au cash."])
         weights = {t: w for t, w in ctx.weights.items() if t in kept}  # on ne touche pas aux gagnants
         room = max(0.0, ctx.invest_fraction(0.96) - sum(weights.values()))
         weights.update({t: room / len(new) for t in new} if new else {})
@@ -250,7 +250,7 @@ class Mochi(Bot):
 
 
 class Muffin(Bot):
-    """Achète les bons titres quand ils sont survendus, revend quand ils rebondissent."""
+    """Achète les bons titres quand ils sont oversold, revend quand ils rebondissent."""
 
     id, name, personality = "muffin", "Muffin", "Chasseur d'aubaines · value"
     universe = BROAD
@@ -264,11 +264,11 @@ class Muffin(Bot):
     }
     rules = [
         "Cherche, parmi 100 grandes sociétés, celles dont le RSI (force sur 14 jours) est sous {rsi_buy:.0f} : elles ont beaucoup baissé récemment.",
-        "Ne les achète que si elles restent au-dessus de 95 % de leur moyenne 200 jours : une bonne société en solde, pas une qui s'effondre.",
-        "Au plus {max_positions:.0f} positions, environ 15 % du capital chacune, les plus survendues d'abord.",
+        "Ne les achète que si elles restent au-dessus de 95 % de leur SMA 200 : une bonne société en solde, pas une qui s'effondre.",
+        "Au plus {max_positions:.0f} positions, environ 15 % du capital chacune, les plus oversold d'abord.",
         "Revend quand le RSI remonte au-dessus de {rsi_sell:.0f} (le rebond est venu) ou après {max_days:.0f} jours.",
         "Vend le soir un titre qui clôture à -{stop:.0%} ou plus sous son prix d'achat. Il ne regarde qu'à la clôture : "
-        "un titre survendu plonge souvent pendant la journée puis remonte, et vendre au creux ferait rater le rebond.",
+        "un titre oversold plonge souvent pendant la journée puis remonte, et vendre au creux ferait rater le rebond.",
         "Stop de secours chez le courtier à -{crash_stop:.0%}, déclenché pendant la séance : la protection contre un vrai effondrement.",
         "Pendant la séance, il refait son calcul toutes les 15 minutes avec le cours du moment : il achète au creux, "
         "dès que le RSI passe sous {rsi_buy:.0f}, et revend dans la journée où le rebond arrive.",
@@ -313,7 +313,7 @@ class Muffin(Bot):
             r = ind.rsi(ctx.closes(t, 30))
             unit_value = values.get(t, 0.0) / pos.qty
             held_days = (ctx.day - pd.Timestamp(pos.opened_on)).days
-            # Le -8 % ne se vérifie qu'à la clôture : pendant la séance, un titre survendu plonge souvent puis remonte.
+            # Le -8 % ne se vérifie qu'à la clôture : pendant la séance, un titre oversold plonge souvent puis remonte.
             stopped = not ctx.intraday and unit_value < (1 - stop) * pos.avg_cost_cad
             if (r is not None and r > rsi_sell) or held_days > max_days or stopped:
                 weights.pop(t, None)
@@ -329,7 +329,7 @@ class Muffin(Bot):
             if r is not None and sma200 and r < rsi_buy and closes.iloc[-1] > 0.95 * sma200:
                 bargains.append((r, t))
         room = max(0, int(self.p(ctx, "max_positions")) - len(weights))
-        for r, t in sorted(bargains)[:room]:  # les plus survendus d'abord
+        for r, t in sorted(bargains)[:room]:  # les plus oversold d'abord
             weights[t] = self.slot * ctx.aggressiveness
             changed = True
             notes.append(f"{t} est en solde (RSI {r:.0f}), j'en prends.")
@@ -344,27 +344,27 @@ class Muffin(Bot):
 class Jalapeno(Bot):
     """Le casse-cou : achète des options sur l'indice ou le FNB le plus en forme.
 
-    Calls quand le Nasdaq est au-dessus de sa moyenne 200 jours, petits puts quand il est en dessous.
-    Une seule position à la fois, une partie du capital en primes, le reste au cash.
-    Sort sur objectif de gain, sur stop, si la tendance s'inverse ou à 7 jours de l'échéance.
+    Calls quand le Nasdaq est au-dessus de sa SMA 200, petits puts quand il est en dessous.
+    Une seule position à la fois, une partie du capital en premiums, le reste au cash.
+    Sort sur objectif de gain, sur stop, si le trend s'inverse ou à 7 jours de l'expiry.
     """
 
     id, name, personality = "jalapeno", "Jalapeño", "Casse-cou · options"
     universe = ["QQQ", "SPY", "IWM", "SMH"]
     params = {
-        "budget": Param(0.30, 0.10, 0.50, "part du capital mise en primes d'options"),
-        "otm": Param(0.05, 0.0, 0.10, "distance du prix d'exercice (hors de la monnaie)"),
+        "budget": Param(0.30, 0.10, 0.50, "part du capital mise en premiums d'options"),
+        "otm": Param(0.05, 0.0, 0.10, "distance du strike (OTM)"),
         "take_profit": Param(1.0, 0.5, 2.0, "gain qui déclenche la vente (1,0 = +100 %)"),
         "stop": Param(0.5, 0.3, 0.7, "perte qui déclenche la vente (0,5 = -50 %)"),
-        "dte": Param(40, 21, 75, "jours avant l'échéance au moment de l'achat", integer=True),
+        "dte": Param(40, 21, 75, "jours avant l'expiry au moment de l'achat", integer=True),
     }
     rules = [
-        "Regarde le Nasdaq (QQQ) : au-dessus de sa moyenne 200 jours, le marché est haussier ; en dessous, baissier.",
-        "Marché haussier : achète des calls (paris à la hausse) sur l'indice ou le FNB le plus en forme parmi QQQ, SPY, IWM et SMH. "
-        "Marché baissier : petits puts (paris à la baisse).",
-        "Prix d'exercice à {otm:.0%} du cours, échéance dans environ {dte:.0f} jours. Une seule position à la fois.",
-        "Met {budget:.0%} de son capital en primes (la moitié en marché baissier). Le reste dort au cash et rapporte des intérêts.",
-        "Vend à +{take_profit:.0%} de gain, à 7 jours de l'échéance, ou si la tendance s'inverse. Ordre stop à -{stop:.0%}.",
+        "Regarde le Nasdaq (QQQ) : au-dessus de sa SMA 200, le marché est bullish ; en dessous, bearish.",
+        "Marché bullish : achète des calls (paris bullish) sur l'indice ou le FNB le plus en forme parmi QQQ, SPY, IWM et SMH. "
+        "Marché bearish : petits puts (paris bearish).",
+        "Strike à {otm:.0%} du cours, expiry dans environ {dte:.0f} jours. Une seule position à la fois.",
+        "Met {budget:.0%} de son capital en premiums (la moitié en marché bearish). Le reste dort au cash et rapporte des intérêts.",
+        "Vend à +{take_profit:.0%} de gain, à 7 jours de l'expiry, ou si le trend s'inverse. Stop-loss à -{stop:.0%}.",
         "Une option peut perdre toute sa valeur : c'est le Chubby le plus risqué de l'arène.",
     ]
 
@@ -394,12 +394,12 @@ class Jalapeno(Bot):
         best = max(ready_now, key=ready_now.get) if ready_now else None
         out = []
         for t, r10, above, level in rows:
-            trend = f"{r10:+.1%} sur 10 jours, {'au-dessus de' if above else 'sous'} sa moyenne 20 jours"
-            if mine and mine[0] == t:  # sa position : la moyenne 20 jours décide s'il la garde
+            trend = f"{r10:+.1%} sur 10 jours, {'au-dessus de' if above else 'sous'} sa SMA 20"
+            if mine and mine[0] == t:  # sa position : la SMA 20 décide s'il la garde
                 call = mine[1] == "C"
-                why = f"détenu ({opt.describe(held)}) : {trend}. Il le garde tant que la tendance tient."
-                trig = self.trigger(level, "below" if call else "above", "moyenne 20 jours",
-                                    f"il vend son {opt.describe(held)} (la tendance s'inverse)", held=True, action="sell")
+                why = f"détenu ({opt.describe(held)}) : {trend}. Il le garde tant que le trend tient."
+                trig = self.trigger(level, "below" if call else "above", "SMA 20",
+                                    f"il vend son {opt.describe(held)} (le trend s'inverse)", held=True, action="sell")
             elif mine:  # une seule position à la fois : les autres attendent leur tour
                 why = f"{trend}. En réserve : il a déjà son {opt.describe(held)}, une seule position à la fois."
                 trig = None
@@ -408,15 +408,15 @@ class Jalapeno(Bot):
                 if ready:
                     why = (f"{trend} : prêt pour des {side}. " + ("C'est son premier choix." if t == best
                            else f"Second choix : {best} est plus en forme."))
-                    trig = self.trigger(level, "below" if bull else "above", "moyenne 20 jours",
+                    trig = self.trigger(level, "below" if bull else "above", "SMA 20",
                                         f"il le retire de ses choix pour des {side}", action="none")
                 elif (r10 > 0) == bull:  # bon élan, mauvais côté de la moyenne : c'est elle qu'il attend
-                    why = f"{trend} : il attend qu'il repasse {'au-dessus de' if bull else 'sous'} sa moyenne 20 jours."
+                    why = f"{trend} : il attend qu'il repasse {'au-dessus de' if bull else 'sous'} sa SMA 20."
                     if best is None or abs(r10) > ready_now[best]:
-                        trig = self.trigger(level, "above" if bull else "below", "moyenne 20 jours",
+                        trig = self.trigger(level, "above" if bull else "below", "SMA 20",
                                             f"il achète des {side} {t}" + (f" plutôt que sur {best}" if best else ""), action="buy")
                     else:
-                        trig = self.trigger(level, "above" if bull else "below", "moyenne 20 jours",
+                        trig = self.trigger(level, "above" if bull else "below", "SMA 20",
                                             f"rien de plus : {best} reste plus en forme pour ses {side}", action="none")
                 else:
                     why = f"{trend} : pas dans le bon sens pour des {side}, il ne fera rien dessus pour l'instant."
@@ -426,11 +426,11 @@ class Jalapeno(Bot):
             regime_then = f"rien tout de suite : il garde son {opt.describe(held)}, puis jouera les {'puts' if bull else 'calls'}"
             regime_action = "none"
         else:
-            regime_then = "il passe aux puts (paris à la baisse)" if bull else "il repasse aux calls (paris à la hausse)"
+            regime_then = "il passe aux puts (paris bearish)" if bull else "il repasse aux calls (paris bullish)"
             regime_action = "mood"
         regime = [("QQQ", f"le Nasdaq décide de son humeur : il joue les {side} tant qu'il reste "
-                          f"{'au-dessus de' if bull else 'sous'} sa moyenne 200 jours",
-                   self.trigger(ind.cross_level(nasdaq, 200), "below" if bull else "above", "moyenne 200 jours du Nasdaq",
+                          f"{'au-dessus de' if bull else 'sous'} sa SMA 200",
+                   self.trigger(ind.cross_level(nasdaq, 200), "below" if bull else "above", "SMA 200 du Nasdaq",
                                 regime_then, action=regime_action))]
         return regime + [(t, why, trig) for *_, t, why, trig in sorted(out, key=lambda x: x[:2])]
 
@@ -464,8 +464,8 @@ class Jalapeno(Bot):
         premium = ctx.data.price(sym, ctx.day)
         side = "calls" if kind == "C" else "puts"
         return Decision({sym: weight}, [
-            f"J'achète des {side} {under} {strike:g} échéance {expiry.date()} "
-            f"(prime ≈ {premium * 100:,.0f} $ US par contrat). {'Ça monte' if bull else 'Ça baisse'}, j'y vais !"])
+            f"J'achète des {side} {under} {strike:g} expiry {expiry.date()} "
+            f"(premium ≈ {premium * 100:,.0f} $ US par contrat). {'Ça monte' if bull else 'Ça baisse'}, j'y vais !"])
 
     def _manage(self, ctx: BotContext, sym: str) -> Decision:
         under, kind, strike, expiry = opt.parse(sym)
@@ -482,21 +482,21 @@ class Jalapeno(Bot):
         elif gain <= -self.p(ctx, "stop"):
             why = f"stop ({gain:+.0%})"
         elif days_left <= 7:
-            why = f"échéance dans {days_left} jours ({gain:+.0%})"
+            why = f"expiry dans {days_left} jours ({gain:+.0%})"
         elif reversed_:
-            why = f"la tendance s'inverse ({gain:+.0%})"
+            why = f"le trend s'inverse ({gain:+.0%})"
         if why is None:
             return Decision(None)
         return Decision({}, [f"Je vends mon {opt.describe(sym)} : {why}."])
 
 
 class JalapenoV2(Bot):
-    """Le casse-cou devenu vendeur d'options : il encaisse les primes que les acheteurs paient.
+    """Le casse-cou devenu vendeur d'options : il encaisse les premiums que les acheteurs paient.
 
-    La « roue » : il vend un put garanti par son cash sur un FNB bon marché. Si le put expire sans
-    valeur, il garde la prime et recommence. S'il est exercé, il reçoit les actions et vend des calls
+    La « roue » : il vend un cash-secured put sur un FNB bon marché. Si le put expire sans
+    valeur, il garde le premium et recommence. S'il est exercé, il reçoit les actions et vend des calls
     couverts dessus jusqu'à ce qu'elles soient reprises. Il rachète une option quand il a déjà gagné
-    une bonne partie de la prime, ou pour couper une perte si elle s'emballe.
+    une bonne partie du premium, ou pour couper une perte si elle s'emballe.
     Gagne souvent un peu ; peut perdre gros si le marché s'effondre.
     """
 
@@ -504,24 +504,24 @@ class JalapenoV2(Bot):
     universe = ["XLF", "EEM", "SLV", "KRE", "GDX"]
     signals = ["QQQ"]
     params = {
-        "otm": Param(0.05, 0.02, 0.10, "distance du prix d'exercice sous (put) ou au-dessus (call) du cours"),
-        "dte": Param(35, 21, 60, "jours avant l'échéance au moment de vendre", integer=True),
-        "take_profit": Param(0.5, 0.3, 0.9, "part de la prime gagnée qui déclenche le rachat"),
-        "stop": Param(3.0, 2.0, 5.0, "rachat si l'option vaut ce multiple de la prime reçue"),
+        "otm": Param(0.05, 0.02, 0.10, "distance du strike sous (put) ou au-dessus (call) du cours"),
+        "dte": Param(35, 21, 60, "jours avant l'expiry au moment de vendre", integer=True),
+        "take_profit": Param(0.5, 0.3, 0.9, "part du premium gagné qui déclenche le rachat"),
+        "stop": Param(3.0, 2.0, 5.0, "rachat si l'option vaut ce multiple du premium reçu"),
         "budget": Param(0.9, 0.3, 1.0, "part du cash libre engagée en garantie de puts"),
     }
     rules = [
-        "Vend des puts sur des FNB abordables (XLF, EEM, SLV, KRE, GDX) : il encaisse une prime en promettant d'acheter "
-        "100 actions au prix d'exercice si le FNB baisse sous ce prix.",
-        "Chaque put est entièrement garanti par son cash : il engage au plus {budget:.0%} de son cash libre (la moitié si le Nasdaq est sous sa moyenne 200 jours).",
-        "Prix d'exercice à {otm:.0%} sous le cours, échéance dans environ {dte:.0f} jours. Il choisit le FNB qui paie la plus grosse prime.",
-        "Rachète l'option quand il a gagné {take_profit:.0%} de la prime. Ordre stop : rachat si elle vaut {stop:.1f} fois la prime reçue.",
-        "S'il est exercé, il reçoit les actions et vend des calls couverts dessus jusqu'à ce qu'elles soient reprises : c'est « la roue ».",
+        "Vend des puts sur des FNB abordables (XLF, EEM, SLV, KRE, GDX) : il encaisse un premium en promettant d'acheter "
+        "100 actions au strike si le FNB baisse sous ce prix.",
+        "Chaque put est entièrement garanti par son cash : il engage au plus {budget:.0%} de son cash libre (la moitié si le Nasdaq est sous sa SMA 200).",
+        "Strike à {otm:.0%} sous le cours, expiry dans environ {dte:.0f} jours. Il choisit le FNB qui paie le plus gros premium.",
+        "Rachète l'option quand il a gagné {take_profit:.0%} du premium. Stop-loss : rachat si elle vaut {stop:.1f} fois le premium reçu.",
+        "S'il est exercé, il reçoit les actions et vend des covered calls dessus jusqu'à ce qu'elles soient reprises : c'est « la roue ».",
         "Gagne souvent un peu, mais peut perdre gros dans un krach.",
     ]
 
     def stops(self, positions, params, fx):
-        # racheter l'option vendue si elle vaut `stop` fois la prime encaissée
+        # racheter l'option vendue si elle vaut `stop` fois le premium encaissé
         stop = self.param(params, "stop")
         return {t: (round(p.avg_cost_cad / (opt.MULTIPLIER * fx(t)) * stop, 2), "above")
                 for t, p in positions.items() if opt.is_option(t) and p.qty < 0}
@@ -535,15 +535,15 @@ class JalapenoV2(Bot):
             sym = ctx.data.contract(under, "P", ctx.day, self.p(ctx, "otm"), self.p(ctx, "dte"))
             premium = ctx.data.price(sym, ctx.day) or 0
             strike = opt.parse(sym)[2]
-            out.append((-premium / strike, under, f"{opt.describe(sym)} : prime ≈ {premium * 100:,.0f} $ US, "
+            out.append((-premium / strike, under, f"{opt.describe(sym)} : premium ≈ {premium * 100:,.0f} $ US, "
                                                   f"garantie de {strike * 100:,.0f} $ US par contrat"))
         nasdaq = ctx.closes("QQQ", 210)
         sma200 = ind.sma(nasdaq, 200)
         regime = []
         if sma200:
             bull = nasdaq.iloc[-1] > sma200
-            regime = [("QQQ", "le Nasdaq règle son budget : plein au-dessus de sa moyenne 200 jours, moitié en dessous",
-                       self.trigger(ind.cross_level(nasdaq, 200), "below" if bull else "above", "seuil de la moyenne 200 jours du Nasdaq",
+            regime = [("QQQ", "le Nasdaq règle son budget : plein au-dessus de sa SMA 200, moitié en dessous",
+                       self.trigger(ind.cross_level(nasdaq, 200), "below" if bull else "above", "seuil de la SMA 200 du Nasdaq",
                                     "il réduit son budget de moitié" if bull else "il revient à son plein budget", action="mood"))]
         return regime + [(t, why) for _, t, why in sorted(out)]
 
@@ -555,7 +555,7 @@ class JalapenoV2(Bot):
             if now is None:
                 continue
             if now <= premium * (1 - self.p(ctx, "take_profit")):
-                return Decision(None, [f"Je rachète mon {opt.describe(sym)} : {1 - now / premium:.0%} de la prime déjà gagnée."],
+                return Decision(None, [f"Je rachète mon {opt.describe(sym)} : {1 - now / premium:.0%} du premium déjà gagné."],
                                 trades=[(sym, -pos.qty)])
             if now >= premium * self.p(ctx, "stop"):
                 return Decision(None, [f"Je rachète mon {opt.describe(sym)} pour couper la perte (×{now / premium:.1f})."],
@@ -563,7 +563,7 @@ class JalapenoV2(Bot):
         if shorts:
             return Decision(None)
         shares = [t for t, p in ctx.account.positions.items() if not opt.is_option(t) and p.qty >= opt.MULTIPLIER]
-        if shares:  # 2. on a été exercé : vendre des calls couverts
+        if shares:  # 2. on a été exercé : vendre des covered calls
             under = shares[0]
             pos = ctx.account.positions[under]
             spot = ctx.price(under)
@@ -571,9 +571,9 @@ class JalapenoV2(Bot):
             sym = ctx.data.contract(under, "C", ctx.day, self.p(ctx, "otm"), self.p(ctx, "dte"), ref=max(spot, cost))
             strike = opt.parse(sym)[2]
             n = pos.qty // opt.MULTIPLIER
-            return Decision(None, [f"J'ai {pos.qty} actions {under} : je vends {n} call(s) couvert(s) à {strike:g}."],
+            return Decision(None, [f"J'ai {pos.qty} actions {under} : je vends {n} covered call(s) à {strike:g}."],
                             trades=[(sym, -n)])
-        # 3. rien en cours : vendre un put garanti sur le FNB le plus payant qui rentre dans le budget
+        # 3. rien en cours : vendre un cash-secured put sur le FNB le plus payant qui rentre dans le budget
         nasdaq = ctx.closes("QQQ", 210)
         sma200 = ind.sma(nasdaq, 200)
         budget = self.p(ctx, "budget") * ctx.aggressiveness * (0.5 if sma200 and nasdaq.iloc[-1] < sma200 else 1.0)
@@ -594,16 +594,16 @@ class JalapenoV2(Bot):
         if best is None or best[0] <= 0:
             return Decision(None)
         income, sym, n, under, strike = best
-        return Decision(None, [f"Je vends {n} put(s) {under} {strike:g} : environ {income * 100:,.0f} $ US de prime "
+        return Decision(None, [f"Je vends {n} put(s) {under} {strike:g} : environ {income * 100:,.0f} $ US de premium "
                                f"à encaisser. Si {under} tombe sous {strike:g}, j'achèterai les actions."],
                         trades=[(sym, -n)])
 
 
 class JalapenoV3(Bot):
-    """Le casse-cou devenu patient : des calls longs, déjà dans la monnaie, sur des FNB de marché.
+    """Le casse-cou devenu patient : des calls longs, déjà ITM, sur des FNB de marché.
 
-    Une option longue et dans la monnaie perd peu de valeur chaque jour et suit son FNB presque comme
-    des actions, avec un effet de levier. Il n'en achète que quand la tendance est haussière, les
+    Une option longue et ITM perd peu de valeur chaque jour et suit son FNB presque comme
+    des actions, avec un levier (leverage). Il n'en achète que quand le trend est bullish, les
     renouvelle avant qu'elles ne vieillissent, et range tout au cash quand le marché casse.
     Un contrat porte sur 100 parts : avec 10 000 $, il doit choisir des FNB dont un contrat est abordable.
     """
@@ -613,21 +613,21 @@ class JalapenoV3(Bot):
     universe = ["QQQ", "SPY", "IWM", "XLK", "XLF", "XLE", "XLI", "EEM"]
     params = {
         "budget": Param(0.30, 0.10, 0.45, "part du capital mise en options"),
-        "itm": Param(0.10, 0.05, 0.20, "prix d'exercice sous le cours (dans la monnaie)"),
-        "dte": Param(300, 180, 540, "jours avant l'échéance au moment de l'achat", integer=True),
+        "itm": Param(0.10, 0.05, 0.20, "strike sous le cours (ITM)"),
+        "dte": Param(300, 180, 540, "jours avant l'expiry au moment de l'achat", integer=True),
         "roll_days": Param(90, 60, 150, "renouvelle l'option quand il reste moins de jours que ça", integer=True),
         "roll_gain": Param(1.0, 0.5, 2.0, "renouvelle aussi après ce gain, pour encaisser (1,0 = +100 %)"),
-        "exit_buffer": Param(0.03, 0.0, 0.08, "sortie si le Nasdaq passe ce pourcentage sous sa moyenne 200 jours"),
+        "exit_buffer": Param(0.03, 0.0, 0.08, "sortie si le Nasdaq passe ce pourcentage sous sa SMA 200"),
         "stop": Param(0.5, 0.3, 0.7, "stop de secours chez le courtier, déclenché pendant la séance"),
     }
     rules = [
         "Achète des calls sur des FNB de marché (Nasdaq, S&P 500, petites capitalisations, technologie, finance, énergie, "
-        "industrie, émergents) : celui qui monte le plus sur 3 mois et reste au-dessus de sa moyenne 200 jours.",
-        "Des options longues (environ {dte:.0f} jours) et déjà dans la monnaie ({itm:.0%} sous le cours) : elles perdent peu "
-        "de valeur chaque jour et suivent le FNB presque comme des actions, avec un effet de levier.",
+        "industrie, émergents) : celui qui monte le plus sur 3 mois et reste au-dessus de sa SMA 200.",
+        "Des options longues (environ {dte:.0f} jours) et déjà ITM ({itm:.0%} sous le cours) : elles perdent peu "
+        "de valeur chaque jour et suivent le FNB presque comme des actions, avec un levier (leverage).",
         "Met environ {budget:.0%} de son capital en options, en contrats entiers de 100 parts : si un contrat est trop cher "
         "(c'est souvent le cas de QQQ et SPY pour un compte de 10 000 $), il passe au FNB suivant. Le reste dort au cash.",
-        "N'achète que si le Nasdaq est au-dessus de sa moyenne 200 jours. S'il passe {exit_buffer:.0%} en dessous, il vend tout et attend au cash.",
+        "N'achète que si le Nasdaq est au-dessus de sa SMA 200. S'il passe {exit_buffer:.0%} en dessous, il vend tout et attend au cash.",
         "Renouvelle son option quand il lui reste moins de {roll_days:.0f} jours, ou après +{roll_gain:.0%} de gain pour encaisser.",
         "Stop de secours à -{stop:.0%} chez le courtier, déclenché pendant la séance.",
     ]
@@ -648,18 +648,18 @@ class JalapenoV3(Bot):
             premium = ctx.data.price(sym, ctx.day) or 0
             cost = premium * opt.MULTIPLIER * ctx.broker.fx(sym, ctx.day)
             trend = "au-dessus de" if closes.iloc[-1] > sma200 else "sous"
-            out.append((-r, t, f"{r:+.0%} sur 3 mois, {trend} sa moyenne 200 jours ; un {opt.describe(sym)} coûte ≈ {cost:,.0f} $"))
+            out.append((-r, t, f"{r:+.0%} sur 3 mois, {trend} sa SMA 200 ; un {opt.describe(sym)} coûte ≈ {cost:,.0f} $"))
         nasdaq = ctx.closes("QQQ", 210)
         holding = any(opt.is_option(t) and p.qty > 0 for t, p in ctx.account.positions.items())
         buffer = self.p(ctx, "exit_buffer")
-        gate = (self.trigger(ind.cross_level(nasdaq, 200, 1 - buffer), "below", f"seuil de sortie ({buffer:.0%} sous la moyenne 200 jours)",
+        gate = (self.trigger(ind.cross_level(nasdaq, 200, 1 - buffer), "below", f"seuil de sortie ({buffer:.0%} sous la SMA 200)",
                              "il vend tout et attend au cash", held=True, action="sell") if holding else
-                self.trigger(ind.cross_level(nasdaq, 200), "above", "seuil de la moyenne 200 jours du Nasdaq", "il achète ses calls", action="buy"))
+                self.trigger(ind.cross_level(nasdaq, 200), "above", "seuil de la SMA 200 du Nasdaq", "il achète ses calls", action="buy"))
         regime = [("QQQ", "le Nasdaq décide s'il joue ou s'il attend au cash", gate)]
         return regime + [(t, why) for _, t, why in sorted(out)]
 
     def _new_call(self, ctx: BotContext, cash: float) -> tuple[str, int, list[str]] | None:
-        """Le meilleur FNB en tendance dont au moins un contrat rentre dans le budget, et le nombre de contrats."""
+        """Le meilleur FNB en trend dont au moins un contrat rentre dans le budget, et le nombre de contrats."""
         budget = min(ctx.equity * self.p(ctx, "budget") * ctx.aggressiveness, cash * 0.95)
         ranked, too_expensive = [], []
         for t in self.universe:
@@ -690,7 +690,7 @@ class JalapenoV3(Bot):
             sym = held[0]
             pos = ctx.account.positions[sym]
             if last < sma200 * (1 - self.p(ctx, "exit_buffer")):
-                return Decision(None, [f"Le Nasdaq casse sa moyenne 200 jours : je vends mon {opt.describe(sym)} et j'attends au cash."],
+                return Decision(None, [f"Le Nasdaq casse sa SMA 200 : je vends mon {opt.describe(sym)} et j'attends au cash."],
                                 trades=[(sym, -pos.qty)])
             value = ctx.broker.value_of(ctx.account, ctx.day).get(sym, 0.0)
             gain = value / (pos.avg_cost_cad * pos.qty) - 1
@@ -700,7 +700,7 @@ class JalapenoV3(Bot):
             pick = self._new_call(ctx, ctx.account.cash + value)
             why = f"il ne lui reste que {days_left} jours" if days_left <= self.p(ctx, "roll_days") else f"j'encaisse {gain:+.0%}"
             if not pick or not pick[0]:
-                return Decision(None, [f"Je vends mon {opt.describe(sym)} ({why}) ; rien d'abordable en tendance pour le remplacer."],
+                return Decision(None, [f"Je vends mon {opt.describe(sym)} ({why}) ; rien d'abordable en trend pour le remplacer."],
                                 trades=[(sym, -pos.qty)])
             new, n, _ = pick
             return Decision(None, [f"Je renouvelle mon {opt.describe(sym)} ({why}) : {n} × {opt.describe(new)}."],
@@ -711,12 +711,12 @@ class JalapenoV3(Bot):
         if pick is None:
             return Decision(None)
         new, n, too_expensive = pick
-        if not new:  # tout ce qui est en tendance coûte trop cher ; il le dit une fois par mois
+        if not new:  # tout ce qui est en trend coûte trop cher ; il le dit une fois par mois
             note = f"Trop cher pour moi ce mois-ci : {', '.join(too_expensive[:3])}." if ctx.first_day_of_month() else None
             return Decision(None, [note] if note else [])
         premium = ctx.data.price(new, ctx.day) or 0
         skipped = f" ({', '.join(too_expensive[:2])} : trop cher)" if too_expensive else ""
-        return Decision(None, [f"La tendance est haussière : j'achète {n} × {opt.describe(new)} "
+        return Decision(None, [f"Le trend est bullish : j'achète {n} × {opt.describe(new)} "
                                f"(≈ {premium * 100:,.0f} $ US le contrat){skipped}, et je suis patient."], trades=[(new, n)])
 
 

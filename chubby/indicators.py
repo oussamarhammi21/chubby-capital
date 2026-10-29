@@ -21,7 +21,7 @@ def pct_return(closes, n: int) -> float | None:
 
 def cross_level(closes, n: int, factor: float = 1.0) -> float | None:
     """Prix de la prochaine clôture qui la placerait exactement à `factor` × sa moyenne n jours (moyenne qui
-    inclut cette clôture). Sert à traduire « sous sa moyenne 50 jours » en un vrai prix à surveiller."""
+    inclut cette clôture). Sert à traduire « sous sa SMA 50 » en un vrai prix à surveiller."""
     v = _values(closes)
     if len(v) < n - 1:
         return None

@@ -810,7 +810,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     if (e.kind === 'dividend') return 'reçoit ' + money(e.amount_cad) + ' de dividendes (' + e.ticker + ')';
     if (e.kind === 'rank_change') return (e.new < e.old ? 'monte' : 'descend') + ' à la ' + e.new + (e.new === 1 ? 're' : 'e') + ' place';
     if (e.kind === 'coach') return 'reçoit ton conseil : « ' + e.advice + ' »';
-    if (e.kind === 'stop') return 'déclenche son ordre stop sur ' + pretty(e.ticker);
+    if (e.kind === 'stop') return 'déclenche son stop-loss sur ' + pretty(e.ticker);
     return e.kind;
   }
   function fire(e) {
@@ -1113,7 +1113,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       var crossedBefore = (old.radar || []).filter(function (x) { return x.action !== 'none'; }).filter(function (x) { return x.crossed; }).map(function (x) { return x.ticker + x.label; });
       var fresh = crossed.filter(function (k) { return crossedBefore.indexOf(k) < 0; });
       if (fresh.length && !hitNow) { sfx('trade'); b.hop = 0; say(b, now.reaction, true); toast('Seuil franchi', b.name + ' : ' + now.reaction); }
-      if (hitNow && !hitBefore) { sfx('oops'); if (b.state === 'work') b.state = 'toBoard'; say(b, now.reaction, true); toast('Ordre stop !', b.name + ' vend pour limiter la perte'); }
+      if (hitNow && !hitBefore) { sfx('oops'); if (b.state === 'work') b.state = 'toBoard'; say(b, now.reaction, true); toast('Stop-loss !', b.name + ' vend pour limiter la perte'); }
       else if (Math.abs(moved) > 0.0015 || now.reaction !== old.reaction) say(b, now.reaction);
     });
     liveFeed(); renderTape(lv); renderSpy();
