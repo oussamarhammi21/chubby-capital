@@ -14,7 +14,8 @@ from ..store import Store
 from . import api
 
 STATIC = Path(__file__).parent / "static"
-PAGES = {"/": "index.html", "/ile": "zones.html", "/carte": "carte.html", "/ile-3d": "ile.html", "/conseiller": "conseiller.html", "/chubby": "chubby.html"}
+PAGES = {"/": "index.html", "/ile": "zones.html", "/carte": "carte.html", "/ile-3d": "ile.html", "/conseiller": "conseiller.html", "/chubby": "chubby.html",
+         "/compte": "compte.html"}
 TYPES = {".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8",
          ".png": "image/png", ".svg": "image/svg+xml",
          ".webp": "image/webp"}
@@ -51,6 +52,9 @@ def make_handler(db_path: str, cfg: ArenaConfig, live=None):
                     since, day = q.get("since", ""), q.get("day", "")
                     return self._json(api.activity(store, int(since) if since.isdigit() else None,
                                                    day=day if len(day) == 10 and day[4] == day[7] == "-" else None))
+                if path == "/api/vrai":
+                    from .. import vrai
+                    return self._json(vrai.report(store))
                 if path == "/api/replay":
                     return self._json(api.replay(store, cfg))
                 if path.startswith("/api/bots/") and path.endswith("/fiche"):
@@ -76,6 +80,8 @@ def make_handler(db_path: str, cfg: ArenaConfig, live=None):
                     body = json.loads(self.rfile.read(length) or b"{}")
                     result = coach(Store(db_path), parts[3], str(body.get("conseil", "")))
                     return self._json(result) if result else self._json({"erreur": "Chubby ou conseil inconnu"}, 400)
+                if path.startswith("/api/vrai/"):
+                    return self._vrai(path.rsplit("/", 1)[1])
                 if path == "/api/conseil":
                     length = min(int(self.headers.get("Content-Length") or 0), 2_000_000)
                     body = json.loads(self.rfile.read(length) or b"{}")
@@ -90,6 +96,26 @@ def make_handler(db_path: str, cfg: ArenaConfig, live=None):
             except Exception:
                 log.exception("Erreur sur %s", self.path)
                 return self._json({"erreur": "erreur du serveur"}, 500)
+
+        def _vrai(self, action: str):
+            """Ton vrai compte. Stop marche toujours ; le reste demande ce PC, ou le code CHUBBY_PIN du fichier .env."""
+            from .. import vrai
+            length = min(int(self.headers.get("Content-Length") or 0), 10_000)
+            body = json.loads(self.rfile.read(length) or b"{}")
+            store = Store(db_path)
+            if action == "stop":
+                return self._json({"config": vrai.stop(store)})
+            pin = os.environ.get("CHUBBY_PIN", "")
+            local = self.client_address[0] in ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+            if not local and not (pin and str(body.get("pin", "")) == pin):
+                return self._json({"erreur": "Depuis un autre appareil, il faut le code CHUBBY_PIN du fichier .env."
+                                   if pin else "Ces réglages ne se changent que depuis le PC où tourne l'arène "
+                                   "(ou ajoute un code CHUBBY_PIN dans le fichier .env)."}, 403)
+            if action == "reglages":
+                return self._json({"config": vrai.update_config(store, body)})
+            if action == "demarrer":
+                return self._json({"config": vrai.start(store)})
+            return self._json({"erreur": "action inconnue"}, 404)
 
         def _static(self, name: str):
             target = (STATIC / name).resolve()

@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chubby Capital · mon vrai compte</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap">
+<style>
+:root {
+  --bg: #0D0E1A; --surface: #171829; --surface-2: #1F2038; --line: #2A2C44;
+  --ink: #F2F1FA; --muted: #A9A8C0; --up: #5BD69A; --down: #FF9A8A; --accent: #8E7BEF; --gold: #FFD98A; --real: #FF6B5E;
+  --display: 'Fredoka', 'Nunito', system-ui, sans-serif; --body: 'Nunito', system-ui, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); }
+.wrap { max-width: 1000px; margin: 0 auto; padding: 24px 16px 64px; display: flex; flex-direction: column; gap: 22px; }
+header { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; }
+header b { font: 700 24px var(--display); display: block; }
+header span { color: var(--muted); font-weight: 700; font-size: 14px; }
+nav { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { min-height: 44px; padding: 0 18px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 800 14px var(--body); cursor: pointer; display: inline-flex; align-items: center; text-decoration: none; }
+.btn.primary { background: #5B47C2; border-color: #5B47C2; }
+.btn.stop { background: var(--real); border-color: var(--real); color: #1E1D26; font-size: 16px; min-height: 52px; padding: 0 28px; }
+.btn.go { background: var(--up); border-color: var(--up); color: #1E1D26; font-size: 16px; min-height: 52px; padding: 0 28px; }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 3px solid #C9B8FF; outline-offset: 2px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 28px; padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+h1 { margin: 0; font: 700 32px/1.1 var(--display); text-wrap: balance; }
+h2 { margin: 0; font: 600 21px var(--display); }
+p { margin: 0; line-height: 1.5; }
+.muted { color: var(--muted); }
+.status { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; justify-content: space-between; }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.pill { font-size: 13px; font-weight: 800; padding: 5px 12px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); }
+.pill.on { color: var(--up); border-color: #2c5a44; }
+.pill.off { color: var(--muted); }
+.pill.paused { color: var(--gold); border-color: #5a4c2a; }
+.pill.real { background: var(--real); color: #1E1D26; border-color: var(--real); }
+.nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.num { background: var(--surface-2); border-radius: 18px; padding: 14px; }
+.num .k { font-size: 12px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.num .v { font: 600 26px var(--display); font-variant-numeric: tabular-nums; }
+.num .s { font-size: 13px; color: var(--muted); }
+.tbl { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td.why { white-space: normal; min-width: 240px; color: var(--muted); }
+th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.r { text-align: right; }
+.up { color: var(--up); } .down { color: var(--down); }
+.side { font-size: 11px; font-weight: 800; padding: 2px 7px; border-radius: 6px; }
+.side.buy { background: #1d3b2d; color: var(--up); } .side.sell { background: #44262a; color: var(--down); }
+.err { background: #3A1F28; color: #FFD0C8; border-radius: 16px; padding: 14px; font-weight: 700; }
+.warn { background: #2b2414; color: var(--gold); border-radius: 16px; padding: 14px; font-weight: 700; }
+.ok { background: #1d3b2d; color: var(--up); border-radius: 16px; padding: 14px; font-weight: 700; }
+form.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+label.field { display: flex; flex-direction: column; gap: 6px; font-weight: 800; font-size: 14px; }
+label.field small { color: var(--muted); font-weight: 700; }
+input[type=number], input[type=password], select { min-height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font: 700 15px var(--body); padding: 0 12px; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-weight: 700; font-size: 14px; }
+.check input { margin-top: 3px; accent-color: var(--accent); }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.choices label { min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); font-weight: 700; cursor: pointer; }
+.choices label:has(input:checked) { border-color: var(--accent); background: rgba(142,123,239,0.18); }
+.full { grid-column: 1 / -1; }
+.log { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.log li { display: grid; grid-template-columns: 120px 1fr; gap: 10px; }
+.log time { color: var(--muted); font-weight: 800; font-size: 13px; }
+ol.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; line-height: 1.5; }
+code { background: var(--surface-2); padding: 1px 6px; border-radius: 6px; }
+@media (max-width: 560px) { .log li { grid-template-columns: 1fr; gap: 0; } h1 { font-size: 27px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><b>Chubby Capital</b><span>Mon vrai compte</span></div>
+    <nav><a class="btn" href="/">Tableau de bord</a><a class="btn" href="/conseiller">Conseiller</a></nav>
+  </header>
+
+  <section class="card">
+    <div class="status">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <h1 id="title">Mon vrai compte</h1>
+        <div class="pills" id="pills"></div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn go" id="start" hidden>Démarrer</button>
+        <button class="btn stop" id="stop" hidden>Stop</button>
+      </div>
+    </div>
+    <p class="muted" id="intro">Le Chubby que tu choisis continue de jouer dans l'arène. Ton compte chez Interactive Brokers copie son
+      portefeuille à l'échelle de ton montant, et les ordres partent tout seuls pendant la bourse, tant que
+      <code>chubby web</code> tourne sur ton PC.</p>
+    <div id="alerts" style="display:flex;flex-direction:column;gap:10px"></div>
+    <div class="nums" id="nums"></div>
+  </section>
+
+  <section class="card">
+    <h2>Ce que le compte détient</h2>
+    <div class="tbl"><table><thead><tr><th>Titre</th><th class="r">Quantité</th><th class="r">Valeur</th><th class="r">Part</th><th class="r">Part chez le guide</th></tr></thead><tbody id="holdings"></tbody></table></div>
+    <p class="muted" id="state-time"></p>
+  </section>
+
+  <section class="card">
+    <h2>Les ordres envoyés</h2>
+    <p class="muted">Ordres à cours limité, valables pour la journée. Un ordre qui n'a pas trouvé preneur est annulé et recalculé au passage suivant.</p>
+    <div class="tbl"><table><thead><tr><th>Quand</th><th>Ordre</th><th class="r">Cours limité</th><th class="r">Environ</th><th>Statut</th><th>Pourquoi</th></tr></thead><tbody id="orders"></tbody></table></div>
+  </section>
+
+  <section class="card">
+    <h2>Réglages et garde-fous</h2>
+    <form class="grid" id="form">
+      <label class="field full">Le Chubby qui guide ton compte
+        <select id="guide"></select>
+        <small>Mieux vaut un Chubby qui a déjà beaucoup de séances : quelques jours de bons résultats, c'est surtout de la chance.</small>
+      </label>
+      <label class="field">Montant maximal géré ($)
+        <input type="number" id="plafond" min="10" step="10">
+        <small>Le guide n'investit jamais plus, même si le compte contient davantage.</small>
+      </label>
+      <label class="field">Perte maximale (%)
+        <input type="number" id="perte_max" min="1" max="90" step="1">
+        <small>Sous ce seuil depuis le départ, tout s'arrête et les ordres ouverts sont annulés.</small>
+      </label>
+      <label class="field">Achat maximal par ordre ($)
+        <input type="number" id="ordre_max" min="1" step="5">
+      </label>
+      <label class="field">Ordre minimal ($)
+        <input type="number" id="ordre_min" min="1" step="1">
+        <small>Les petits ajustements sont ignorés.</small>
+      </label>
+      <label class="check full"><input type="checkbox" id="fractions"> Fractions d'actions américaines (à activer aussi dans IBKR). Les actions canadiennes s'achètent toujours à l'unité.</label>
+      <fieldset class="full" style="border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:8px">
+        <legend style="font-weight:800;margin-bottom:8px">Argent</legend>
+        <div class="choices">
+          <label><input type="radio" name="mode" value="papier"> Papier : argent fictif chez IBKR</label>
+          <label><input type="radio" name="mode" value="reel"> Réel</label>
+        </div>
+        <label class="check" id="confirm-row" hidden><input type="checkbox" id="confirme"> Je comprends que le guide va passer de vrais ordres avec mon argent, et que je peux perdre jusqu'à ma perte maximale.</label>
+      </fieldset>
+      <label class="field">Code (depuis un autre appareil)
+        <input type="password" id="pin" autocomplete="off" placeholder="CHUBBY_PIN du fichier .env">
+      </label>
+      <div class="full" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <button class="btn primary" type="submit">Enregistrer</button>
+        <span id="saved" class="muted" role="status"></span>
+      </div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Journal du vrai compte</h2>
+    <ul class="log" id="log"></ul>
+  </section>
+
+  <section class="card">
+    <h2>Brancher Interactive Brokers</h2>
+    <ol class="steps">
+      <li>Ouvre un compte chez <b>Interactive Brokers Canada</b>, puis active le <b>compte papier</b> dans ton espace client (Paramètres, Compte papier).</li>
+      <li>Installe <b>IB Gateway</b> sur ce PC et connecte-toi avec l'identifiant du compte papier.</li>
+      <li>Dans IB Gateway : Configure, Settings, API, Settings. Coche « Enable ActiveX and Socket Clients », décoche « Read-Only API ». Le port papier est 4002.</li>
+      <li>Installe le branchement : <code>pip install -e ".[ibkr]"</code>, puis teste : <code>python -m chubby.cli vrai connexion</code>.</li>
+      <li>Choisis ton guide et tes garde-fous ici, puis Démarrer. Laisse <code>python -m chubby.cli web</code> tourner pendant la bourse.</li>
+    </ol>
+    <p class="muted">Pour l'argent réel plus tard : connecte IB Gateway avec ton vrai identifiant, mets <code>IBKR_PORT=4001</code> dans le fichier .env, et choisis « Réel » ci-dessus.</p>
+  </section>
+</div>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var data = null, formTouched = false;
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function money(v) { return v == null ? '—' : v.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $'; }
+  function pct(v) { if (v == null || !isFinite(v)) return '—'; var p = v * 100; return (p >= 0 ? '+' : '−') + Math.abs(p).toFixed(1).replace('.', ',') + ' %'; }
+  function cls(v) { return v >= 0 ? 'up' : 'down'; }
+  var STATUS = { Filled: 'exécuté', Submitted: 'en attente', PreSubmitted: 'en attente', Cancelled: 'annulé', ApiCancelled: 'annulé', Inactive: 'refusé' };
+
+  function render(d) {
+    data = d;
+    var c = d.config, st = d.state, guide = d.guides.find(function (g) { return g.id === c.guide; });
+    var pills = [];
+    if (c.actif) pills.push('<span class="pill on">● Actif</span>');
+    else if (c.pause) pills.push('<span class="pill paused">En pause</span>');
+    else pills.push('<span class="pill off">Arrêté</span>');
+    pills.push(c.mode === 'reel' ? '<span class="pill real">ARGENT RÉEL</span>' : '<span class="pill">Papier · argent fictif</span>');
+    if (guide) pills.push('<span class="pill">Guidé par ' + esc(guide.name) + '</span>');
+    if (st) pills.push('<span class="pill">Compte ' + esc(st.account_id) + '</span>');
+    $('pills').innerHTML = pills.join('');
+    $('start').hidden = c.actif; $('stop').hidden = !c.actif;
+
+    var alerts = [];
+    if (c.pause) alerts.push('<div class="warn">' + esc(c.pause) + '</div>');
+    if (d.error && d.error.message) alerts.push('<div class="err">Connexion au courtier impossible (' + esc(d.error.time.slice(11, 16)) + ') : ' + esc(d.error.message) + '</div>');
+    if (!c.guide) alerts.push('<div class="warn">Choisis le Chubby qui guide ton compte dans les réglages ci-dessous.</div>');
+    $('alerts').innerHTML = alerts.join('');
+
+    var eq = st ? st.equity : null, start = c.depart;
+    var guideMove = c.guide_depart && d.guide_equity ? d.guide_equity / c.guide_depart - 1 : null;
+    $('nums').innerHTML = [
+      ['Valeur du compte', money(eq), st ? 'dont ' + money(st.cash_cad) + ' de cash' : 'pas encore branché'],
+      ['Depuis le départ', start && eq ? '<span class="' + cls(eq - start) + '">' + pct(eq / start - 1) + '</span>' : '—', c.debut ? 'depuis le ' + c.debut + ' (' + money(start) + ')' : 'pas encore démarré'],
+      ['Le guide dans l’arène', guideMove == null ? '—' : '<span class="' + cls(guideMove) + '">' + pct(guideMove) + '</span>', 'sur la même période'],
+      ['Montant géré', money(c.plafond), 'arrêt sous ' + pct(-c.perte_max).replace('−', '-')]
+    ].map(function (n) { return '<div class="num"><div class="k">' + n[0] + '</div><div class="v">' + n[1] + '</div><div class="s">' + n[2] + '</div></div>'; }).join('');
+
+    var gw = d.guide_weights || {};
+    $('holdings').innerHTML = st && st.holdings.length ? st.holdings.map(function (h) {
+      return '<tr><td>' + esc(h.ticker) + '</td><td class="r">' + h.qty + '</td><td class="r">' + money(h.value_cad) + '</td><td class="r">' +
+        (st.equity ? Math.round(h.value_cad / st.equity * 100) + ' %' : '—') + '</td><td class="r">' + (gw[h.ticker] != null ? Math.round(gw[h.ticker] * 100) + ' %' : '—') + '</td></tr>';
+    }).join('') : '<tr><td colspan="5" class="muted">Rien pour l’instant.</td></tr>';
+    $('state-time').textContent = st ? 'Lu chez le courtier à ' + st.time.slice(11, 16) + ', le ' + st.time.slice(0, 10) + '.' : '';
+
+    $('orders').innerHTML = d.orders.length ? d.orders.map(function (o) {
+      return '<tr><td>' + esc(o.day) + ' ' + esc(o.time) + '</td><td><span class="side ' + o.side + '">' + (o.side === 'buy' ? 'BUY' : 'SELL') + '</span> ' + o.qty + ' ' + esc(o.ticker) +
+        '</td><td class="r">' + o.limit_price.toFixed(2) + ' ' + esc(o.currency) + '</td><td class="r">' + money(o.value_cad) + '</td><td>' + esc(STATUS[o.status] || o.status) +
+        (o.message ? '<br><span class="muted">' + esc(o.message) + '</span>' : '') + '</td><td class="why">' + esc(o.why) + '</td></tr>';
+    }).join('') : '<tr><td colspan="6" class="muted">Aucun ordre pour l’instant.</td></tr>';
+
+    $('log').innerHTML = d.events.length ? d.events.map(function (e) {
+      return '<li><time>' + esc(e.day) + ' ' + esc(e.time) + '</time><span>' + esc(e.message) + '</span></li>';
+    }).join('') : '<li class="muted">Rien encore.</li>';
+
+    if (!formTouched) fillForm(c, d.guides);
+  }
+
+  function fillForm(c, guides) {
+    $('guide').innerHTML = '<option value="">— choisir —</option>' + guides.map(function (g) {
+      var label = g.name + ' · score ' + (g.score == null ? '—' : g.score) + ' · ' + g.sessions + ' séances' + (g.allowed ? '' : ' · options, impossible');
+      return '<option value="' + esc(g.id) + '"' + (g.allowed ? '' : ' disabled') + (g.id === c.guide ? ' selected' : '') + '>' + esc(label) + '</option>';
+    }).join('');
+    $('plafond').value = c.plafond; $('perte_max').value = Math.round(c.perte_max * 100);
+    $('ordre_max').value = c.ordre_max; $('ordre_min').value = c.ordre_min; $('fractions').checked = !!c.fractions;
+    document.querySelectorAll('input[name=mode]').forEach(function (r) { r.checked = r.value === c.mode; });
+    $('confirm-row').hidden = true;
+  }
+
+  function post(action, body) {
+    return fetch('/api/vrai/' + action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erreur || 'erreur'); return j; }); });
+  }
+  function load() { return fetch('/api/vrai').then(function (r) { return r.json(); }).then(render).catch(function () {}); }
+
+  $('form').addEventListener('input', function () { formTouched = true; });
+  document.querySelectorAll('input[name=mode]').forEach(function (r) {
+    r.addEventListener('change', function () { $('confirm-row').hidden = !(r.checked && r.value === 'reel' && data.config.mode !== 'reel'); });
+  });
+  $('form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var mode = document.querySelector('input[name=mode]:checked');
+    var body = { plafond: +$('plafond').value, perte_max: +$('perte_max').value / 100, ordre_max: +$('ordre_max').value,
+      ordre_min: +$('ordre_min').value, fractions: $('fractions').checked, mode: mode ? mode.value : 'papier',
+      confirme: $('confirme').checked, pin: $('pin').value };
+    if ($('guide').value) body.guide = $('guide').value;
+    $('saved').textContent = 'Enregistrement…';
+    post('reglages', body).then(function () { formTouched = false; $('saved').textContent = 'Enregistré.'; return load(); })
+      .catch(function (err) { $('saved').textContent = err.message; });
+  });
+  $('start').addEventListener('click', function () {
+    post('demarrer', { pin: $('pin').value }).then(load).catch(function (err) { $('alerts').innerHTML = '<div class="err">' + esc(err.message) + '</div>'; });
+  });
+  $('stop').addEventListener('click', function () { post('stop').then(load); });
+  load();
+  setInterval(load, 15000);
+})();
+</script>
+<script src="/static/lexique.js" defer></script>
+</body>
+</html>

@@ -36,6 +36,12 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS watchlist (bot_id TEXT PRIMARY KEY, day TEXT, items TEXT);
 CREATE TABLE IF NOT EXISTS option_quotes (day TEXT, ticker TEXT, price REAL, PRIMARY KEY (day, ticker));
+CREATE TABLE IF NOT EXISTS real_orders (
+    id INTEGER PRIMARY KEY, day TEXT, time TEXT, ticker TEXT, side TEXT, qty REAL, limit_price REAL,
+    currency TEXT, value_cad REAL, why TEXT, status TEXT, broker_id TEXT, message TEXT
+);
+CREATE TABLE IF NOT EXISTS real_log (id INTEGER PRIMARY KEY, day TEXT, time TEXT, kind TEXT, message TEXT);
+CREATE TABLE IF NOT EXISTS real_snapshots (day TEXT PRIMARY KEY, equity REAL, guide_equity REAL);
 """
 
 
