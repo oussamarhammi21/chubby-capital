@@ -1,4 +1,4 @@
-"""Commandes : chubby backtest | tick | serve | direct | seance | classement | ordres | journal | coach | coach-ia | conseil | web."""
+"""Commandes : chubby backtest | tick | serve | direct | seance | classement | ordres | journal | coach | coach-ia | conseil | vrai | web."""
 
 from __future__ import annotations
 
@@ -117,13 +117,16 @@ def _start_session(args, cfg, evening: bool = False):
     if args.sans_seance:
         return None
     import threading
+    from .vrai import Runner
     trader = _trader(args, cfg)
+    vrai = Runner(_ibkr)
 
     def loop():
         store = Store(args.db)
         played = None
         while True:
             trader(store)
+            vrai(store)  # ton vrai compte suit son guide (rien ne se passe tant qu'il n'est pas démarré)
             now = datetime.now(TORONTO)
             if evening and now.weekday() < 5 and (now.hour, now.minute) >= (16, 20) and played != now.date():
                 played = now.date()
@@ -137,6 +140,52 @@ def _start_session(args, cfg, evening: bool = False):
     threading.Thread(target=loop, daemon=True, name="seance").start()
     print("Séance en direct : pendant la bourse, les Chubbies refont leur analyse et tradent toutes les 15 minutes.")
     return trader
+
+
+def _ibkr():
+    from .ibkr import IBKRBroker
+    return IBKRBroker()
+
+
+def _ibkr_or_exit():
+    try:
+        return _ibkr()
+    except RuntimeError as e:
+        raise SystemExit(str(e))
+
+
+def cmd_vrai(args, cfg):
+    """Ton vrai compte chez Interactive Brokers : état, test de connexion, démarrer, Stop."""
+    from . import vrai
+    store = Store(args.db)
+    if args.action == "stop":
+        vrai.stop(store)
+        print("Arrêté. Les ordres ouverts seront annulés au prochain passage (dans la minute si chubby web tourne).")
+        if args.maintenant:
+            print(f"{_ibkr_or_exit().cancel_all()} ordre(s) ouvert(s) annulé(s).")
+        return
+    if args.action == "demarrer":
+        try:
+            c = vrai.start(store)
+        except ValueError as e:
+            raise SystemExit(str(e))
+        print(f"Démarré en mode {c['mode']} : les ordres partiront pendant la bourse, tant que chubby web tourne.")
+        return
+    if args.action == "connexion":
+        broker = _ibkr_or_exit()
+        snap = broker.snapshot()
+        kind = "papier (argent fictif)" if snap.paper else "RÉEL"
+        print(f"Branché au compte {snap.account_id}, {kind}. Valeur : {snap.equity:,.2f} $, cash : {snap.cash_cad:,.2f} $")
+        for h in snap.holdings.values():
+            print(f"  {h.ticker:<10} {h.qty:>10g}  {h.value_cad:>10,.2f} $")
+        return
+    c = vrai.config(store)
+    state = "actif" if c["actif"] else ("en pause : " + c["pause"] if c["pause"] else "arrêté")
+    print(f"Vrai compte : {state} · mode {c['mode']} · guide {c['guide'] or 'aucun'} · plafond {c['plafond']:,.0f} $"
+          f" · perte maximale {c['perte_max']:.0%} · achat maximal {c['ordre_max']:,.0f} $")
+    for r in store.db.execute("SELECT * FROM real_orders ORDER BY id DESC LIMIT 10"):
+        print(f"  {r['day']} {r['time']}  {r['side']:<4} {r['qty']:>8g} {r['ticker']:<9} à {r['limit_price']:,.2f}"
+              f" {r['currency']}  {r['status']}")
 
 
 def cmd_seance(args, cfg):
@@ -386,6 +435,10 @@ def main(argv=None):
     a.add_argument("--horizon", default="long", choices=["court", "moyen", "long"])
     a.add_argument("--compte-usd", action="store_true", help="tu as le forfait avec compte en USD")
     a.set_defaults(fn=cmd_conseil)
+    v = sub.add_parser("vrai", help="ton vrai compte chez Interactive Brokers")
+    v.add_argument("action", nargs="?", default="etat", choices=["etat", "connexion", "demarrer", "stop"])
+    v.add_argument("--maintenant", action="store_true", help="avec stop : annuler tout de suite les ordres ouverts")
+    v.set_defaults(fn=cmd_vrai)
     w = sub.add_parser("web", help="ouvrir le tableau de bord dans le navigateur")
     w.add_argument("--port", type=int, default=8000)
     w.add_argument("--host", default="0.0.0.0")

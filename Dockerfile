@@ -4,7 +4,7 @@ ENV PYTHONUNBUFFERED=1 TZ=America/Toronto
 WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY chubby ./chubby
-RUN pip install --no-cache-dir ".[ia]"
+RUN pip install --no-cache-dir ".[ia,ibkr]"
 
 VOLUME /app/data
 CMD ["chubby", "serve"]

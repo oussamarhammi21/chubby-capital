@@ -100,6 +100,14 @@ def test_server_serves_page_and_api(tmp_path):
         advice = json.loads(urllib.request.urlopen(req).read())
         assert advice["total_cad"] == 400 and advice["matches"]
         assert json.loads(Store(db).get_meta("profil"))["style"] == "revenu"  # le profil est gardé, pas le fichier
+        assert "Mon vrai compte" in urllib.request.urlopen(base + "/compte").read().decode()
+        post = lambda action, body: urllib.request.urlopen(urllib.request.Request(  # noqa: E731
+            base + "/api/vrai/" + action, data=json.dumps(body).encode(), method="POST"))
+        saved = json.loads(post("reglages", {"guide": "flan", "plafond": 250}).read())["config"]
+        assert saved["guide"] == "flan" and saved["plafond"] == 250
+        assert json.loads(post("demarrer", {}).read())["config"]["actif"]
+        assert not json.loads(post("stop", {}).read())["config"]["actif"]
+        assert json.loads(urllib.request.urlopen(base + "/api/vrai").read())["config"]["guide"] == "flan"
         bad = urllib.request.Request(base + "/api/conseil", data=b'{"csv": "rien,ici"}', method="POST")
         try:
             urllib.request.urlopen(bad)
@@ -126,3 +134,27 @@ def test_closed_browser_connection_is_not_an_error(tmp_path, caplog):
     with caplog.at_level("ERROR"):
         h.do_GET()
     assert h.close_connection and not caplog.records
+
+
+def test_real_account_settings_need_this_pc_or_the_pin(tmp_path, monkeypatch):
+    """Depuis un autre appareil, changer les réglages du vrai compte demande le code ; Stop marche toujours."""
+    import io
+    from chubby.web.server import make_handler as mk
+
+    def call(action, body, ip):
+        handler = mk(str(tmp_path / "arene.db"), ArenaConfig())
+        h = handler.__new__(handler)
+        raw = json.dumps(body).encode()
+        h.path, h.request_version, h.command = "/api/vrai/" + action, "HTTP/1.1", "POST"
+        h.requestline = f"POST {h.path} HTTP/1.1"
+        h.headers = {"Content-Length": str(len(raw))}
+        h.rfile, h.wfile, h.client_address, h.close_connection = io.BytesIO(raw), io.BytesIO(), (ip, 0), False
+        h.do_POST()
+        return int(h.wfile.getvalue().split(b" ")[1])
+
+    monkeypatch.setenv("CHUBBY_PIN", "")
+    assert call("reglages", {"plafond": 300}, "100.64.0.7") == 403
+    monkeypatch.setenv("CHUBBY_PIN", "4321")
+    assert call("reglages", {"plafond": 300, "pin": "0000"}, "100.64.0.7") == 403
+    assert call("reglages", {"plafond": 300, "pin": "4321"}, "100.64.0.7") == 200
+    assert call("stop", {}, "100.64.0.7") == 200

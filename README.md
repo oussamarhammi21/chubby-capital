@@ -2,7 +2,7 @@
 
 Une arène où des bots de trading, les **Chubbies**, s'affrontent avec **10 000 $ fictifs chacun** sur les vrais prix du TSX et de Wall Street. Chacun a sa personnalité d'investisseur. On suit leur progression sur un tableau de bord et une île 3D, on les coache, et le meilleur peut servir de conseiller pour un vrai portefeuille.
 
-> Argent fictif uniquement. Ce projet n'envoie aucun ordre réel et ne constitue pas un conseil financier.
+> L'arène joue en argent fictif. Seule la page « Mon vrai compte » envoie de vrais ordres, chez Interactive Brokers, quand tu la démarres. Ce n'est pas un conseil financier.
 
 ## Les Chubbies
 
@@ -308,6 +308,42 @@ compare ton portefeuille à celui du meilleur :
     Le compte crypto et les options sont ignorés ; un titre sans cours est évalué à ton dernier prix payé, et c'est signalé ;
   - ou tout CSV de positions avec des colonnes `Symbol`, `Quantity` et `Market Value` (ou `Market Price`).
     Les titres d'une bourse canadienne reçoivent automatiquement le suffixe `.TO`.
+
+## Mon vrai compte (Interactive Brokers)
+
+http://localhost:8000/compte (ou `chubby vrai`). Un Chubby que tu choisis **gère un vrai montant** chez Interactive Brokers,
+en passant les ordres lui-même :
+
+- il continue de jouer dans l'arène, avec sa personnalité ; ton compte **copie son portefeuille à l'échelle de ton montant**
+  (s'il a 20 % de son capital en MSFT, ton compte vise 20 % de MSFT) ;
+- pendant la bourse, une fois après l'ouverture (9 h 35, quand ses ordres de la veille sont passés), puis chaque fois qu'il
+  trade dans l'arène, l'app calcule les écarts et envoie les ordres : ventes d'abord, **à cours limité**, valables pour la journée ;
+- les options ne sont pas copiées : un contrat coûte trop cher pour un petit montant, donc les Jalapeño ne peuvent pas guider.
+
+**Garde-fous**, vérifiés à chaque passage :
+
+- **montant maximal géré** : le guide n'investit jamais plus, même si le compte contient davantage ;
+- **perte maximale** (par défaut -15 % depuis le départ) : tout s'arrête et les ordres ouverts sont annulés ;
+- **achat maximal par ordre**, et un ordre minimal pour ne pas multiplier les petits ordres ;
+- **bouton Stop** (page ou `chubby vrai stop`) : plus aucun ordre, et les ordres ouverts sont annulés dans la minute ;
+- en **mode papier**, l'app refuse de trader si le compte branché est un vrai compte. Passer en réel demande une confirmation ;
+- depuis un autre appareil (téléphone, Tailscale), les réglages demandent le code `CHUBBY_PIN` du fichier `.env`. Stop marche partout.
+
+**Brancher Interactive Brokers :**
+
+1. Ouvre un compte chez Interactive Brokers Canada et active le **compte papier** (argent fictif, vrais ordres).
+2. Installe **IB Gateway** sur le PC de l'arène et connecte-toi avec le compte papier. Dans Configure, Settings, API, Settings :
+   coche « Enable ActiveX and Socket Clients », décoche « Read-Only API ». Port 4002 en papier, 4001 en réel.
+3. `pip install -e ".[ibkr]"`, puis remplis `IBKR_PORT` (et `CHUBBY_PIN`) dans `.env` (voir `.env.example`).
+4. `python -m chubby.cli vrai connexion` vérifie le branchement et affiche le compte, sans passer d'ordre.
+5. Sur la page « Mon vrai compte », choisis le guide et les garde-fous, puis **Démarrer**. `chubby web` (ou `serve`) doit tourner
+   pendant la bourse : c'est lui qui fait les passages.
+
+Avec un petit montant, les actions canadiennes s'achètent à l'unité chez IBKR : un titre plus cher que sa part est sauté
+(c'est noté dans le journal). Les fractions d'actions américaines peuvent s'activer dans les réglages, et chez IBKR.
+Pour les titres américains, il faut aussi des dollars américains dans le compte.
+
+> Ce n'est pas un conseil financier. Commence en papier, puis avec un montant que tu acceptes de perdre.
 
 ## Sur le PC serveur (Docker)
 
