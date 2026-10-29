@@ -323,7 +323,7 @@ body.relief .hint { display: block; } body.relief.nopanels .hint { display: none
   function liveState(b) {
     var i = Math.min(cursor, (b.curve || []).length - 1), change = i >= 0 && b.curve && b.curve.length ? b.curve[i] : b.change;
     var atEnd = !live || cursor >= live.times.length - 1;
-    var near = (b.radar || []).concat((b.stops || []).map(function (s) { return { ticker: s.ticker, distance: s.distance, crossed: s.hit, stop: true, level: s.level, last: s.last, label: 'stop' }; }));
+    var near = (b.radar || []).filter(function (x) { return x.action !== 'none'; }).concat((b.stops || []).map(function (s) { return { ticker: s.ticker, distance: s.distance, crossed: s.hit, stop: true, level: s.level, last: s.last, label: 'stop' }; }));
     near.sort(function (a, c) { return Math.abs(a.distance) - Math.abs(c.distance); });
     var top = near[0], acting = atEnd && near.some(function (n) { return n.crossed; });
     var zone = acting ? 'marche' : top && Math.abs(top.distance) < 0.03 ? 'place' : Object.keys(b.holdings || {}).length ? 'maison' : 'salon';
@@ -559,7 +559,7 @@ body.relief .hint { display: block; } body.relief.nopanels .hint { display: none
     // Ce qu'il surveille : ses seuils et ses stops, la jauge se remplit à mesure que le prix s'en approche.
     var gauges = [];
     if (lb) {
-      (lb.radar || []).forEach(function (r) { gauges.push({ t: r.ticker, d: r.distance, crossed: r.crossed, txt: r.label + ' à ' + frNum(r.level) + ' · ' + r.then }); });
+      (lb.radar || []).filter(function (x) { return x.action !== 'none'; }).forEach(function (r) { gauges.push({ t: r.ticker, d: r.distance, crossed: r.crossed, txt: r.label + ' à ' + frNum(r.level) + ' · ' + r.then }); });
       (lb.stops || []).forEach(function (r) { gauges.push({ t: r.ticker, d: r.distance, crossed: r.hit, stop: true, txt: 'stop de secours à ' + frNum(r.level) }); });
     }
     gauges.sort(function (a, c) { return Math.abs(a.d) - Math.abs(c.d); });

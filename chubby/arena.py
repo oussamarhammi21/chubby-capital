@@ -135,17 +135,27 @@ class Arena:
         except Exception:
             log.exception("Watchlist de %s impossible le %s", bot.name, day.date())
             return
-        out = []
+        out, by_ticker = [], {}
         for ticker, why, *rest in items:
-            trig = dict(rest[0]) if rest and rest[0] else None
-            if trig:
-                trig.update(label=french(trig["label"]), then=french(trig["then"]))
+            trigs = rest[0] if rest and isinstance(rest[0], list) else [rest[0]] if rest else []
+            trigs = [dict(t, label=french(t["label"]), then=french(t["then"])) for t in trigs if t]
+            item = by_ticker.get(ticker)
+            if item is not None:  # un titre, une seule ligne : ses raisons et ses seuils mis ensemble
+                if french(why) not in item["why"]:
+                    item["why"] += " · " + french(why)
+                item["triggers"] += trigs
+                item["held"] = item["held"] or any(t.get("held") for t in trigs) or why.startswith("détenu")
+                item["trigger"] = item["triggers"][0] if item["triggers"] else None
+                continue
             closes = self.data.closes(ticker, day, 2)
             price = self.data.price(ticker, day)
             change = float(closes.iloc[-1] / closes.iloc[-2] - 1) if len(closes) == 2 and closes.iloc[-2] else None
-            out.append({"ticker": ticker, "why": french(why), "price": round(price, 2) if price else None,
-                        "change": round(change, 4) if change is not None else None,
-                        "trigger": trig, "held": bool(trig and trig.get("held")) or why.startswith("détenu")})
+            item = by_ticker[ticker] = {
+                "ticker": ticker, "why": french(why), "price": round(price, 2) if price else None,
+                "change": round(change, 4) if change is not None else None,
+                "triggers": trigs, "trigger": trigs[0] if trigs else None,
+                "held": any(t.get("held") for t in trigs) or why.startswith("détenu")}
+            out.append(item)
         self.store.set_watchlist(bot.id, day, out)
 
     def _stops(self, bot: Bot, broker: PaperBroker, acct, day: pd.Timestamp):

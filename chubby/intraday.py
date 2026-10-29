@@ -269,13 +269,14 @@ class SessionTrader:
             return ""
         best = None
         for ticker, why, *rest in items:
-            trig = rest[0] if rest else None
+            trigs = rest[0] if rest and isinstance(rest[0], list) else [rest[0]] if rest else []
             px = ctx.price(ticker)
-            if not trig or not px:
-                continue
-            gap = trig["level"] / px - 1
-            if best is None or abs(gap) < abs(best[0]):
-                best = (gap, ticker, trig)
+            for trig in trigs:
+                if not trig or not px or trig.get("action") == "none":  # seulement ce qui le ferait vraiment agir
+                    continue
+                gap = trig["level"] / px - 1
+                if best is None or abs(gap) < abs(best[0]):
+                    best = (gap, ticker, trig)
         if best is None:
             return " Mes positions me conviennent."
         gap, ticker, trig = best

@@ -840,7 +840,7 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     var rows = bots.map(function (b) { return { b: b, l: liveById[b.id] }; }).filter(function (x) { return x.l; });
     ul.innerHTML = '';
     rows.forEach(function (x) {
-      var l = x.l, r = (l.radar || [])[0], html;
+      var l = x.l, r = (l.radar || []).filter(function (x) { return x.action !== 'none'; })[0], html;
       if (r) {
         var near = r.crossed ? 1 : clamp(1 - Math.abs(r.distance) / 0.05, 0.03, 1), color = r.crossed ? '#E5484D' : near > 0.7 ? '#F5A524' : '#5B47C2';
         html = '<b>' + x.b.name + '</b> · ' + pretty(r.ticker) + ' ' + r.last.toFixed(2).replace('.', ',') + ' <span style="color:' + color + '">' +
@@ -936,9 +936,9 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
     if (l) { $('#c-last').textContent = 'En direct · « ' + l.reaction + ' »'; return; }
     var j = lastJournal(b); $('#c-last').textContent = j ? j.day + ' · « ' + j.text + ' »' : 'Journal vide pour l’instant.';
   }
-  // Ses seuils de décision contre le vrai cours : plus la jauge est pleine, plus il est près d'agir ce soir.
+  // Ses seuils de décision contre le vrai cours : plus la jauge est pleine, plus il est près d'agir (il vérifie toutes les 15 minutes).
   function renderRadar(l) {
-    var box = $('#c-radar'), items = l ? (l.radar || []).slice(0, 5) : [];
+    var box = $('#c-radar'), items = l ? (l.radar || []).filter(function (x) { return x.action !== 'none'; }).slice(0, 5) : [];
     var watch = l && l.watch ? Object.keys(l.watch).map(function (t) { return { t: t, q: l.watch[t] }; })
       .filter(function (x) { return x.q.change != null; }).sort(function (a, b) { return Math.abs(b.q.change) - Math.abs(a.q.change); }).slice(0, 5) : [];
     box.hidden = !items.length && !watch.length; if (box.hidden) return;
@@ -1109,8 +1109,8 @@ h2 { margin: 0 0 8px; font: 600 17px var(--display); }
       if (moved > 0.0015) { b.hop = 0; sfx('hop'); if (moved > 0.004) burst(b.group.position.clone().add(new THREE.Vector3(0, 1.8, 0)), 10); }
       else if (moved < -0.0015 && b.state === 'work') { b.state = 'toBoard'; sfx('oops'); } // va vérifier les cotes
       var hitNow = (now.stops || []).some(function (x) { return x.hit; }), hitBefore = (old.stops || []).some(function (x) { return x.hit; });
-      var crossed = (now.radar || []).filter(function (x) { return x.crossed; }).map(function (x) { return x.ticker + x.label; });
-      var crossedBefore = (old.radar || []).filter(function (x) { return x.crossed; }).map(function (x) { return x.ticker + x.label; });
+      var crossed = (now.radar || []).filter(function (x) { return x.action !== 'none'; }).filter(function (x) { return x.crossed; }).map(function (x) { return x.ticker + x.label; });
+      var crossedBefore = (old.radar || []).filter(function (x) { return x.action !== 'none'; }).filter(function (x) { return x.crossed; }).map(function (x) { return x.ticker + x.label; });
       var fresh = crossed.filter(function (k) { return crossedBefore.indexOf(k) < 0; });
       if (fresh.length && !hitNow) { sfx('trade'); b.hop = 0; say(b, now.reaction, true); toast('Seuil franchi', b.name + ' : ' + now.reaction); }
       if (hitNow && !hitBefore) { sfx('oops'); if (b.state === 'work') b.state = 'toBoard'; say(b, now.reaction, true); toast('Ordre stop !', b.name + ' vend pour limiter la perte'); }

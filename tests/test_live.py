@@ -152,7 +152,7 @@ def test_live_shows_how_close_each_bot_is_to_acting(arena):
     live = pulse(arena.store, fetch=lambda tickers: bars, now=datetime(today.year, today.month, today.day, 11, 0, tzinfo=TORONTO))
     mochi = next(e for e in live["bots"] if e["id"] == "mochi")
     hit = next(x for x in mochi["radar"] if x["ticker"] == t)
-    assert hit["crossed"] and t in mochi["reaction"] and "ce soir" in mochi["reaction"]
+    assert hit["crossed"] and t in mochi["reaction"] and "prochaine vérification" in mochi["reaction"]
     assert mochi["thoughts"] and live["market"]
 
 

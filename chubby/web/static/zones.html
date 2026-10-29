@@ -575,7 +575,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
       return [walk('home'), pause(6, { status: ['💭', 'Repense à sa journée'], say: lines0[z.idleIdx % Math.max(1, lines0.length)] })];
     }
     var known = {};
-    (l.radar || []).forEach(function (x) { known[x.ticker] = 'screen'; });
+    (l.radar || []).filter(function (x) { return x.action !== 'none'; }).forEach(function (x) { known[x.ticker] = 'screen'; });
     Object.keys(l.watch || {}).forEach(function (t) { known[t] = known[t] || 'screen'; });
     Object.keys(l.holdings || {}).forEach(function (t) { known[t] = 'shelf'; });
     var ideas = [];
@@ -674,7 +674,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     c.fillStyle = '#3DD6F5'; c.font = '700 30px Fredoka, sans-serif'; c.textBaseline = 'middle';
     c.fillText('Ce que je surveille', 20, 30);
     c.fillStyle = '#8E8AA3'; c.font = '700 20px Nunito, sans-serif'; c.textAlign = 'right'; c.fillText(live && live.as_of ? live.as_of : '', W - 20, 30); c.textAlign = 'left';
-    var rows = (l.radar || []).slice(0, 4).map(function (x) { return { t: x.ticker, last: x.last, sub: x.label, dist: x.distance, crossed: x.crossed }; });
+    var rows = (l.radar || []).filter(function (x) { return x.action !== 'none'; }).slice(0, 4).map(function (x) { return { t: x.ticker, last: x.last, sub: x.label, dist: x.distance, crossed: x.crossed }; });
     var seen = {}; rows.forEach(function (r) { seen[r.t] = 1; });
     Object.keys(l.watch || {}).forEach(function (t) { var q = l.watch[t]; if (rows.length < 5 && !seen[t] && q) { seen[t] = 1; rows.push({ t: t, last: q.last, change: q.change }); } });
     if (z.focusTicker && !seen[z.focusTicker]) rows.unshift({ t: z.focusTicker, last: (l.watch || {})[z.focusTicker] ? l.watch[z.focusTicker].last : null, change: (l.holdings || {})[z.focusTicker] });
@@ -791,9 +791,9 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     if (mode === 'world') { renderBoard(); return; }
     var z = current; if (!z) return;
     var l = liveById[z.id] || {};
-    var radar = (l.radar || []).slice(0, 5).map(function (x) {
+    var radar = (l.radar || []).filter(function (x) { return x.action !== 'none'; }).slice(0, 5).map(function (x) {
       var close = x.crossed ? 1 : clamp(1 - Math.abs(x.distance) / 0.1, 0.03, 1);
-      return '<li><b>' + C.link(x.ticker) + '</b> · ' + esc(x.label) + '<br><span class="muted">' + (x.crossed ? 'Franchi : si ça tient à la clôture, ' + esc(x.then) : 'À ' + Math.abs(x.distance * 100).toFixed(1).replace('.', ',') + ' % : ensuite, ' + esc(x.then)) + '</span><div class="gauge"><i style="width:' + (close * 100).toFixed(0) + '%"></i></div></li>';
+      return '<li><b>' + C.link(x.ticker) + '</b> · ' + esc(x.label) + '<br><span class="muted">' + (x.crossed ? (x.at_close ? 'Franchi : si ça tient à la clôture, ' : 'Franchi : si c’est encore le cas à sa prochaine vérification, ') + esc(x.then) : 'À ' + Math.abs(x.distance * 100).toFixed(1).replace('.', ',') + ' % : ensuite, ' + esc(x.then)) + '</span><div class="gauge"><i style="width:' + (close * 100).toFixed(0) + '%"></i></div></li>';
     }).join('');
     var held = Object.keys(l.holdings || {}).map(function (t) { return '<li>' + C.link(t) + ' <span class="' + C.cls(l.holdings[t]) + '">' + pct(l.holdings[t]) + '</span></li>'; }).join('');
     var dayKey = shownDay || today, evs = (dayCache[dayKey] || []).filter(function (e) { return e.bot_id === z.id; }).sort(byTime);

@@ -113,11 +113,19 @@ class Bot(ABC):
         return []
 
     @staticmethod
-    def trigger(level: float | None, direction: str, label: str, then: str, held: bool = False) -> dict | None:
-        """Un seuil de décision : s'il clôture sous (« below ») ou au-dessus (« above ») de `level`, il fera `then`."""
+    def trigger(level: float | None, direction: str, label: str, then: str, held: bool = False,
+                action: str = "trade", at_close: bool = False) -> dict | None:
+        """Un seuil de décision : si le cours passe sous (« below ») ou au-dessus (« above ») de `level`, il fera `then`.
+
+        `action` : « buy », « sell » ou « trade » (il passe un ordre), « none » (rien de plus pour l'instant : `then`
+        dit pourquoi), « mood » (il change de façon de jouer, sans ordre tout de suite).
+        Pendant la bourse, un ordre part dès que le seuil est franchi deux vérifications de suite (toutes les
+        15 minutes) ; `at_close` marque un seuil qu'il ne regarde qu'à la clôture.
+        """
         if level is None or level <= 0:
             return None
-        return {"level": round(level, 2), "direction": direction, "label": label, "then": then, "held": held}
+        return {"level": round(level, 2), "direction": direction, "label": label, "then": then, "held": held,
+                "action": action, "at_close": at_close}
 
     def stops(self, positions: dict, params: dict[str, float], fx) -> dict[str, tuple[float, str]]:
         """Ordres stop laissés chez le courtier : {ticker: (prix de déclenchement, "below" ou "above")}.
