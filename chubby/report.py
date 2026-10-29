@@ -57,9 +57,9 @@ def round_trips(trades: list[dict]) -> tuple[list[dict], dict[str, dict]]:
             move(tk, day, q, 0.0)  # l'option vendue disparaît
             shares = q * opt.MULTIPLIER
             if kind == "P":
-                move(underlying, day, shares, -v)  # on achète les actions au prix d'exercice
+                move(underlying, day, shares, -v)  # on achète les actions au strike
             else:
-                move(underlying, day, -shares, v)  # nos actions partent au prix d'exercice
+                move(underlying, day, -shares, v)  # nos actions partent au strike
     return done, state
 
 
@@ -146,12 +146,12 @@ def _activity(store: Store, bot_id: str, limit: int = 40) -> list[dict]:
     for r in db.execute("SELECT * FROM trades WHERE bot_id = ? ORDER BY id DESC LIMIT ?", (bot_id, limit)):
         stop = stops.get((r["day"], r["ticker"]))
         if stop:
-            kind = "Ordre stop (vente)" if stop["direction"] == "below" else "Ordre stop (rachat)"
+            kind = "Stop-loss (vente)" if stop["direction"] == "below" else "Stop-loss (rachat)"
             submitted = f"posé chez le courtier, seuil {stop['level']:.2f}"
             filled = f"{r['day']}, pendant la séance"
         elif r["side"] in ("expire", "assign"):
-            kind = "Échéance de l'option" if r["side"] == "expire" else "Option exercée"
-            submitted, filled = "automatique", f"{r['day']}, à l'échéance"
+            kind = "Expiry de l'option" if r["side"] == "expire" else "Option exercée"
+            submitted, filled = "automatique", f"{r['day']}, à l'expiry"
         elif (r["time"] or "") > "09:30":
             kind = "Achat en séance" if r["side"] == "buy" else "Vente en séance"
             submitted = filled = f"{r['day']} à {r['time'].replace(':', ' h ')}, pendant la séance"

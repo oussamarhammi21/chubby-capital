@@ -76,19 +76,19 @@ REACTIONS = {
         "up": ["Mon mélange tient bien : {t} {m}.", "Un peu de tout, un peu de hausse."],
         "flat": ["Équilibre parfait aujourd'hui.", "Mes FNB se compensent : rien ne bouge."],
         "down": ["{t} {m}, mais mes obligations et mon or amortissent.", "Petit recul. C'est pour ça qu'on diversifie."],
-        "big_down": ["Ouch, {t} {m}. Si un poids dérive trop, je rééquilibre.", "Grosse baisse, mais pas tout au même endroit."],
+        "big_down": ["Ouch, {t} {m}. Si un poids dérive trop, je rebalance.", "Grosse baisse, mais pas tout au même endroit."],
     },
     "mochi": {
-        "big_up": ["{t} {m} ! La tendance est mon amie !", "Mes champions s'envolent, {t} {m} !"],
-        "up": ["{t} {m}, la tendance continue.", "Mes titres forts restent forts."],
-        "flat": ["Le marché hésite. J'attends que la tendance se décide.", "Pas de tendance aujourd'hui."],
-        "down": ["{t} {m}… s'il casse sa moyenne 50 jours, je coupe ce soir.", "Petite pause dans la tendance."],
-        "big_down": ["{t} {m} ! Je surveille mes stops pour ce soir.", "Aïe, la tendance se retourne ?"],
+        "big_up": ["{t} {m} ! Le trend est mon ami !", "Mes champions s'envolent, {t} {m} !"],
+        "up": ["{t} {m}, le trend continue.", "Mes titres forts restent forts."],
+        "flat": ["Le marché hésite. J'attends que le trend se décide.", "Pas de trend aujourd'hui."],
+        "down": ["{t} {m}… s'il casse sa SMA 50, je coupe ce soir.", "Petite pause dans le trend."],
+        "big_down": ["{t} {m} ! Je surveille mes stops pour ce soir.", "Aïe, le trend se retourne ?"],
     },
     "muffin": {
         "big_up": ["Le rebond est là : {t} {m} !", "Mes aubaines remontent, {t} {m} !"],
         "up": ["{t} {m}. Acheté en solde, revendu au rebond.", "Ça rebondit gentiment."],
-        "flat": ["Je cherche des titres survendus…", "Pas d'aubaine en vue pour l'instant."],
+        "flat": ["Je cherche des titres oversold…", "Pas d'aubaine en vue pour l'instant."],
         "down": ["{t} {m} : ça devient peut-être une aubaine…", "Ça baisse ? Je prépare ma liste de courses."],
         "big_down": ["{t} {m}… mon stop à -8 % n'est pas loin.", "Les soldes sont là, mais attention aux couteaux qui tombent."],
     },
@@ -100,18 +100,18 @@ REACTIONS = {
         "big_down": ["{t} {m} ! Mon stop à -50 % approche…", "C'est le grand huit, et je suis devant !"],
     },
     "jalapeno-v2": {
-        "big_up": ["Le marché monte : mes puts vendus perdent de la valeur, tant mieux pour moi !", "Belle journée pour un vendeur de primes."],
-        "up": ["Calme ou hausse : mes primes fondent dans ma poche.", "Chaque jour qui passe me rapporte un peu de prime."],
+        "big_up": ["Le marché monte : mes puts vendus perdent de la valeur, tant mieux pour moi !", "Belle journée pour un vendeur de premium."],
+        "up": ["Calme ou hausse : mes premiums fondent dans ma poche.", "Chaque jour qui passe me rapporte un peu de premium."],
         "flat": ["Rien ne bouge, et le temps travaille pour moi.", "Journée parfaite pour un vendeur d'options."],
-        "down": ["{t} {m}… tant que ça reste au-dessus de mon prix d'exercice, ça va.", "Un peu de baisse, rien de grave pour la roue."],
+        "down": ["{t} {m}… tant que ça reste au-dessus de mon strike, ça va.", "Un peu de baisse, rien de grave pour la roue."],
         "big_down": ["{t} {m} ! Si on m'exerce, j'achèterai les actions et je vendrai des calls.", "Gros recul : je surveille mon stop."],
     },
     "jalapeno-v3": {
         "big_up": ["{t} {m} ! Mes calls longs adorent ça, et je ne bouge pas.", "Effet de levier, mais avec patience !"],
         "up": ["{t} {m}. Mon option suit l'indice tranquillement.", "Doucement vers le haut, comme prévu."],
         "flat": ["Journée calme : mon option longue ne perd presque rien à attendre.", "Je suis patient, moi, maintenant."],
-        "down": ["{t} {m}… tant que le Nasdaq tient sa moyenne 200 jours, je garde.", "Petit recul, mon échéance est loin."],
-        "big_down": ["{t} {m} ! Si le Nasdaq casse sa moyenne 200 jours, je range tout au cash.", "Ça secoue, mais mon plan est clair."],
+        "down": ["{t} {m}… tant que le Nasdaq tient sa SMA 200, je garde.", "Petit recul, mon expiry est loin."],
+        "big_down": ["{t} {m} ! Si le Nasdaq casse sa SMA 200, je range tout au cash.", "Ça secoue, mais mon plan est clair."],
     },
     "matcha": {
         "big_up": ["Mon modèle avait vu juste : {t} {m} !", "Les données ne mentent pas, {t} {m}."],
@@ -493,7 +493,7 @@ def _quotes(tickers: list[str], session: pd.DataFrame, prev: pd.Series) -> dict[
 
 
 def _watch_stops(bot_id: str, acct, params: dict, session: pd.DataFrame, usdcad: float, chains) -> list[dict]:
-    """Ordres stop du Chubby et distance au prix actuel. Un stop touché pendant la séance est exécuté au prix du
+    """Stop-loss du Chubby et distance au prix actuel. Un stop touché pendant la séance est exécuté au prix du
     stop par la séance du soir, exactement comme le ferait le courtier : ici, on le montre en direct."""
     from .bots import bot_class
 
@@ -522,7 +522,7 @@ def _stop_reaction(stops: list[dict]) -> str | None:
     hit = next((x for x in stops if x["hit"]), None)
     if hit:
         verb = "je vends" if hit["direction"] == "below" else "je rachète"
-        return french(f"Mon ordre stop sur {hit['name']} est touché ! {verb.capitalize()} à {hit['level']:.2f}.")
+        return french(f"Mon stop-loss sur {hit['name']} est touché ! {verb.capitalize()} à {hit['level']:.2f}.")
     near = next((x for x in stops if x["distance"] is not None and abs(x["distance"]) < STOP_WATCH), None)
     if near:
         return french(f"{near['name']} n'est plus qu'à {abs(near['distance']) * 100:.1f} % de mon stop… je croise les doigts.")

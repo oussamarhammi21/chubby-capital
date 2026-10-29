@@ -3,7 +3,7 @@
 Il n'existe pas d'historique gratuit des prix d'options : on les calcule à partir du sous-jacent,
 avec une volatilité implicite estimée sur la volatilité réalisée des 21 dernières séances.
 Dans l'arène en direct, les vraies chaînes d'options remplacent le modèle (voir chains.py).
-Symbole : OPT:<sous-jacent>:<C|P>:<prix d'exercice>:<échéance AAAA-MM-JJ>.
+Symbole : OPT:<sous-jacent>:<C|P>:<strike>:<expiry AAAA-MM-JJ>.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ def third_friday(year: int, month: int) -> pd.Timestamp:
 
 
 def pick_expiry(day, days_out: float) -> pd.Timestamp:
-    """Échéance mensuelle standard (3e vendredi) la plus proche de day + days_out, au moins 3 semaines."""
+    """Expiry mensuelle standard (3e vendredi) la plus proche de day + days_out, au moins 3 semaines."""
     target = pd.Timestamp(day) + pd.Timedelta(days=days_out)
     candidates = []
     for k in range(-1, 3):
@@ -97,8 +97,8 @@ class OptionData:
         return min(1.5, max(0.12, vol))
 
     def contract(self, underlying: str, kind: str, day, otm: float, days_out: float, ref: float | None = None) -> str:
-        """Symbole de l'option voulue : échéance et prix d'exercice visés, ramenés au contrat coté le plus
-        proche quand on a la vraie chaîne. `ref` remplace le cours comme base du prix d'exercice."""
+        """Symbole de l'option voulue : expiry et strike visés, ramenés au contrat coté le plus
+        proche quand on a la vraie chaîne. `ref` remplace le cours comme base du strike."""
         spot = ref or self.inner.price(underlying, day)
         expiry, strike = pick_expiry(day, days_out), pick_strike(spot, otm, kind)
         if self.chains is not None and self.chains.is_live(day):

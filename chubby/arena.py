@@ -159,7 +159,7 @@ class Arena:
         self.store.set_watchlist(bot.id, day, out)
 
     def _stops(self, bot: Bot, broker: PaperBroker, acct, day: pd.Timestamp):
-        """Ordres stop : déclenchés pendant la séance si le plus bas (ou le plus haut) du jour franchit le seuil."""
+        """Stop-loss : déclenchés pendant la séance si le plus bas (ou le plus haut) du jour franchit le seuil."""
         levels = bot.stops(acct.positions, self.store.get_params(bot.id), lambda t: broker.fx(t, day))
         # Un titre acheté en direct après l'ouverture : le plus bas du jour a pu venir avant l'achat. Ses stops ont
         # déjà été surveillés en direct (intraday.py), on ne les rejoue pas sur les extrêmes de toute la journée.
@@ -176,7 +176,7 @@ class Arena:
             gap = " (le titre a ouvert au-delà du seuil)" if abs(px - level) > 1e-9 else ""
             self.store.event(day, bot.id, "stop", ticker=ticker, level=level, price=round(px, 2),
                              direction=direction, value_cad=round(fill.value_cad, 2))
-            self.store.journal(bot.id, day, f"Mon ordre stop sur {name} s'est déclenché à {px:.2f}{gap}. "
+            self.store.journal(bot.id, day, f"Mon stop-loss sur {name} s'est déclenché à {px:.2f}{gap}. "
                                             + ("Je limite la perte." if direction == "below" else "Je rachète pour couper le risque."))
 
     def _first_day_of_month(self, day: pd.Timestamp) -> bool:

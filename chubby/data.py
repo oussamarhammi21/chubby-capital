@@ -36,7 +36,7 @@ class FrameData:
         self._close = {t: f["Close"].to_numpy(dtype=float) for t, f in self.frames.items()}
         self._open = {t: f["Open"].to_numpy(dtype=float) for t, f in self.frames.items()}
         self._div = {t: f["Dividends"].fillna(0).to_numpy(dtype=float) for t, f in self.frames.items()}
-        # Plus haut et plus bas du jour (servent aux ordres stop) ; à défaut, l'ouverture et la clôture.
+        # Plus haut et plus bas du jour (servent aux stop-loss) ; à défaut, l'ouverture et la clôture.
         self._low = {t: (f["Low"] if "Low" in f else f[["Open", "Close"]].min(axis=1)).to_numpy(dtype=float)
                      for t, f in self.frames.items()}
         self._high = {t: (f["High"] if "High" in f else f[["Open", "Close"]].max(axis=1)).to_numpy(dtype=float)

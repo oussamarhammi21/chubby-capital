@@ -1,7 +1,7 @@
 """Vraies chaînes d'options (Yahoo Finance), pour l'arène en direct.
 
 Dans l'arène en direct, une option est évaluée à son vrai prix du jour (milieu entre l'offre et
-la demande, sinon dernier prix échangé), et les Chubbies choisissent parmi les échéances et prix
+la demande, sinon dernier prix échangé), et les Chubbies choisissent parmi les expiries et prix
 d'exercice qui existent vraiment. Les backtests, eux, gardent le modèle de Black-Scholes : il n'y a
 pas d'historique gratuit des prix d'options.
 """
@@ -37,7 +37,7 @@ def quote_of(row) -> float | None:
 class YahooChains:
     """Chaînes d'options du jour, téléchargées à la demande et gardées en mémoire.
 
-    `fetch_expiries(sous_jacent)` et `fetch_table(sous_jacent, échéance)` sont remplaçables pour les tests :
+    `fetch_expiries(sous_jacent)` et `fetch_table(sous_jacent, expiry)` sont remplaçables pour les tests :
     la table a les colonnes strike, bid, ask, lastPrice et kind (C ou P).
     """
 
@@ -85,8 +85,8 @@ class YahooChains:
         return price
 
     def listed(self, underlying: str, kind: str, strike: float, expiry: pd.Timestamp) -> tuple[float, pd.Timestamp] | None:
-        """Le contrat coté le plus proche de celui voulu : échéance la plus proche (au moins 14 jours),
-        puis prix d'exercice le plus proche parmi ceux qui ont un prix."""
+        """Le contrat coté le plus proche de celui voulu : expiry la plus proche (au moins 14 jours),
+        puis strike le plus proche parmi ceux qui ont un prix."""
         choices = [e for e in self.expiries(underlying) if (e - self.today).days >= 14]
         if not choices:
             return None

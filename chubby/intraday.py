@@ -2,10 +2,10 @@
 
 - À l'ouverture, les ordres décidés la veille au soir partent au premier cours de la journée, et sont inscrits tout de suite.
 - Toutes les 15 minutes, chaque Chubby refait son analyse avec le cours du moment : ses règles habituelles, appliquées
-  comme si la séance fermait maintenant (le RSI de Muffin, la moyenne 50 jours de Mochi, le gain de l'option de Jalapeño…).
+  comme si la séance fermait maintenant (le RSI de Muffin, la SMA 50 de Mochi, le gain de l'option de Jalapeño…).
 - Il confirme avant d'agir : une occasion doit être encore là à la vérification suivante, pour ne pas réagir au bruit.
 - Pas d'aller-retour sur un même titre dans la journée (des frais pour rien).
-- Ses ordres stop sont surveillés en direct et exécutés dès que le cours franchit le seuil.
+- Ses stop-loss sont surveillés en direct et exécutés dès que le cours franchit le seuil.
 
 La séance du soir (arena.tick) garde les dividendes, les intérêts, la valeur de clôture, le classement et la décision
 de fin de journée. Si elle n'a pas été jouée (tableau de bord lancé seul), on la rattrape au début de la séance suivante.
@@ -65,7 +65,7 @@ def overlay(daily: FrameData, session: pd.DataFrame, at_open: bool = False) -> F
 
 
 def apply(broker: PaperBroker, acct, targets: dict | None, trades: list, day) -> list[Fill]:
-    """Passe une décision sur le compte : rééquilibrage d'abord (ventes puis achats), puis ordres directs."""
+    """Passe une décision sur le compte : rebalancing d'abord (ventes puis achats), puis ordres directs."""
     fills = broker.rebalance(acct, targets, day) if targets is not None else []
     fills += [broker.trade(acct, t, int(q), day) for t, q in trades]
     return [f for f in fills if f is not None]
@@ -199,7 +199,7 @@ class SessionTrader:
             targets, trades = store.pop_pending(bot.id)
             fills = apply(broker_open, acct, targets, trades, day)
             self._record(store, bot, day, fills, OPEN_TIME, "Ordre décidé hier soir, passé à l'ouverture.")
-        # 2. Ses ordres stop, surveillés en direct.
+        # 2. Ses stop-loss, surveillés en direct.
         self._stops(store, bot, acct, broker_now, day, session, time)
         # 3. Son analyse du moment.
         traded = {r["ticker"] for r in store.db.execute("SELECT DISTINCT ticker FROM trades WHERE bot_id = ? AND day = ?",
@@ -317,7 +317,7 @@ class SessionTrader:
             store.add_trade(bot.id, day, fill, time=time)
             store.event(day, bot.id, "stop", ticker=t, level=level, price=round(px, 2), direction=direction,
                         value_cad=round(fill.value_cad, 2), time=time, intraday=True)
-            why = (f"Mon ordre stop sur {name} s'est déclenché à {px:.2f}. "
+            why = (f"Mon stop-loss sur {name} s'est déclenché à {px:.2f}. "
                    + ("Je limite la perte." if below else "Je rachète pour couper le risque."))
             store.journal(bot.id, day, f"{time} · {french(why)}")
 
@@ -386,6 +386,6 @@ def trades_today(store: Store, bot_id: str, day: str) -> list[dict]:
         side = p.get("side") or ("sell" if p.get("direction") == "below" else "buy")
         out.append({"time": p.get("time"), "side": side, "ticker": p.get("ticker"), "qty": p.get("qty"),
                     "price": p.get("price"), "value_cad": p.get("value_cad"),
-                    "why": p.get("why") or "Mon ordre stop s'est déclenché."})
+                    "why": p.get("why") or "Mon stop-loss s'est déclenché."})
     return out
 

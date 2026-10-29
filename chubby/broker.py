@@ -97,7 +97,7 @@ class PaperBroker:
                     unit_fee * qty + self.cfg.commission, cost)
 
     def sell(self, acct: Account, ticker: str, qty: int, day, px: float | None = None) -> Fill | None:
-        """Vente à l'ouverture, ou au prix `px` (ordre stop déclenché pendant la séance)."""
+        """Vente à l'ouverture, ou au prix `px` (stop-loss déclenché pendant la séance)."""
         pos = acct.positions.get(ticker)
         px = px or self.data.price(ticker, day, "Open")
         if not pos or not px or qty <= 0:
@@ -152,7 +152,7 @@ class PaperBroker:
         return fills
 
     def collateral(self, acct: Account, day) -> float:
-        """Cash bloqué en garantie des puts vendus (prix d'exercice × 100 par contrat)."""
+        """Cash bloqué en garantie des puts vendus (strike × 100 par contrat)."""
         total = 0.0
         for t, pos in acct.positions.items():
             if is_option(t) and pos.qty < 0 and parse(t)[1] == "P":
@@ -165,7 +165,7 @@ class PaperBroker:
     def trade(self, acct: Account, ticker: str, qty: int, day) -> Fill | None:
         """Ordre direct au prix d'ouverture : qty > 0 achète (ou rachète une option vendue), qty < 0 vend.
 
-        Vendre une option qu'on ne détient pas ouvre une position vendue : on encaisse la prime,
+        Vendre une option qu'on ne détient pas ouvre une position vendue : on encaisse le premium,
         et un put vendu doit être entièrement garanti par du cash libre.
         """
         pos = acct.positions.get(ticker)
@@ -221,7 +221,7 @@ class PaperBroker:
                     unit_fee * qty, cost)
 
     def stop_out(self, acct: Account, ticker: str, level: float, direction: str, day) -> tuple[Fill, float] | None:
-        """Ordre stop posé chez le courtier : il se déclenche pendant la séance si le prix franchit `level`.
+        """Stop-loss posé chez le courtier : il se déclenche pendant la séance si le prix franchit `level`.
 
         direction "below" : vendre une position si le prix tombe à `level` ou plus bas.
         direction "above" : racheter une option vendue si son prix monte à `level` ou plus haut.
@@ -253,7 +253,7 @@ class PaperBroker:
         return (fill, px) if fill else None
 
     def settle_expired(self, acct: Account, day) -> list[Fill]:
-        """Options arrivées à échéance : réglées à leur valeur intrinsèque, ou exercées pour les options vendues."""
+        """Options arrivées à expiry : réglées à leur valeur intrinsèque, ou exercées pour les options vendues."""
         fills = []
         for t, pos in list(acct.positions.items()):
             if not is_option(t):
@@ -275,13 +275,13 @@ class PaperBroker:
         return fills
 
     def _settle_short(self, acct, t, pos, underlying, kind, strike, intrinsic, day) -> list[Fill]:
-        """Une option vendue expire sans valeur (on garde la prime) ou est exercée contre nous."""
+        """Une option vendue expire sans valeur (on garde le premium) ou est exercée contre nous."""
         del acct.positions[t]
         n, fx = -pos.qty, self.fx(t, day)
         if intrinsic <= 0:
             return [Fill(t, "expire", n, 0.0, currency_of(t), fx, 0.0, 0.0)]
         shares = n * MULTIPLIER
-        if kind == "P":  # on achète les actions au prix d'exercice
+        if kind == "P":  # on achète les actions au strike
             cost = shares * strike * fx
             acct.cash -= cost
             held = acct.positions.get(underlying)
@@ -291,7 +291,7 @@ class PaperBroker:
             else:
                 acct.positions[underlying] = Position(underlying, shares, cost / shares, str(pd.Timestamp(day).date()))
             return [Fill(t, "assign", n, strike, currency_of(t), fx, 0.0, cost)]
-        held = acct.positions.get(underlying)  # call couvert : nos actions partent au prix d'exercice
+        held = acct.positions.get(underlying)  # call couvert : nos actions partent au strike
         delivered = min(shares, held.qty if held else 0)
         proceeds = delivered * strike * fx - (shares - delivered) * intrinsic * fx
         acct.cash += proceeds

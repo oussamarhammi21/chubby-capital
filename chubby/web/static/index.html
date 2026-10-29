@@ -243,7 +243,7 @@ td.r, th.r { text-align: right; }
         '<div><small>Capital</small><span>' + money(e.equity) + '</span></div>' +
         '<div><small>Aujourd’hui</small><span class="' + cls(e.day_change) + '">' + pct(e.day_change || 0, 2) + '</span></div>' +
         '<div><small>Depuis le début</small><span class="' + cls(m.total_return) + '">' + pct(m.total_return) + '</span></div>' +
-        '<div><small>Pire baisse</small><span>' + pct(m.max_drawdown) + '</span></div>' +
+        '<div><small>Max drawdown</small><span>' + pct(m.max_drawdown) + '</span></div>' +
         '<div><small>Frais</small><span>' + money(e.fees) + '</span></div>' +
         '<div><small>Score</small><span>' + e.score + '</span></div></div>';
       b.addEventListener('click', function () { openBot(e.id); });
@@ -258,7 +258,7 @@ td.r, th.r { text-align: right; }
     dividend: function (e) { return 'reçoit ' + money(e.amount_cad) + ' de dividendes (' + e.ticker + ')'; },
     rank_change: function (e) { return (e.new < e.old ? 'monte' : 'descend') + ' de la ' + e.old + 'e à la ' + e.new + 'e place'; },
     fee: function (e) { return 'paie ' + money(e.amount_cad) + ' (' + e.reason + ')'; },
-    stop: function (e) { return 'voit son ordre stop se déclencher sur ' + pretty(e.ticker) + ' à ' + e.price.toFixed(2).replace('.', ',') + ' (' + money(e.value_cad) + ')'; },
+    stop: function (e) { return 'voit son stop-loss se déclencher sur ' + pretty(e.ticker) + ' à ' + e.price.toFixed(2).replace('.', ',') + ' (' + money(e.value_cad) + ')'; },
     error: function () { return 'n’a pas pu décider aujourd’hui'; }
   };
   function renderFeed(ov) {
@@ -410,7 +410,7 @@ td.r, th.r { text-align: right; }
         }).join('') + '</tbody></table></div>' : '<p class="empty">Tout en cash.</p>';
       var trades = d.trades.length ? '<div class="tbl"><table><thead><tr><th>Jour</th><th>Ordre</th><th>Titre</th><th class="r">Qté</th><th class="r">Prix</th><th class="r">Montant</th><th class="r">Frais</th></tr></thead><tbody>' +
         d.trades.map(function (t) {
-          return '<tr><td>' + esc(t.day) + '</td><td class="' + (t.side === 'buy' ? 'up' : 'down') + '">' + (t.side === 'buy' ? 'Achat' : t.side === 'expire' ? 'Échéance' : 'Vente') + '</td><td>' + Chubby.link(t.ticker) + '</td><td class="r">' + t.qty +
+          return '<tr><td>' + esc(t.day) + '</td><td class="' + (t.side === 'buy' ? 'up' : 'down') + '">' + (t.side === 'buy' ? 'Achat' : t.side === 'expire' ? 'Expiry' : 'Vente') + '</td><td>' + Chubby.link(t.ticker) + '</td><td class="r">' + t.qty +
             '</td><td class="r">' + t.price.toFixed(2) + ' ' + esc(t.currency) + '</td><td class="r">' + money(t.value_cad) + '</td><td class="r">' + money(t.fees_cad) + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<p class="empty">Aucun trade.</p>';
       var journal = d.journal.length ? '<ul class="journal">' + d.journal.map(function (j) { return '<li><time>' + esc(j.day) + '</time>« ' + esc(j.text) + ' »</li>'; }).join('') + '</ul>' : '<p class="empty">Journal vide.</p>';
@@ -423,7 +423,7 @@ td.r, th.r { text-align: right; }
         '<div><small>Cash</small><span>' + money(d.cash) + '</span></div>' +
         '<div><small>Aujourd’hui</small><span class="' + cls(d.day_change || 0) + '">' + (d.day_change == null ? '—' : pct(d.day_change, 2)) + '</span></div>' +
         '<div><small>Depuis le début</small><span class="' + cls(m.total_return) + '">' + pct(m.total_return) + '</span></div>' +
-        '<div><small>Pire baisse</small><span>' + pct(m.max_drawdown) + '</span></div>' +
+        '<div><small>Max drawdown</small><span>' + pct(m.max_drawdown) + '</span></div>' +
         '<div><small>Sharpe</small><span>' + m.sharpe.toFixed(2).replace('.', ',') + '</span></div>' +
         '<div><small>Semaines +</small><span>' + Math.round(m.regularity * 100) + ' %</span></div>' +
         '<div><small>Agressivité</small><span>' + d.aggressiveness.toFixed(2).replace('.', ',') + '</span></div></div>' +

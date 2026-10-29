@@ -57,7 +57,7 @@ def test_season_triggers_stops_and_writes_them_down():
     arena, _ = run_arena(400)
     stops = arena.store.db.execute("SELECT bot_id, payload FROM events WHERE kind = 'stop'").fetchall()
     assert stops and {r["bot_id"] for r in stops} <= {"muffin", "jalapeno", "jalapeno-v2", "jalapeno-v3"}
-    assert arena.store.db.execute("SELECT COUNT(*) FROM journal WHERE text LIKE 'Mon ordre stop%'").fetchone()[0] == len(stops)
+    assert arena.store.db.execute("SELECT COUNT(*) FROM journal WHERE text LIKE 'Mon stop-loss%'").fetchone()[0] == len(stops)
 
 
 def test_live_shows_a_stop_being_hit():

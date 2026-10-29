@@ -531,7 +531,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
   function eventLine(e) {
     var t = short(e.ticker || ''), px = e.price != null ? ' à ' + num(e.price) + ' $' : '';
     if (e.kind === 'trade') return (e.side === 'buy' ? "J'achète " : 'Je vends ') + (e.qty != null ? e.qty + ' ' : '') + t + px + '.' + (e.why ? ' ' + e.why : '');
-    if (e.kind === 'stop') return 'Mon ordre stop sur ' + t + ' est touché : je vends' + px + '.';
+    if (e.kind === 'stop') return 'Mon stop-loss sur ' + t + ' est touché : je vends' + px + '.';
     if (e.kind === 'analyse') return e.why || (t ? "J'analyse " + t + '.' : "Rien d'intéressant pour l'instant.");
     if (e.kind === 'dividend') return 'Un dividende de ' + t + ' tombe dans mon coffre : ' + money(e.amount_cad || 0) + '.';
     return '';
@@ -833,7 +833,7 @@ h3 { margin: 0 0 6px; font: 600 15px var(--display); }
     if (amount != null) facts.push('montant ' + money(amount));
     if (e.kind === 'analyse' && e.side) facts.push(e.side === 'buy' ? 'achat envisagé' : 'vente envisagée');
     if (e.fees_cad) facts.push('frais ' + money(e.fees_cad));
-    var why = e.why || (e.kind === 'stop' ? 'Le cours a touché son ordre stop.' : e.kind === 'trade' && !e.intraday ? 'Décidé le soir, à la clôture.' : '');
+    var why = e.why || (e.kind === 'stop' ? 'Le cours a touché son stop-loss.' : e.kind === 'trade' && !e.intraday ? 'Décidé le soir, à la clôture.' : '');
     return '<li><div class="top-line"><time>' + esc(e.time || (e.intraday ? '' : 'soir')) + '</time><b>' + eventIcon(e) + ' ' + kind + '</b>' +
       (withReplay && replayable(e) ? '<button class="mini" data-replay="' + e.id + '">▶ Revoir</button>' : '') + '</div>' +
       (facts.length ? '<span class="facts">' + facts.join(' · ') + '</span>' : '') + (why ? '<span>Pourquoi : ' + esc(why) + '</span>' : '') + '</li>';

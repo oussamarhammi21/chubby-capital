@@ -1,6 +1,6 @@
 """Matcha, la Chubby qui apprend : un modèle de machine learning réentraîné chaque mois.
 
-Chaque mois, elle apprend sur les deux dernières années quels signaux (tendances, volatilité,
+Chaque mois, elle apprend sur les deux dernières années quels signaux (trends, volatilité,
 RSI, distance aux moyennes) ont annoncé les titres qui ont le mieux fait le mois suivant.
 Puis elle achète les titres que son modèle préfère aujourd'hui.
 
@@ -18,8 +18,8 @@ from .base import Bot, BotContext, Decision, Param
 from .chubbies import BROAD
 
 FEATURES = {
-    "r21": "tendance 1 mois", "r63": "tendance 3 mois", "r126": "tendance 6 mois",
-    "vol21": "volatilité", "rsi14": "RSI", "d50": "écart à la moyenne 50 j", "d200": "écart à la moyenne 200 j",
+    "r21": "trend 1 mois", "r63": "trend 3 mois", "r126": "trend 6 mois",
+    "vol21": "volatilité", "rsi14": "RSI", "d50": "écart à la SMA 50", "d200": "écart à la SMA 200",
 }
 HORIZON = 21  # on prédit la performance relative du mois suivant
 TRAIN_SESSIONS = 504  # deux ans d'historique
@@ -58,7 +58,7 @@ class Matcha(Bot):
     }
     rules = [
         "Chaque mois, elle s'entraîne sur les deux dernières années de 100 grandes sociétés.",
-        "Elle mesure 7 signaux : tendance sur 1, 3 et 6 mois, volatilité, RSI, écart aux moyennes 50 et 200 jours. "
+        "Elle mesure 7 signaux : trend sur 1, 3 et 6 mois, volatilité, RSI, écart aux SMA 50 et 200. "
         "Elle apprend lesquels ont annoncé les titres qui ont le mieux fait le mois suivant.",
         "Son modèle est une régression ridge (prudence {ridge:.1f}). Elle écrit dans son journal les signaux qu'elle a retenus.",
         "Elle achète à parts égales les {holdings:.0f} titres que son modèle préfère aujourd'hui.",
