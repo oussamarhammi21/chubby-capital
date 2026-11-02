@@ -196,6 +196,9 @@ def _weekly_review(arena: Arena, force: bool = False):
         print(f"Coach Claude : {n} Chubby(s) IA coaché(s).")
         if n == 0:
             logging.warning("Coaching IA : aucun Chubby coaché (voir les erreurs plus haut). Nouvel essai à la prochaine séance.")
+    except ModuleNotFoundError:
+        logging.warning("Coaching IA impossible : le module anthropic n'est pas installé. Lance"
+                        " « python -m pip install anthropic », puis « python -m chubby.cli coach-ia ».")
     except Exception as e:  # pas de clé, pas de réseau : l'arène continue sans coaching
         logging.warning("Coaching IA impossible cette semaine : %s. Nouvel essai à la prochaine séance.", e)
 
