@@ -173,6 +173,17 @@ class SessionTrader:
             log.exception("Direct impossible après l'analyse")
         return self._status(store, now, None, time)
 
+    def _review_if_due(self, arena: Arena):
+        """Une séance du vendredi rattrapée ici (PC éteint vendredi soir) déclenche aussi la revue du coach Claude."""
+        from .ai_coach import review_if_due
+        try:
+            n = review_if_due(arena.store, arena.data, self.bots,
+                              starting_cash=self.cfg.starting_cash)
+            if n is not None:
+                log.info("Coach Claude (semaine rattrapée) : %s Chubby(s) IA coaché(s).", n)
+        except Exception as e:  # pas de clé, pas de réseau : on trade quand même
+            log.warning("Coaching IA impossible pour l'instant : %s", e)
+
     def _catch_up(self, arena: Arena, day: pd.Timestamp) -> str | None:
         """Rattrape les séances du soir pas encore jouées (jusqu'à hier). Rend un message si c'est impossible."""
         closed = [d for d in self.daily.trading_days(end=day - pd.Timedelta(days=1))]
@@ -186,6 +197,7 @@ class SessionTrader:
         if last < closed[-1]:
             n = arena.run(last + pd.Timedelta(days=1), closed[-1])
             log.info("%s séance(s) du soir rattrapée(s) avant de trader.", n)
+            self._review_if_due(arena)
         return None if arena.last_day is not None and arena.last_day >= closed[-1] else \
             "L'arène doit d'abord jouer la séance d'hier."
 

@@ -195,7 +195,7 @@ Pour que les Chubbies **tradent pendant la bourse**, le tableau de bord doit tou
 séance du soir à 16 h 20 tant qu'il reste ouvert. Ouvre-le le matin, laisse la fenêtre ouverte, c'est tout.
 
 Sans lui, il reste **la séance du soir** (`chubby tick`, après 16 h 20, heure de Toronto) : les Chubbies y comptent leur
-argent et décident pour le lendemain, et leurs ordres partiront à l'ouverture suivante. Le vendredi, Claude coache aussi les versions IA.
+argent et décident pour le lendemain, et leurs ordres partiront à l'ouverture suivante. Le vendredi, Claude coache aussi les versions IA. Si la séance du vendredi est rattrapée plus tard (PC éteint, tableau de bord ouvert seulement le lundi), la revue de la semaine part au moment du rattrapage. Si Claude ne répond pas (pas de clé, pas de réseau), elle est retentée à la séance suivante.
 
 Si ton PC était éteint un soir, le `tick` suivant rattrape les séances manquées, chacune avec ses vrais cours de clôture.
 

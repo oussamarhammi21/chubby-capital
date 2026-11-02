@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import logging
 
+import pandas as pd
+
 from .bots import Bot
 from .scoring import metrics
 from .store import Store
@@ -179,3 +181,53 @@ def weekly_review(store: Store, data, bots: list[Bot], day, client=None, startin
         done += 1
     store.commit()
     return done
+
+
+REVIEWED_KEY = "ai_review_day"
+
+
+def due_week(store: Store) -> str | None:
+    """La dernière séance d'une semaine finie que le coach n'a pas encore revue, ou None.
+
+    Une semaine est finie dès que sa séance du vendredi est jouée, ou dès qu'une séance de la semaine suivante l'est
+    (PC éteint le vendredi, vendredi férié, séance rattrapée le lundi par le tableau de bord…). Avant, la revue ne
+    partait que si la dernière séance jouée était un vendredi : une séance du vendredi rattrapée plus tard était
+    jouée, mais la semaine n'était jamais revue.
+    """
+    last = store.get_meta("last_day")
+    if last is None:
+        return None
+    last = pd.Timestamp(last)
+    if last.weekday() == 4:
+        target = str(last.date())
+    else:
+        monday = last - pd.Timedelta(days=last.weekday())
+        row = store.db.execute("SELECT MAX(day) AS d FROM snapshots WHERE day < ?", (str(monday.date()),)).fetchone()
+        if row is None or row["d"] is None:
+            return None  # l'arène a commencé cette semaine : rien à revoir
+        target = row["d"]
+    reviewed = store.get_meta(REVIEWED_KEY) or store.db.execute(
+        "SELECT MAX(day) AS d FROM events WHERE kind = 'ai_coach'").fetchone()["d"]
+    if reviewed is not None:
+        t = pd.Timestamp(target)
+        if pd.Timestamp(reviewed) >= t - pd.Timedelta(days=t.weekday()):
+            return None  # déjà revue (le lundi de sa semaine ou après)
+    return target
+
+
+def review_if_due(store: Store, data, bots: list[Bot], client=None, starting_cash: float = 10_000.0) -> int | None:
+    """Lance la revue de la semaine si elle est due. Rend None si rien n'était dû, sinon le nombre de Chubbies coachés.
+
+    La semaine n'est marquée comme revue que si au moins un Chubby a été coaché : sinon (pas de clé, pas de
+    réseau…) on réessaie à la séance suivante.
+    """
+    if not any(b.ai for b in bots):
+        return None
+    target = due_week(store)
+    if target is None:
+        return None
+    n = weekly_review(store, data, bots, target, client=client, starting_cash=starting_cash)
+    if n:
+        store.set_meta(REVIEWED_KEY, target)
+        store.commit()
+    return n

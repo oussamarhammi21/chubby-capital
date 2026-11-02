@@ -140,3 +140,50 @@ def test_rebuild_positions_from_activity_export():
     assert by["ZZZZ.TO"]["value_cad"] == pytest.approx(20)  # pas de cours : dernier prix payé
     assert "BTC" not in str(holdings) and not any("NVDA" in s for s in by)  # crypto et options exclues
     assert skipped == [] and any("crypto" in n for n in notes) and any("ZZZZ" in n for n in notes)
+
+
+def _review_arena(last_day: str, played: list[str], reviewed: str | None = None):
+    store = Store(":memory:")
+    for d in played:
+        store.db.execute("INSERT INTO snapshots (day, bot_id, equity) VALUES (?, 'mochi', 10000)", (d,))
+    store.set_meta("last_day", last_day)
+    if reviewed:
+        store.set_meta(ai_coach.REVIEWED_KEY, reviewed)
+    return store
+
+
+def test_friday_session_is_reviewed_the_same_evening():
+    store = _review_arena("2026-10-30", ["2026-10-29", "2026-10-30"], reviewed="2026-10-23")
+    assert ai_coach.due_week(store) == "2026-10-30"
+
+
+def test_friday_caught_up_on_monday_is_still_reviewed():
+    # PC éteint vendredi soir : la séance du vendredi est rattrapée lundi, la semaine doit quand même être revue.
+    store = _review_arena("2026-11-02", ["2026-10-29", "2026-10-30", "2026-11-02"], reviewed="2026-10-23")
+    assert ai_coach.due_week(store) == "2026-10-30"
+
+
+def test_week_already_reviewed_is_not_reviewed_twice():
+    store = _review_arena("2026-11-02", ["2026-10-30", "2026-11-02"], reviewed="2026-10-30")
+    assert ai_coach.due_week(store) is None
+    store = _review_arena("2026-11-04", ["2026-11-02", "2026-11-03", "2026-11-04"], reviewed="2026-10-30")
+    assert ai_coach.due_week(store) is None  # semaine en cours : on attend son vendredi
+
+
+def test_review_if_due_marks_the_week_only_when_claude_answered(live_arena):
+    store = live_arena.store
+    store.db.execute("DELETE FROM meta WHERE key = ?", (ai_coach.REVIEWED_KEY,))
+    store.db.execute("DELETE FROM events WHERE kind = 'ai_coach'")
+    target = ai_coach.due_week(store)
+    assert target is not None
+
+    class Down(FakeClaude):  # Claude ne répond pas (refus, panne…) : aucun Chubby coaché
+        def _create(self, **kwargs):
+            return SimpleNamespace(stop_reason="refusal", content=[])
+
+    assert ai_coach.review_if_due(store, live_arena.data, live_arena.bots, client=Down({})) == 0
+    assert ai_coach.due_week(store) == target  # toujours due : nouvel essai à la séance suivante
+    client = FakeClaude({"aggressiveness": 1.0, "params": {}, "lesson": "ok", "reasoning": "ok"})
+    assert ai_coach.review_if_due(store, live_arena.data, live_arena.bots, client=client) == len(AI_BOTS)
+    assert store.get_meta(ai_coach.REVIEWED_KEY) == target and ai_coach.due_week(store) is None
+    assert ai_coach.review_if_due(store, live_arena.data, live_arena.bots, client=client) is None

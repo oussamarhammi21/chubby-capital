@@ -82,7 +82,7 @@ def cmd_tick(args, cfg):
     start = arena.last_day + pd.Timedelta(days=1) if arena.last_day is not None else today
     n = arena.run(start, today)
     print(f"{n} nouvelle(s) séance(s) jouée(s).")
-    if n and not args.sans_ia and arena.last_day.weekday() == 4:  # le vendredi, revue de la semaine
+    if not args.sans_ia:  # le vendredi (ou à la première séance qui suit, si vendredi a été rattrapé) : revue de la semaine
         _weekly_review(arena)
     _print_board(arena)
 
@@ -184,13 +184,20 @@ def cmd_direct(args, cfg):
     print()
 
 
-def _weekly_review(arena: Arena):
-    from .ai_coach import weekly_review
+def _weekly_review(arena: Arena, force: bool = False):
+    """Revue de la semaine si elle est due. Avec force=True (chubby coach-ia), revue tout de suite de toute façon."""
+    from .ai_coach import review_if_due, weekly_review
     try:
-        n = weekly_review(arena.store, arena.data, arena.bots, arena.last_day, starting_cash=arena.cfg.starting_cash)
+        n = review_if_due(arena.store, arena.data, arena.bots, starting_cash=arena.cfg.starting_cash)
+        if n is None and force:
+            n = weekly_review(arena.store, arena.data, arena.bots, arena.last_day, starting_cash=arena.cfg.starting_cash)
+        if n is None:
+            return
         print(f"Coach Claude : {n} Chubby(s) IA coaché(s).")
+        if n == 0:
+            logging.warning("Coaching IA : aucun Chubby coaché (voir les erreurs plus haut). Nouvel essai à la prochaine séance.")
     except Exception as e:  # pas de clé, pas de réseau : l'arène continue sans coaching
-        logging.warning("Coaching IA impossible cette semaine : %s", e)
+        logging.warning("Coaching IA impossible cette semaine : %s. Nouvel essai à la prochaine séance.", e)
 
 
 def cmd_coach_ia(args, cfg):
@@ -201,7 +208,7 @@ def cmd_coach_ia(args, cfg):
         raise SystemExit("L'arène n'a encore joué aucune séance.")
     data = _load(pd.Timestamp(last) - pd.Timedelta(days=10), last, cfg, args.cache)
     arena = Arena(store, data, all_bots(ia=True), cfg)
-    _weekly_review(arena)
+    _weekly_review(arena, force=True)
 
 
 def cmd_watch(args, cfg):
