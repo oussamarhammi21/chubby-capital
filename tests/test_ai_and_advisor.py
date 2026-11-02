@@ -187,3 +187,22 @@ def test_review_if_due_marks_the_week_only_when_claude_answered(live_arena):
     assert ai_coach.review_if_due(store, live_arena.data, live_arena.bots, client=client) == len(AI_BOTS)
     assert store.get_meta(ai_coach.REVIEWED_KEY) == target and ai_coach.due_week(store) is None
     assert ai_coach.review_if_due(store, live_arena.data, live_arena.bots, client=client) is None
+
+
+def test_coach_can_go_through_claude_code_without_api_key(tmp_path, live_arena):
+    # Faux « claude » : lit la question sur l'entrée standard et répond comme `claude -p --output-format json`.
+    exe = tmp_path / "claude"
+    answer = {"aggressiveness": 1.2, "params": {}, "lesson": "Je reste patient.", "reasoning": "ok"}
+    exe.write_text("#!/usr/bin/env python3\nimport json, sys\nq = sys.stdin.read()\nassert 'schéma' in q\n"
+                   f"print(json.dumps({{'type': 'result', 'is_error': False, 'result': '```json\\n' + {json.dumps(json.dumps(answer))} + '\\n```'}}))\n",
+                   encoding="utf-8")
+    exe.chmod(0o755)
+    mochi_ia = next(b for b in live_arena.bots if b.id == "mochi-ia")
+    assert ai_coach.ask_claude(ai_coach.ClaudeCodeClient(str(exe)), mochi_ia, "{}") == answer
+
+
+def test_no_key_and_no_claude_code_says_what_is_missing(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    with pytest.raises(RuntimeError, match="Claude Code"):
+        ai_coach.make_client()

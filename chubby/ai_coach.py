@@ -107,8 +107,61 @@ def market_snapshot(data, day) -> dict:
     return out
 
 
+class ClaudeCodeClient:
+    """Passe par Claude Code (la commande `claude`, connectée à ton forfait Claude) au lieu de l'API.
+
+    Même interface que le client anthropic pour ask_claude : pas besoin de clé API ni de crédit.
+    """
+
+    def __init__(self, exe: str, timeout: int = 600):
+        import types
+        self.exe, self.timeout = exe, timeout
+        self.beta = types.SimpleNamespace(messages=types.SimpleNamespace(create=self._create))
+
+    def _create(self, system, messages, output_config=None, **_):
+        import subprocess
+        import types
+        schema = (output_config or {}).get("format", {}).get("schema")
+        prompt = (f"{system}\n\n{messages[-1]['content']}\n\nRéponds uniquement par un objet JSON"
+                  + (f" qui respecte ce schéma : {json.dumps(schema, ensure_ascii=False)}" if schema else "")
+                  + ", sans texte autour.")
+        out = subprocess.run([self.exe, "-p", "--output-format", "json"], input=prompt, capture_output=True,
+                             text=True, encoding="utf-8", timeout=self.timeout)
+        if out.returncode != 0:
+            raise RuntimeError(f"Claude Code a échoué : {(out.stderr or out.stdout).strip()[:300]}")
+        result = json.loads(out.stdout)
+        if result.get("is_error"):
+            raise RuntimeError(f"Claude Code a échoué : {str(result.get('result'))[:300]}")
+        text = _strip_fences(str(result.get("result", "")))
+        return types.SimpleNamespace(stop_reason="end_turn", content=[types.SimpleNamespace(type="text", text=text)])
+
+
+def _strip_fences(text: str) -> str:
+    text = text.strip()
+    start, end = text.find("{"), text.rfind("}")
+    return text[start:end + 1] if start != -1 and end > start else text
+
+
+def make_client():
+    """Le client du coach : l'API si une clé ANTHROPIC_API_KEY est définie, sinon Claude Code s'il est installé."""
+    import os
+    import shutil
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        import anthropic
+        return anthropic.Anthropic()
+    exe = shutil.which("claude")
+    if exe:
+        log.info("Pas de clé API : le coach passe par Claude Code (%s).", exe)
+        return ClaudeCodeClient(exe)
+    raise RuntimeError("ni clé ANTHROPIC_API_KEY dans .env, ni Claude Code installé (commande « claude »)")
+
+
 def ask_claude(client, bot: Bot, context: str) -> dict | None:
-    import anthropic
+    try:
+        import anthropic
+        api_errors = (anthropic.APIStatusError, anthropic.APIConnectionError)
+    except ModuleNotFoundError:
+        api_errors = ()
 
     try:
         response = client.beta.messages.create(
@@ -120,11 +173,11 @@ def ask_claude(client, bot: Bot, context: str) -> dict | None:
             output_config={"effort": "medium", "format": {"type": "json_schema", "schema": _schema(bot)}},
             messages=[{"role": "user", "content": f"Voici la semaine de {bot.name}. Propose ses réglages.\n\n{context}"}],
         )
-    except anthropic.APIStatusError as e:
-        log.error("Claude a refusé la requête pour %s (%s) : %s", bot.name, e.status_code, e.message)
+    except api_errors as e:
+        log.error("L'API Claude n'a pas répondu pour %s : %s", bot.name, e)
         return None
-    except anthropic.APIConnectionError:
-        log.error("Impossible de joindre l'API Claude pour %s.", bot.name)
+    except Exception as e:  # Claude Code : pas connecté, délai dépassé…
+        log.error("Claude n'a pas pu coacher %s : %s", bot.name, e)
         return None
     if response.stop_reason == "refusal":
         log.warning("Claude a décliné le coaching de %s.", bot.name)
@@ -167,8 +220,7 @@ def weekly_review(store: Store, data, bots: list[Bot], day, client=None, startin
     if not targets:
         return 0
     if client is None:
-        import anthropic
-        client = anthropic.Anthropic()
+        client = make_client()
     market = market_snapshot(data, day)
     done = 0
     for bot in targets:

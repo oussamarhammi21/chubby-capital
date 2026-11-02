@@ -38,6 +38,7 @@ Pour les backtests, il n'existe pas d'historique gratuit des prix d'options. Ell
 En direct, chaque Chubby a une **version IA** (avec une petite antenne) : même personnalité, mêmes règles, mais **chaque vendredi, Claude relit sa semaine** (performance, trades, journal, tes conseils, état du marché, résultats de son jumeau sans coach) et **ajuste ses réglages** dans leurs bornes. Il écrit sa leçon dans le journal. L'original sert de groupe témoin : le classement montre si le coaching par IA fait vraiment mieux.
 
 - Il faut une clé API Anthropic : copie `.env.example` en `.env` et mets ta clé dedans (ou définis `ANTHROPIC_API_KEY`).
+- Sans clé API, le coach passe par **Claude Code** s'il est installé sur le PC et connecté à ton forfait Claude (commande `claude`) : pas de clé ni de crédit à acheter.
 - Coût : environ 7 requêtes par semaine, soit quelques dollars par mois au plus.
 - Sans clé, l'arène tourne normalement et les versions IA gardent leurs réglages.
 - Les versions IA ne jouent **pas** dans les backtests : Claude connaît déjà l'histoire des marchés, ce serait tricher.
