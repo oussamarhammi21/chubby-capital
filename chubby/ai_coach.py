@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 import logging
 
+import pandas as pd
+
 from .bots import Bot
 from .scoring import metrics
 from .store import Store
@@ -105,8 +107,61 @@ def market_snapshot(data, day) -> dict:
     return out
 
 
+class ClaudeCodeClient:
+    """Passe par Claude Code (la commande `claude`, connectée à ton forfait Claude) au lieu de l'API.
+
+    Même interface que le client anthropic pour ask_claude : pas besoin de clé API ni de crédit.
+    """
+
+    def __init__(self, exe: str, timeout: int = 600):
+        import types
+        self.exe, self.timeout = exe, timeout
+        self.beta = types.SimpleNamespace(messages=types.SimpleNamespace(create=self._create))
+
+    def _create(self, system, messages, output_config=None, **_):
+        import subprocess
+        import types
+        schema = (output_config or {}).get("format", {}).get("schema")
+        prompt = (f"{system}\n\n{messages[-1]['content']}\n\nRéponds uniquement par un objet JSON"
+                  + (f" qui respecte ce schéma : {json.dumps(schema, ensure_ascii=False)}" if schema else "")
+                  + ", sans texte autour.")
+        out = subprocess.run([self.exe, "-p", "--output-format", "json"], input=prompt, capture_output=True,
+                             text=True, encoding="utf-8", timeout=self.timeout)
+        if out.returncode != 0:
+            raise RuntimeError(f"Claude Code a échoué : {(out.stderr or out.stdout).strip()[:300]}")
+        result = json.loads(out.stdout)
+        if result.get("is_error"):
+            raise RuntimeError(f"Claude Code a échoué : {str(result.get('result'))[:300]}")
+        text = _strip_fences(str(result.get("result", "")))
+        return types.SimpleNamespace(stop_reason="end_turn", content=[types.SimpleNamespace(type="text", text=text)])
+
+
+def _strip_fences(text: str) -> str:
+    text = text.strip()
+    start, end = text.find("{"), text.rfind("}")
+    return text[start:end + 1] if start != -1 and end > start else text
+
+
+def make_client():
+    """Le client du coach : l'API si une clé ANTHROPIC_API_KEY est définie, sinon Claude Code s'il est installé."""
+    import os
+    import shutil
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        import anthropic
+        return anthropic.Anthropic()
+    exe = shutil.which("claude")
+    if exe:
+        log.info("Pas de clé API : le coach passe par Claude Code (%s).", exe)
+        return ClaudeCodeClient(exe)
+    raise RuntimeError("ni clé ANTHROPIC_API_KEY dans .env, ni Claude Code installé (commande « claude »)")
+
+
 def ask_claude(client, bot: Bot, context: str) -> dict | None:
-    import anthropic
+    try:
+        import anthropic
+        api_errors = (anthropic.APIStatusError, anthropic.APIConnectionError)
+    except ModuleNotFoundError:
+        api_errors = ()
 
     try:
         response = client.beta.messages.create(
@@ -118,11 +173,11 @@ def ask_claude(client, bot: Bot, context: str) -> dict | None:
             output_config={"effort": "medium", "format": {"type": "json_schema", "schema": _schema(bot)}},
             messages=[{"role": "user", "content": f"Voici la semaine de {bot.name}. Propose ses réglages.\n\n{context}"}],
         )
-    except anthropic.APIStatusError as e:
-        log.error("Claude a refusé la requête pour %s (%s) : %s", bot.name, e.status_code, e.message)
+    except api_errors as e:
+        log.error("L'API Claude n'a pas répondu pour %s : %s", bot.name, e)
         return None
-    except anthropic.APIConnectionError:
-        log.error("Impossible de joindre l'API Claude pour %s.", bot.name)
+    except Exception as e:  # Claude Code : pas connecté, délai dépassé…
+        log.error("Claude n'a pas pu coacher %s : %s", bot.name, e)
         return None
     if response.stop_reason == "refusal":
         log.warning("Claude a décliné le coaching de %s.", bot.name)
@@ -165,8 +220,7 @@ def weekly_review(store: Store, data, bots: list[Bot], day, client=None, startin
     if not targets:
         return 0
     if client is None:
-        import anthropic
-        client = anthropic.Anthropic()
+        client = make_client()
     market = market_snapshot(data, day)
     done = 0
     for bot in targets:
@@ -179,3 +233,53 @@ def weekly_review(store: Store, data, bots: list[Bot], day, client=None, startin
         done += 1
     store.commit()
     return done
+
+
+REVIEWED_KEY = "ai_review_day"
+
+
+def due_week(store: Store) -> str | None:
+    """La dernière séance d'une semaine finie que le coach n'a pas encore revue, ou None.
+
+    Une semaine est finie dès que sa séance du vendredi est jouée, ou dès qu'une séance de la semaine suivante l'est
+    (PC éteint le vendredi, vendredi férié, séance rattrapée le lundi par le tableau de bord…). Avant, la revue ne
+    partait que si la dernière séance jouée était un vendredi : une séance du vendredi rattrapée plus tard était
+    jouée, mais la semaine n'était jamais revue.
+    """
+    last = store.get_meta("last_day")
+    if last is None:
+        return None
+    last = pd.Timestamp(last)
+    if last.weekday() == 4:
+        target = str(last.date())
+    else:
+        monday = last - pd.Timedelta(days=last.weekday())
+        row = store.db.execute("SELECT MAX(day) AS d FROM snapshots WHERE day < ?", (str(monday.date()),)).fetchone()
+        if row is None or row["d"] is None:
+            return None  # l'arène a commencé cette semaine : rien à revoir
+        target = row["d"]
+    reviewed = store.get_meta(REVIEWED_KEY) or store.db.execute(
+        "SELECT MAX(day) AS d FROM events WHERE kind = 'ai_coach'").fetchone()["d"]
+    if reviewed is not None:
+        t = pd.Timestamp(target)
+        if pd.Timestamp(reviewed) >= t - pd.Timedelta(days=t.weekday()):
+            return None  # déjà revue (le lundi de sa semaine ou après)
+    return target
+
+
+def review_if_due(store: Store, data, bots: list[Bot], client=None, starting_cash: float = 10_000.0) -> int | None:
+    """Lance la revue de la semaine si elle est due. Rend None si rien n'était dû, sinon le nombre de Chubbies coachés.
+
+    La semaine n'est marquée comme revue que si au moins un Chubby a été coaché : sinon (pas de clé, pas de
+    réseau…) on réessaie à la séance suivante.
+    """
+    if not any(b.ai for b in bots):
+        return None
+    target = due_week(store)
+    if target is None:
+        return None
+    n = weekly_review(store, data, bots, target, client=client, starting_cash=starting_cash)
+    if n:
+        store.set_meta(REVIEWED_KEY, target)
+        store.commit()
+    return n

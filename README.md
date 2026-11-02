@@ -38,6 +38,7 @@ Pour les backtests, il n'existe pas d'historique gratuit des prix d'options. Ell
 En direct, chaque Chubby a une **version IA** (avec une petite antenne) : même personnalité, mêmes règles, mais **chaque vendredi, Claude relit sa semaine** (performance, trades, journal, tes conseils, état du marché, résultats de son jumeau sans coach) et **ajuste ses réglages** dans leurs bornes. Il écrit sa leçon dans le journal. L'original sert de groupe témoin : le classement montre si le coaching par IA fait vraiment mieux.
 
 - Il faut une clé API Anthropic : copie `.env.example` en `.env` et mets ta clé dedans (ou définis `ANTHROPIC_API_KEY`).
+- Sans clé API, le coach passe par **Claude Code** s'il est installé sur le PC et connecté à ton forfait Claude (commande `claude`) : pas de clé ni de crédit à acheter.
 - Coût : environ 7 requêtes par semaine, soit quelques dollars par mois au plus.
 - Sans clé, l'arène tourne normalement et les versions IA gardent leurs réglages.
 - Les versions IA ne jouent **pas** dans les backtests : Claude connaît déjà l'histoire des marchés, ce serait tricher.
@@ -195,7 +196,7 @@ Pour que les Chubbies **tradent pendant la bourse**, le tableau de bord doit tou
 séance du soir à 16 h 20 tant qu'il reste ouvert. Ouvre-le le matin, laisse la fenêtre ouverte, c'est tout.
 
 Sans lui, il reste **la séance du soir** (`chubby tick`, après 16 h 20, heure de Toronto) : les Chubbies y comptent leur
-argent et décident pour le lendemain, et leurs ordres partiront à l'ouverture suivante. Le vendredi, Claude coache aussi les versions IA.
+argent et décident pour le lendemain, et leurs ordres partiront à l'ouverture suivante. Le vendredi, Claude coache aussi les versions IA. Si la séance du vendredi est rattrapée plus tard (PC éteint, tableau de bord ouvert seulement le lundi), la revue de la semaine part au moment du rattrapage. Si Claude ne répond pas (pas de clé, pas de réseau), elle est retentée à la séance suivante.
 
 Si ton PC était éteint un soir, le `tick` suivant rattrape les séances manquées, chacune avec ses vrais cours de clôture.
 

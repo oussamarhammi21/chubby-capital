@@ -12,6 +12,7 @@ dependencies = [
     "pandas>=2.0",
     "numpy>=1.26",
     "yfinance>=0.2.40",
+    "anthropic",  # coach Claude du vendredi : sans lui, les Chubbies IA ne sont jamais coachés
 ]
 
 [project.optional-dependencies]
